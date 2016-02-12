@@ -39,8 +39,8 @@ or `merge` resolve any conflicts and push the changes to the Gitlab repo.
 ## Updating Feature Branches with Changes to `develop`
 #### (REQUIRED before pushing new features into the master branch)
 
-If you are ready to push a new feature to the master branch or simply update 
-your feature branch, please use this git workflow guideline which uses `rebase`.
+If you are ready to push a new feature to the `develop` branch or want to simply update 
+your feature branch, use this git workflow guideline which uses `rebase`.
 To understand the difference between a merging-based workflow vs. rebasing-based
 workflow, read [this] 
 (https://www.atlassian.com/git/tutorials/merging-vs-rebasing/conceptual-overview)
@@ -53,23 +53,25 @@ You may run into conflicts. If so, please [resolve]
 (https://help.github.com/articles/resolving-a-merge-conflict-from-the-command-line/)
 them. When you are done, you can push your changes to the Gitlab repository. 
 Note that you might have to `git push --force` (make sure you know what you are
-doing). Ask around if you are having troubles.
+doing). Please know what you're doing before a `rebase`. If you are having 
+difficulties, ask around for help.
 
-## Merging Your Feature Branch to the Master Branch
+## Merging Your Feature Branch to the `develop` Branch
 
-When you have rebased your branch with updates to `master` and tested to see if
-your features work with the updates, you are ready to push your changes to
-`master`. First, it's best to always run your code by another member of the 
-team before pushing your new features. Always do this locally first.
+When you have rebased your branch with updates to `develop` and tested to see if
+your features work with the updates, you are ready to merge your feature branch
+into `develop`. This can simply be done using Gitlab's "Merge Request" feature
+on the web. Add a new merge request and assign it to another team member for 
+review. If you want to merge updates to `develop` manually, try this:
 
-`git checkout master`
+`git checkout develop`
 
-`git pull #update your local clone of origin/master`
+`git pull #update your local clone of origin/develop`
 
 `git merge your_working_branch`
 
 Resolve any conflicts. If everything looks good, go ahead and `git push` to 
-update `origin/master`.
+update `origin/develop`.
 
 ## (END OF USC ANRG)
                           ZZZZZZ
