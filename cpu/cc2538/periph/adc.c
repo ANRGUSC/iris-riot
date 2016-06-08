@@ -25,6 +25,8 @@ int adc_init(adc_t line)
     adcaccess = SOC_ADC;
     adcaccess->cc2538_adc_adccon1.ADCCON1 |= adcaccess->cc2538_adc_adccon1.ADCCON1bits.STSEL = STSEL;
 
+    IOC_PXX_OVER[GPIO_PXX_TO_NUM(PORT_A, line)] = IOC_OVERRIDE_ANA;
+
     return 0;
 }
 
