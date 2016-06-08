@@ -162,6 +162,16 @@ typedef enum {
     ADC_RES_16BIT = 0xd00,          /**< not supported by hardware */
 } adc_res_t;
 
+/**
+ * @brief Masks for getting data
+ * @{
+ */
+#define SOCADC_7_BIT_RSHIFT        9 // Mask for getting data( 7 bits ENOB)
+#define SOCADC_9_BIT_RSHIFT        7 // Mask for getting data( 9 bits ENOB)
+#define SOCADC_10_BIT_RSHIFT       6 // Mask for getting data(10 bits ENOB)
+#define SOCADC_12_BIT_RSHIFT       4 // Mask for getting data(12 bits ENOB)
+/** @} */
+
 #ifdef __cplusplus
 }
 #endif
