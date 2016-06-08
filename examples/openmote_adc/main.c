@@ -10,9 +10,11 @@ int main(void)
     uint32_t last = xtimer_now();
     int16_t sample = 0;
 
+    adc_init(AD4_PIN);
+
     while(1)
     {
-        sample = adc_sample(ADC_LINE(2), RES);
+        sample = adc_sample(AD4_PIN, RES);
 
         if (sample < 0) 
         {
