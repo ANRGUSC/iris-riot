@@ -152,6 +152,7 @@ do_flash() {
                     -device '${JLINK_DEVICE}' \
                     -speed '${JLINK_SPEED}' \
                     -if '${JLINK_IF}' \
+                    -jtagconf -1,-1 \
                     -commandfile '${BINDIR}/burn.seg'"
 }
 
