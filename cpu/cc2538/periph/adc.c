@@ -43,37 +43,31 @@ int adc_sample(adc_t line, adc_res_t res)
     if (line >= ADC_NUMOF) {
         return -1;
     }
-
+    
     cc2538_soc_adc_t *adcaccess = SOC_ADC;
-    uint8_t refvoltage = SOC_ADC_ADCCON_REF_AVDD5; /* TODO: is hardcoded ref voltage OK? */
     int16_t result;
 
+    /* Note - This has been hard coded .
+     *  Can choose from any of the choices below:
+     *  SOC_ADC_ADCCON_REF_INT or
+     *  SOC_ADC_ADCCON_REF_EXT_SINGLE or
+     *  SOC_ADC_ADCCON_REF_AVDD5
+     */
+    uint8_t refvoltage = SOC_ADC_ADCCON_REF_AVDD5;
+
     /* Start a single extra conversion with the given parameters. */
-    adcaccess->ADCCON3 = ((adcaccess->ADCCON3) & ~(SOC_ADC_ADCCON3_EREF | SOC_ADC_ADCCON3_EDIV | SOC_ADC_ADCCON3_ECH)) |
-                         refvoltage | res | line;
+    adcaccess->ADCCON3 = ((adcaccess->ADCCON3) &
+        ~(SOC_ADC_ADCCON3_EREF | SOC_ADC_ADCCON3_EDIV | SOC_ADC_ADCCON3_ECH)) |
+            refvoltage | res | line;
 
     /* Poll until end of conversion */
-    while ((adcaccess->cc2538_adc_adccon1.ADCCON1 & adcaccess->cc2538_adc_adccon1.ADCCON1bits.EOC) == 0);
+    while ((adcaccess->cc2538_adc_adccon1.ADCCON1 &
+        adcaccess->cc2538_adc_adccon1.ADCCON1bits.EOC) == 0);
 
+    /* Read conversion result, reading SOC_ADC_ADCH last to clear
+        SOC_ADC_ADCCON1.EOC */
     result  = (((adcaccess->ADCL) & 0xfc));
     result |= (((adcaccess->ADCH) & 0xff) << 8);
-    switch (res)
-    {
-        case ADC_RES_7BIT:
-            result = result >> SOCADC_7_BIT_RSHIFT;
-            break;
-        case ADC_RES_9BIT:
-            result = result >> SOCADC_9_BIT_RSHIFT;
-            break;
-        case ADC_RES_10BIT:
-            result = result >> SOCADC_10_BIT_RSHIFT;
-            break;
-        case ADC_RES_12BIT:
-            result = result >> SOCADC_12_BIT_RSHIFT;
-            break;
-        default:
-            return -1;
-    }
 
     /* Return conversion result */
     return result;
