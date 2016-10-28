@@ -235,6 +235,18 @@ typedef struct netdev_driver {
                void *value, size_t value_len);
 } netdev_driver_t;
 
+#define RANGE_FLAG_BYTE0 0x72 /* == 'r' */
+#define RANGE_FLAG_BYTE1 0x67 /* == 'g' */
+
+void range_rx_init(char tx_node_id, int thresh, 
+    unsigned int line, unsigned int res, unsigned int max_adc_samps);
+
+unsigned long range_rx_stop(void);
+
+void range_tx_init(unsigned int ranger_gpio_pin);
+
+void range_tx_off(void);
+
 #ifdef __cplusplus
 }
 #endif

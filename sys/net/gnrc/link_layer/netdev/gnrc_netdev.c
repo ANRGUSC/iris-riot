@@ -40,6 +40,23 @@
 #define NETDEV_NETAPI_MSG_QUEUE_SIZE 8
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
+static void _sound_ranging(void);
+
+/* sound ranging */
+#include "periph/adc.h"
+#include "xtimer.h"
+#define MAX_SAMPLES 2000 /* for timeout of ranging */
+static int ultrasound_thresh;
+static int sample;
+static uint8_t _tx_node_id      = 0;
+static unsigned int adc_line;
+static int socadc_rshift        = 0;
+static int max_samps            = 0;
+static int ranging_on           = 0;
+static int adc_res              = 0; /* default resolution */
+static uint32_t last            = 0;
+static uint32_t time_diff       = 0;
+static int ref                  = -1;
 
 /**
  * @brief   Function called by the device driver on device events
@@ -67,6 +84,17 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                 {
                     gnrc_pktsnip_t *pkt = gnrc_netdev->recv(gnrc_netdev);
 
+                    /* first, check if it's a ranging packet */
+                    if(ranging_on)
+                    {
+                        if(RANGE_FLAG_BYTE0 == ((uint8_t *) pkt->data)[0] && 
+                            RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1] &&
+                            _tx_node_id == ((uint8_t *) pkt->data)[2])
+                        {
+                            _sound_ranging();
+                        }
+                    }
+
                     if (pkt) {
                         _pass_on_packet(pkt);
                     }
@@ -85,6 +113,34 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                 DEBUG("gnrc_netdev: warning: unhandled event %u.\n", event);
         }
     }
+}
+
+static void _sound_ranging(void)
+{
+    int cnt = 0;
+    last = xtimer_now();
+
+    unsigned old_state = irq_disable();
+
+    while(cnt < max_samps)
+    {
+        sample = adc_sample(adc_line, adc_res) 
+            >> SOCADC_7_BIT_RSHIFT;
+
+        /* wait for 200us before next poll for input capacitor to settle */
+        xtimer_spin(200);
+
+        if (sample > ultrasound_thresh) {
+            time_diff = xtimer_now() - last; 
+            DEBUG("Ranging Successful - sample: %d, time_diff: %lu\n", sample, time_diff);
+            range_rx_stop();
+            break;
+        }
+
+        ++cnt;
+    }
+
+    irq_restore(old_state);
 }
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
@@ -198,4 +254,52 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
     }
 
     return res;
+}
+
+/* Successful ranging will immediately turn off ranging mode. */
+void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
+                   unsigned int res, unsigned int max_adc_samps)
+{
+    ranging_on = 1;
+    _tx_node_id = tx_node_id;
+    ultrasound_thresh = thresh;
+    adc_line = line;
+    adc_init(adc_line);
+    max_samps = max_adc_samps;
+    adc_res = res; 
+    ref = 2;
+    time_diff = 0;
+
+    switch(adc_res)
+    {
+        case ADC_RES_7BIT:
+            socadc_rshift = SOCADC_7_BIT_RSHIFT;
+            break;
+        case ADC_RES_9BIT:
+            socadc_rshift = SOCADC_9_BIT_RSHIFT;
+            break;
+        case ADC_RES_10BIT:
+            socadc_rshift = SOCADC_10_BIT_RSHIFT;
+            break;
+        case ADC_RES_12BIT:
+            socadc_rshift = SOCADC_12_BIT_RSHIFT;
+            break;
+        default:
+            DEBUG("range_rx_init failed!");
+            return;
+    }
+
+    DEBUG("ranging initialized!\n");
+}
+
+unsigned long range_rx_stop(void)
+{
+    ranging_on = 0;
+    ref--;
+
+    if (ref == 0) {
+        return time_diff;
+    } else {
+        return 0;
+    }
 }
