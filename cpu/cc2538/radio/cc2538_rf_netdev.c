@@ -28,6 +28,7 @@
 #include "cc2538_rf_netdev.h"
 #include "cc2538_rf_internal.h"
 
+
 #define ENABLE_DEBUG        (0)
 #include "debug.h"
 
@@ -51,6 +52,11 @@ const netdev2_driver_t cc2538_rf_driver = {
 
 /* Reference pointer for the IRQ handler */
 static netdev2_t *_dev;
+
+/* Ranging */
+#include "xtimer.h"
+static int ranging_on = 0; 
+static gpio_t ranging_dev_gpio_pin;
 
 void _irq_handler(void)
 {
@@ -283,7 +289,31 @@ static int _send(netdev2_t *netdev, const struct iovec *vector, unsigned count)
     /* Set first byte of TX FIFO to the packet length */
     rfcore_poke_tx_fifo(0, pkt_len + CC2538_AUTOCRC_LEN);
 
-    RFCORE_SFR_RFST = ISTXON;
+
+    if(ranging_on)
+    {
+        unsigned old_state = irq_disable();
+
+        /* this register set will immediately start TX */
+        RFCORE_SFR_RFST = ISTXON;
+
+        /* sleep to give receiver a little time to setup */
+        xtimer_spin(5000);
+
+        /* set pin to 1 for around 50uS */
+        gpio_set(ranging_dev_gpio_pin);
+
+        /* ultrasound ping should execute 20.5msec after gpio pin goes up */
+        xtimer_spin(100);
+
+        gpio_clear(ranging_dev_gpio_pin);
+        irq_restore(old_state);
+        ranging_on = 0;
+        DEBUG("RF and ultrasound ping sent!\n");
+    } else {
+        RFCORE_SFR_RFST = ISTXON;
+    }
+    
     mutex_unlock(&dev->mutex);
 
     return pkt_len;
@@ -388,4 +418,15 @@ static int _init(netdev2_t *netdev)
     mutex_unlock(&dev->mutex);
 
     return 0;
+}
+
+void range_tx_init(unsigned int ranger_gpio_pin)
+{
+    ranging_on = 1;
+    ranging_dev_gpio_pin = ranger_gpio_pin;
+}
+
+void range_tx_off(void)
+{
+    ranging_on = 0;
 }
