@@ -92,8 +92,9 @@
  * @name UART configuration
  * @{
  */
-#define UART_NUMOF          (1U)
+#define UART_NUMOF          2
 #define UART_0_EN           1
+#define UART_1_EN           1
 #define UART_IRQ_PRIO       1
 
 /* UART 0 device configuration */
@@ -103,6 +104,13 @@
 /* UART 0 pin configuration */
 #define UART_0_TX_PIN       GPIO_PA1
 #define UART_0_RX_PIN       GPIO_PA0
+/* UART 1 device configuration */
+#define UART_1_DEV          UART1
+#define UART_1_IRQ          UART1_IRQn
+#define UART_1_ISR          isr_uart1
+/* UART 1 pin configuration */
+#define UART_1_TX_PIN       GPIO_PA2
+#define UART_1_RX_PIN       GPIO_PA3
 /** @} */
 
 /**
