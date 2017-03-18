@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Jason A. Tran
+ * Pradipta Ghosh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,60 +36,16 @@
  */
 
 /**
- * @ingroup     examples
- * @{
- *
- * @file
- * @brief       Full duplex hdlc implementation.
- *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
+ * @file        dispatcher.h
+ * @brief       dispatcher thread
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * 
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
-
-#include "yahdlc.h"
-#include "mutex.h"
-#include "thread.h"
-#include "board.h"
-#include "periph/uart.h"
-
-#define RTRY_TIMEO_USEC         1000000
-#define RETRANSMIT_TIMEO_USEC   1000000
-#define HDLC_MAX_PKT_SIZE       128
-
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-    mutex_t mtx;
-} hdlc_buf_t;
-
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
-
-/* HDLC thread messages */
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY
-};
-
-int hdlc_pkt_release(hdlc_buf_t *buf);
-int hdlc_send_pkt(hdlc_pkt_t *pkt);
-kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
-
-#endif /* MUTEX_H_ */
+typedef struct dispatcher_entry {
+    struct dispatcher_entry *next;
+    uint16_t port;
+    kernel_pid_t pid;
+} dispatcher_entry_t;
