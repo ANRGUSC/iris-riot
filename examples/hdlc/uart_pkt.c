@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Jason A. Tran
+ * Pradipta Ghosh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,60 +36,58 @@
  */
 
 /**
- * @ingroup     examples
- * @{
- *
- * @file
- * @brief       Full duplex hdlc implementation.
- *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
+ * @file        uart_pkt.c
+ * @brief       Helper library for creating packets to be over UART via hdlc.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * 
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
+#include <string.h>
+#include <inttypes.h>
+#include "uart_pkt.h"
 
-#include "yahdlc.h"
-#include "mutex.h"
-#include "thread.h"
-#include "board.h"
-#include "periph/uart.h"
+#define ENABLE_DEBUG (0)
+#include "debug.h"
 
-#define RTRY_TIMEO_USEC         1000000
-#define RETRANSMIT_TIMEO_USEC   1000000
-#define HDLC_MAX_PKT_SIZE       128
+uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, uart_pkt_hdr_t *hdr)
+{
+    if (buf_len < UART_PKT_HDR_LEN) {
+        DEBUG("Buffer size too small\n");
+        return NULL;
+    }
 
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-    mutex_t mtx;
-} hdlc_buf_t;
+    memcpy(buf, hdr, sizeof(uart_pkt_hdr_t));
+    return buf[UART_PKT_DATA_FIELD];
+}
 
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
+/**
+ * Copy data from an array into a uart packet buffer.
+ * @param  buf      destination buffer
+ * @param  buf_len  destination buffer size
+ * @param  data     buffer containing data
+ * @param  data_len size of buffer containing data
+ * @return          total size of packet on success or 0 on failure.
+ */
+size_t uart_pkt_insert_data(uint8_t *buf, size_t buf_len, uint8_t *data, size_t data_len)
+{
+    if (data_len + 5 > buf_len) {
+        DEBUG("Not enough space in destination buffer\n");
+        return 0;
+    }
 
-/* HDLC thread messages */
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY
-};
+    memcpy(buf, data, data_len);
+    return (UART_PKT_HDR_LEN + data_len);
+}
 
-int hdlc_pkt_release(hdlc_buf_t *buf);
-int hdlc_send_pkt(hdlc_pkt_t *pkt);
-kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, uint8_t *src, size_t src_len)
+{
+    if(src_len < 5) {
+        DEBUG("Invalid source buffer size.\n");
+        return -1;
+    }
 
-#endif /* MUTEX_H_ */
+    memcpy(hdr, src, UART_PKT_HDR_LEN);
+    return 0;
+}
