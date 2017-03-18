@@ -268,6 +268,39 @@ int hdlc_pkt_release(hdlc_buf_t *buf)
     return -1;
 }
 
+/* TODO: max number of retries */
+/**
+ * @brief   Send @p pkt over serial as hdlc pkt. This function blocks. 
+ * @param[in] pkt Packet to be sent.
+ */
+int hdlc_send_pkt(hdlc_pkt_t *pkt)
+{
+    msg_t msg, pkt_msg;
+    pkt_msg.type = HDLC_MSG_SND;
+    pkt_msg.content.ptr = pkt;
+    msg_send(&pkt_msg, hdlc_thread_pid);
+
+    while(1)
+    {
+        msg_receive(&msg);
+
+        switch (msg.type)
+        {
+            case HDLC_RESP_SND_SUCC:
+                DEBUG("dispatcher: sent frame_no %d!\n", frame_no);
+                return 0;
+            case HDLC_RESP_RETRY_W_TIMEO:
+                xtimer_usleep(msg.content.value);
+                msg_send(&pkt_msg, hdlc_thread_pid);
+                break;
+            default:
+                /* error */
+                LED3_ON;
+                return 1;
+        }
+    }
+}
+
 kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev)
 {
     kernel_pid_t res;
