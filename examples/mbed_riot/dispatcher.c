@@ -60,17 +60,7 @@
 
 /* TODO: merge dispatcher into hdlc? */
 
-static msg_t _dispatcher_msg_queue[16];
-
-static std::map <char, Mail<msg_t, HDLC_MAILBOX_SIZE>*> mailbox_list;
-static int registered_thr_cnt = 0;
-Mutex thread_cnt_mtx;
-static int thread_cnt = 0;
-
-/**
- * @brief Thread IDs for dispatching
- */
-static kernel_pid_t ultrasound_ranging_pid;
+static msg_t _dispatcher_msg_queue[8];
 
 typedef struct dispatcher_entry {
     struct dispatcher_entry *next;
@@ -80,12 +70,12 @@ typedef struct dispatcher_entry {
 
 static dispatcher_entry_t *dispatcher_reg;
 
-void dispatcher_register(kernel_pid_t thread_id, dispatcher_entry_t *entry)
+void dispatcher_register(dispatcher_entry_t *entry)
 {
     LL_PREPEND(dispatcher_reg, entry);
 }
 
-void dispatcher_unregister(kernel_pid_t thread_id, dispatcher_entry_t *entry)
+void dispatcher_unregister(dispatcher_entry_t *entry)
 {
     LL_DELETE(dispatcher_reg, entry);
 }
@@ -102,18 +92,22 @@ static void *_dispatcher(void *arg)
     kernel_pid_t hdlc_thread_pid = (kernel_pid_t)arg;
     kernel_pid_t *sender_pid;
 
-    msg_t *msg, *msg2;
-    char frame_no = 0;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t send_pkt = { .data = send_data, .length = 0};
+    msg_t *msg;
+    uart_pkt_hdr_t hdr;
+    dispatcher_entry_t *entry;
 
     msg.type = HDLC_MSG_REG_DISPATCHER;
     msg.content.value = (uint32_t) 0;
     msg_send(&msg, hdlc_thread_pid);
 
-    /* subscribe this thread to udp packets on DISPATCHER_UDP_PORT */
-    gnrc_netreg_entry_t dispatcher_server = { NULL, (uint32_t) DISPATCHER_UDP_PORT, thread_getpid() };
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &dispatcher_server);
+    /* subscribe this thread to pickup all UDP packets */
+    /* uncomment when the dispatcher is ready to forward packets */
+    // gnrc_netreg_entry_t dispatcher_server = { 
+    //     NULL, 
+    //     (uint32_t) GNRC_NETREG_DEMUX_CTX_ALL, 
+    //     thread_getpid() 
+    // };
+    // gnrc_netreg_register(GNRC_NETTYPE_UDP, &dispatcher_server);
 
     while(1)
     {
@@ -122,23 +116,20 @@ static void *_dispatcher(void *arg)
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
-                hdlc_pkt_t *recv_pkt = msg.content.ptr;   
-                if(_handle_pkt(&send_pkt, recv_pkt->data, recv_pkt->length)) {
-                    msg.type = HDLC_MSG_SND;
-                    msg.content.ptr = &send_pkt;
-                    msg_send(&msg, hdlc_pid);
+                hdlc_pkt_t *recv_pkt = msg.content.ptr;
+                uart_pkt_parse_hdr(&hdr, recv_pkt->data, recv_pkt->length);
+                LL_SEARCH_SCALAR(dispatcher_reg, entry, dst_port, hdr.dst_port);
+                /* fwd msg to thread */
+                if(entry) {
+                    msg_send(&msg, entry->pid);
+                } else {
+                    hdlc_pkt_release(recv_pkt);
                 }
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                /* received radio packet. */
+                /* TODO: forward radio pkt to mbed or relevant thread */
                 gnrc_pktsnip_t *recv_gnrc_pkt = msg.content.ptr;
-                if (_handle_pkt(&send_pkt, recv_gnrc_pkt->data, recv_gnrc_pkt->size)) {
-                    /* need to fwd packet */  
-                    msg.type = HDLC_MSG_SND;
-                    msg.content.ptr = &send_pkt;
-                } else {
-                    gnrc_pktbuf_release(recv_gnrc_pkt);
-                }
+                gnrc_pktbuf_release(recv_gnrc_pkt);
             default:
                 /* error */
                 DEBUG("Dispatcher: invalid packet\n");
@@ -150,59 +141,8 @@ static void *_dispatcher(void *arg)
     /* should be never reached */
 }
 
-static int _handle_pkt(hdlc_pkt_t *send_pkt, uint8_t *data, size_t length) 
-{
-    uart_pkt_hdr_t rcv_hdr;
-    uart_pkt_parse_hdr(&rcv_hdr, data, length);
-
-    switch (rcv_hdr.pkt_type)
-    {
-        /* TODO: free any radio packets received */
-        case RADIO_SET_CHAN:
-            uart_pkt_hdr_t hdr;
-            hdr.dst_port = rcv_hdr.src_port; 
-            hdr.src_port = rcv_hdr.dst_port; 
-            uart_pkt_insert_hdr(send_pkt->data, HDLC_MAX_PKT_SIZE, &hdr);
-            uint16_t channel = data[UART_PKT_DATA_FIELD];
-            kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-            gnrc_netif_get(ifs);
-
-            if(gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t)) < 0) {
-                send_pkt->data[UART_PKT_TYPE_FIELD] = RADIO_SET_CHAN_FAIL;
-            } else {
-                send_pkt->data[UART_PKT_TYPE_FIELD] = RADIO_SET_CHAN_SUCCESS;
-            }
-
-            send_pkt->data[UART_PKT_DATA_FIELD] = (uint8_t)channel;
-            send_pkt->length = UART_PKT_HDR_LEN + 1;
-            return 1; /* need to send packet */
-        case RADIO_SET_POWER:
-            char send_data[2];
-            hdlc_pkt_t *pkt = { send_data, sizeof(send_data) };
-            int16_t power = (uint16_t)data[1];
-            if(gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &power, sizeof(uint16_t)) < 0) {
-                send_data[0] = RADIO_SET_POWER_FAIL;
-            } else {
-                send_data[0] = RADIO_SET_POWER_SUCCESS;
-            } 
-            send_data[1] = data[1];
-            break;
-        case SOUND_RANGE_REQ:
-            ultrasound_range_recv();
-            break;
-        case SOUND_RANGE_X10_REQ:
-            ultrasound_range_x10_recv();
-            break;
-        case FWD_TO_MBED:
-            break;
-        default:
-            DEBUG("Unknown packet type.\n");
-            return 1;
-    }
-    return 0
-}
-
-kernel_pid_t dispacher_init(char *stack, int stacksize, char priority, const char *name, kernel_pid_t hdlc_thread_pid)
+kernel_pid_t dispacher_init(char *stack, int stacksize, char priority, 
+    const char *name, kernel_pid_t hdlc_thread_pid)
 {
     kernel_pid_t res;
 

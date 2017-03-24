@@ -58,9 +58,12 @@
 #include "board.h"
 #include "periph/uart.h"
 
-#define RTRY_TIMEO_USEC         1000000
-#define RETRANSMIT_TIMEO_USEC   1000000
-#define HDLC_MAX_PKT_SIZE       128
+#define RTRY_TIMEO_USEC         500000
+#define RETRANSMIT_TIMEO_USEC   50000
+
+#ifndef HDLC_MAX_PKT_SIZE
+#define HDLC_MAX_PKT_SIZE       32
+#endif
 
 typedef struct {
     yahdlc_control_t control;
