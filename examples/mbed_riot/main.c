@@ -84,6 +84,9 @@ static char hdlc_stack[THREAD_STACKSIZE_MAIN];
 static char dispatcher_stack[512];
 static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];
 
+/* Holds the current main radio channel. */
+static uint16_t main_channel = DEFAULT_CHANNEL;
+
 /* TODO: need to program leader-follower IP discovery */
 
 /**
@@ -119,6 +122,27 @@ static int _set_channel(uint16_t channel)
     gnrc_netif_get(ifs);
     if (numof == 1) {
         return gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
+    }
+
+    return -1; /* fail */
+}
+
+/**
+ * Set radio transmit power. CC2538 specific. Works only if one netif exists.
+ * @param  power Power  in dBm within the range -24 to 7.
+ * @return       0 on success. Implementation defined negative number on failure.
+ */
+static int _set_tx_power(uint16_t power)
+{
+    if (power < -24 || power > 7)
+    {
+        return -1; /* fail */
+    }
+
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    gnrc_netif_get(ifs);
+    if (numof == 1) {
+        return gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &power, sizeof(uint16_t));
     }
 
     return -1; /* fail */
@@ -169,6 +193,7 @@ static void *_rssi_dump(void *arg)
                         if (recv_pkt->length > UART_PKT_HDR_LEN) {
                             _set_channel(recv_pkt->[UART_PKT_DATA_FIELD]);
                         } else {
+                            /* default localization channel */
                             _set_channel(RSSI_LOCALIZATION_CHAN);
                         }
                         gnrc_netreg_register(1, &rssi_dump_server);
@@ -279,7 +304,7 @@ int main(void)
     char send_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
 
-    dispatcher_entry_t main_thr = { .next = NULL, .port = 8080, 
+    dispatcher_entry_t main_thr = { .next = NULL, .port = GET_SET_RANGING_THR_PORT, 
         .pid = thread_getpid() };
     dispatcher_register(&main_thr);
 
@@ -288,7 +313,6 @@ int main(void)
     /* this thread handles set tx power, set channel, and ranging requests */
     while(1)
     {
-
         while(!send_hdlc_lock)
         {
             msg_receive(&msg);
@@ -303,9 +327,29 @@ int main(void)
                     msg_send(&msg_snd_pkt, hdlc_pid);
                     break;
                 case HDLC_PKT_RDY:
-                    recv_pkt = (hdlc_pkt_t *)msg_resp.content.ptr;
-                    _handle_pkt = (&send_pkt, recv_pkt->data, recv_pkt->length);
-                    /* insert flag to send a packet */
+                    hdlc_pkt_t *recv_pkt = msg.content.ptr;
+                    uart_pkt_hdr_t uart_hdr;
+                    uart_pkt_parse_hdr(&uart_hdr, recv_pkt->data, recv_pkt->length);
+                    switch (uart_hdr.pkt_type) 
+                    {
+                        case RADIO_SET_CHAN:
+                            _set_channel(recv_pkt->[UART_PKT_DATA_FIELD]);
+                            /* TODO: respond to mbed via RADIO_SET_CHAN_X msg */
+                            break;
+                        case RADIO_SET_POWER:
+                            _set_tx_power(recv_pkt->[UART_PKT_DATA_FIELD]);
+                            /* TODO: respond to mbed via RADIO_SET_POWER_X msg */
+                            break;
+                        case SOUND_RANGE_REQ:
+                            sound_rf_ping_req();
+                            break;
+                        case SOUND_RANGE_X10_REQ:
+                            /* TODO */
+                            break;
+                        default:
+                            DEBUG("rssi_dump: invalid packet!\n");
+                            break;
+                    }
                     hdlc_pkt_release(recv_pkt);
                     break;
                 case GNRC_NETAPI_MSG_TYPE_RCV:
@@ -320,18 +364,30 @@ int main(void)
             }
         }
 
-        /* fill pkt buffer */
-
-        /* send needed packet */
-        msg_snd_pkt.type = HDLC_MSG_SND;
-        msg_send_pkt.content.ptr = &hdlc_pkt;
-        msg_send(&msg_snd_pkt, hdlc_pid);
-
-
     }
 
     /* should be never reached */
     return 0;
 }
+
+static int sound_rf_ping_req()
+{
+    /* register thread for response */
+
+}
+
+static int sound_rf_ping_go()
+{
+    /* turn off UART temporarily */
+    /* turn off any other interrupts if needed */
+    /* unregister thread from zigbee packets */
+    /* range_rx_init() */
+    /* send GO udp pkt */
+    /* xtimer_msg_receive_timeout -- to be woken up by network layer externally*/
+    /* on timeout or packet receive, reset UART just in case */
+    /* manually reset cc2538 uart */
+
+}
+
 
 
