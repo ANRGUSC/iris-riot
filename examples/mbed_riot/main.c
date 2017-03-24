@@ -39,7 +39,9 @@
  * @{
  *
  * @file
- * @brief       Application to act as a radio for the m3pi-mbed-os code.
+ * @brief       Application for ARREST project.
+ *
+ *              RSSI dumping over uart and sound ranging features.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
  *
@@ -75,6 +77,7 @@
 #define DISPATCHER_PRIO         (THREAD_PRIORITY_MAIN - 1)
 
 static msg_t main_msg_queue[8];
+/* larger queue for fast incoming RSSI packets */
 static msg_t rssi_dump_msg_queue[16];
 
 static char hdlc_stack[THREAD_STACKSIZE_MAIN];
@@ -83,40 +86,70 @@ static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];
 
 /* TODO: need to program leader-follower IP discovery */
 
+/**
+ * Set short hardware address of radio. Works only if only one netif exists.
+ * @param target_hwaddr_str Null terminated string in format similar to "ff:ff". 
+ */
+static int _set_hwaddr_short(const char *target_hwaddr_str)
+{
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    size_t numof = gnrc_netif_get(ifs);
+    uint8_t target_hwaddr_short[2];
+    uint8_t target_hwaddr_short_len;
+    if (numof == 1) {
+        target_hwaddr_short_len = gnrc_netif_addr_from_str(target_hwaddr_short,
+                                    sizeof(target_hwaddr_short), target_hwaddr_str);
+        return gnrc_netapi_set(ifs[0], NETOPT_ADDRESS, 0, target_hwaddr_short, 
+                               target_hwaddr_short_len);
+    }
+
+    return -1; /* fail */
+}
+
+/**
+ * Set channel of radio. Works only if one netif exists.
+ * @param channel Target channel with a valid range of 11 to 26.
+ */
+static int _set_channel(uint16_t channel)
+{
+    if (channel < 11 || channel > 26) {
+        return -1; /* invalid channel number */
+    }
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    gnrc_netif_get(ifs);
+    if (numof == 1) {
+        return gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
+    }
+
+    return -1; /* fail */
+}
+
+/* Note, the use of a mutex may slow down RSSI readings */
 static void *_rssi_dump(void *arg) 
 {
     kernel_pid_t hdlc_thread_pid = (kernel_pid_t)arg;
     kernel_pid_t *sender_pid;
     msg_t *msg;
+    gnrc_netreg_entry_t rssi_dump_server = {NULL, RSSI_DUMP_PORT, thread_getpid()};
 
-    msg_init_queue(rssi_dump_msg_queue, 16);
+
+    msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
 
     dispatcher_entry_t rssi_dump_thr = { .dispatcher_entry = NULL, 
         .port = RSSI_DUMP_PORT, .pid = thread_getpid() };
     dispatcher_register(&rssi_dump_thr);
 
-    /* set short hwaddr */
-    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    gnrc_netif_get(ifs);
-    uint8_t target_hwaddr_short[2];
-    uint8_t target_hwaddr_short_len;
-    char target_hwaddr_str[6] = ARREST_LEADER_SHORT_HWADDR;
-    target_hwaddr_short_len = gnrc_netif_addr_from_str(target_hwaddr_short,
-                                sizeof(target_hwaddr_short), target_hwaddr_str);
-    gnrc_netapi_set(ifs[0], NETOPT_ADDRESS, 0, target_hwaddr_short, target_hwaddr_short_len);
-
-    gnrc_netreg_entry_t rssi_dump_server = {NULL, RSSI_DUMP_PORT, thread_getpid()};
-
-    char send_data[UART_PKT_HDR_LEN + 1];
+    _set_hwaddr_short(ARREST_LEADER_SHORT_HWADDR);
 
     mutex_t send_pkt_mtx;
+    char send_data[UART_PKT_HDR_LEN + 1];
     hdlc_pkt_t send_pkt = { .data = send_data, .length = UART_PKT_HDR_LEN + 1 };
     uart_pkt_hdr_t uart_hdr = {
         .src_port = RSSI_DUMP_PORT,
         .dst_port = 0,               /* no dst_port needed for mbed's dispatcher */
         .pkt_type = RSSI_DATA_PKT
     };
-    /* always the same header */
+    /* same header for all outgoing packets */
     uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1, &uart_hdr); 
 
     while(1)
@@ -126,21 +159,29 @@ static void *_rssi_dump(void *arg)
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
-                hdlc_pkt_t *recv_pkt;
+                hdlc_pkt_t *recv_pkt = msg.content.ptr;
                 uart_pkt_hdr_t uart_hdr;
                 uart_pkt_parse_hdr(&uart_hdr, recv_pkt->data, recv_pkt->length);
                 switch (uart_hdr.pkt_type) 
                 {
                     case RSSI_DUMP_START:
+                        /* check for custom channel request */
+                        if (recv_pkt->length > UART_PKT_HDR_LEN) {
+                            _set_channel(recv_pkt->[UART_PKT_DATA_FIELD]);
+                        } else {
+                            _set_channel(RSSI_LOCALIZATION_CHAN);
+                        }
                         gnrc_netreg_register(1, &rssi_dump_server);
                         break;
                     case RSSI_DUMP_STOP:
                         gnrc_netreg_unregister(1, &rssi_dump_server);
+                        _set_channel(DEFAULT_CHANNEL);
                         break;
                     default:
                         DEBUG("rssi_dump: invalid packet!\n");
                         break;
                 }
+                hdlc_pkt_release(recv_pkt);
                 break;
             case HDLC_RESP_RETRY_W_TIMEO:
                 /* don't bother retrying */
@@ -150,35 +191,32 @@ static void *_rssi_dump(void *arg)
                 mutex_unlock(&send_pkt_mtx);
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                /* if you are receiving messages, you are registered to the 
-                specific port so you need to dump RSSI via hdlc */
-                gnrc_netif_hdr_t *netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->data;
-                uint8_t *dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
-                /* need to subtract 73 from raw RSSI (do on mbed side) to get dBm value */
-                uint8_t raw_rssi = netif_hdr->rssi;
+                if (mutex_trylock(&send_pkt_mtx)) {
+                    gnrc_netif_hdr_t *netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->data;
+                    uint8_t *dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
+                    /* need to subtract 73 from raw RSSI (do on mbed side) to get dBm value */
+                    uint8_t raw_rssi = netif_hdr->rssi;
 
-                if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, target_hwaddr_short, 2)) {
-                    if (mutex_trylock(&send_pkt_mtx)) {
+                    if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, target_hwaddr_short, 2)) {
                         send_pkt.length = uart_pkt_cpy_data(send_pkt.data, 
                             UART_PKT_HDR_LEN + 1, &raw_rssi, 1); 
 
                         msg.type = HDLC_MSG_SND;
                         msg.content.ptr = &send_pkt;
                         msg_send(&msg, hdlc_pid);
-                    } /* else { do nothing, skip this rssi reading } */
-                }
+                    }
+                } /* else { do nothing, wait for next packet } */
 
                 gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
             default:
                 /* error */
-                DEBUG("Dispatcher: invalid packet\n");
+                DEBUG("rssi_dump: invalid packet\n");
                 break;
         }    
     }
 
-    DEBUG("Error: Reached Exit!");
     /* should be never reached */
-
+    DEBUG("Error: Reached Exit!");
 }
 
 static int _handle_pkt(hdlc_pkt_t *send_pkt, uint8_t *data, size_t length) 
@@ -236,8 +274,6 @@ int main(void)
         sizeof(rssi_dump_stack), RSSI_DUMP_PRIO, "rssi_dump", hdlc_pid);
 
     msg_init_queue(main_msg_queue, 8);
-
-    uint8_t
 
     msg_t msg, msg_snd_pkt;
     char send_data[HDLC_MAX_PKT_SIZE];
