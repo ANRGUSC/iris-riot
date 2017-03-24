@@ -63,7 +63,7 @@ typedef struct __attribute__((packed)) {
 typedef enum {
     RADIO_SET_CHAN          = 0,
     RADIO_SET_POWER         = 1,
-    SOUND_RANGE_X10         = 2,
+    SOUND_RANGE             = 2,
     SOUND_RANGE_X10_REQ     = 3,
     RSSI_DUMP_START         = 4,
     RSSI_DUMP_STOP          = 5
