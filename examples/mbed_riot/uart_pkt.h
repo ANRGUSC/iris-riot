@@ -48,39 +48,45 @@
 #define UART_PKT_H_
 
 #define UART_PKT_HDR_LEN            5
-#define UART_PKT_DATA_FIELD         5
 #define UART_PKT_TYPE_FIELD         4
+#define UART_PKT_DATA_FIELD         5
 
 typedef struct __attribute__((packed)) {
-    uint16_t src_port;      
-    uint16_t dst_port;      
-    uint8_t pkt_type;                 
+    uint16_t    src_port;      
+    uint16_t    dst_port;      
+    uint8_t     pkt_type;                 
 } uart_pkt_hdr_t;
 
 /**
  * @brief Message types from mbed-os to riot-os
  */
-enum {
-    SOUND_RANGE_REQ,
-    SOUND_RANGE_X10_REQ,
-    RADIO_SET_CHAN,
-    RADIO_SET_POWER,
+typedef enum {
+    RADIO_SET_CHAN          = 0,
+    RADIO_SET_POWER         = 1,
+    SOUND_RANGE_X10         = 2,
+    SOUND_RANGE_X10_REQ     = 3,
+    RSSI_DUMP_START         = 4,
+    RSSI_DUMP_STOP          = 5
 } mbed_to_riot_msg_t;
 
 /**
- * @brief Message types from riot-os to mbed-os 
+ * @brief Message types from riot-os to mbed-os
  */
-enum {
-    SOUND_RANGE_DONE,
-    RADIO_SET_CHAN_SUCCESS,
-    RADIO_SET_CHAN_FAIL,
-    RADIO_SET_POWER_SUCCESS,
-    RADIO_SET_POWER_FAIL,
-    RADIO_FWD_UDP_PKT
+typedef enum {
+    RADIO_SET_CHAN_SUCCESS  = 0,
+    RADIO_SET_CHAN_FAIL     = 1,
+    RADIO_SET_POWER_SUCCESS = 2,
+    RADIO_SET_POWER_FAIL    = 3,
+    SOUND_RANGE_DONE        = 4,
+    RSSI_SCAN_STARTED       = 5,
+    RSSI_SCAN_STOPPED       = 6,
+    RSSI_DATA_PKT           = 7,
+    RADIO_FWD_UDP_PKT       = 8
 } riot_to_mbed_msg_t;
 
-uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, uart_pkt_hdr_t *hdr);
-size_t uart_pkt_cpy_data(uint8_t *buf, size_t buf_len, uint8_t *data, size_t data_len);
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, uint8_t *src, size_t src_len)
+uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
+size_t uart_pkt_cpy_data(uint8_t *buf, size_t buf_len, const uint8_t *data, 
+    const size_t data_len);
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const uint8_t *src,  size_t src_len)
 
 #endif /* UART_PKT_H_ */

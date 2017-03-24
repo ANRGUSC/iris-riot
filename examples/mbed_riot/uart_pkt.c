@@ -51,7 +51,7 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
-uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, uart_pkt_hdr_t *hdr)
+uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
 {
     if (buf_len < UART_PKT_HDR_LEN) {
         DEBUG("Buffer size too small\n");
@@ -70,7 +70,8 @@ uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, uart_pkt_hdr_t *hdr)
  * @param  data_len size of buffer containing data
  * @return          total size of packet on success or 0 on failure.
  */
-size_t uart_pkt_insert_data(uint8_t *buf, size_t buf_len, uint8_t *data, size_t data_len)
+size_t uart_pkt_insert_data(uint8_t *buf, size_t buf_len, const uint8_t *data, 
+    size_t data_len)
 {
     if (data_len + 5 > buf_len) {
         DEBUG("Not enough space in destination buffer\n");
@@ -81,7 +82,7 @@ size_t uart_pkt_insert_data(uint8_t *buf, size_t buf_len, uint8_t *data, size_t 
     return (UART_PKT_HDR_LEN + data_len);
 }
 
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, uint8_t *src, size_t src_len)
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const uint8_t *src, size_t src_len)
 {
     if(src_len < 5) {
         DEBUG("Invalid source buffer size.\n");
