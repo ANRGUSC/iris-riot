@@ -49,3 +49,6 @@ typedef struct dispatcher_entry {
     uint16_t port;
     kernel_pid_t pid;
 } dispatcher_entry_t;
+
+void dispatcher_register(dispatcher_entry_t *entry);
+void dispatcher_unregister(dispatcher_entry_t *entry);
