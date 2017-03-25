@@ -54,6 +54,8 @@
 #include "dispatcher.h"
 #include "uart_pkt.h"
 #include "main-conf.h"
+#include "utlist.h"
+#include "net/gnrc.h"
 
 #define ENABLE_DEBUG (0)
 #include "debug.h"
@@ -61,12 +63,6 @@
 /* TODO: merge dispatcher into hdlc? */
 
 static msg_t _dispatcher_msg_queue[8];
-
-typedef struct dispatcher_entry {
-    struct dispatcher_entry *next;
-    uint16_t port;
-    kernel_pid_t pid;
-} dispatcher_entry_t;
 
 static dispatcher_entry_t *dispatcher_reg;
 
@@ -89,12 +85,15 @@ void dispatcher_unregister(dispatcher_entry_t *entry)
  */
 static void *_dispatcher(void *arg)
 {
-    kernel_pid_t hdlc_thread_pid = (kernel_pid_t)arg;
-    kernel_pid_t *sender_pid;
+    kernel_pid_t hdlc_thread_pid = (kernel_pid_t) (intptr_t) arg;
 
-    msg_t *msg;
+    msg_t msg;
     uart_pkt_hdr_t hdr;
     dispatcher_entry_t *entry;
+    hdlc_pkt_t *recv_pkt;
+    gnrc_pktsnip_t *recv_gnrc_pkt;
+
+    msg_init_queue(_dispatcher_msg_queue, 8);
 
     msg.type = HDLC_MSG_REG_DISPATCHER;
     msg.content.value = (uint32_t) 0;
@@ -116,9 +115,9 @@ static void *_dispatcher(void *arg)
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
-                hdlc_pkt_t *recv_pkt = msg.content.ptr;
+                recv_pkt = (hdlc_pkt_t *)msg.content.ptr;
                 uart_pkt_parse_hdr(&hdr, recv_pkt->data, recv_pkt->length);
-                LL_SEARCH_SCALAR(dispatcher_reg, entry, dst_port, hdr.dst_port);
+                LL_SEARCH_SCALAR(dispatcher_reg, entry, port, hdr.dst_port);
                 /* fwd msg to thread */
                 if(entry) {
                     msg_send(&msg, entry->pid);
@@ -128,7 +127,7 @@ static void *_dispatcher(void *arg)
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 /* TODO: forward radio pkt to mbed or relevant thread */
-                gnrc_pktsnip_t *recv_gnrc_pkt = msg.content.ptr;
+                recv_gnrc_pkt = msg.content.ptr;
                 gnrc_pktbuf_release(recv_gnrc_pkt);
             default:
                 /* error */
@@ -139,6 +138,7 @@ static void *_dispatcher(void *arg)
 
     DEBUG("Error: Reached Exit!");
     /* should be never reached */
+    return NULL;
 }
 
 kernel_pid_t dispacher_init(char *stack, int stacksize, char priority, 
@@ -147,7 +147,7 @@ kernel_pid_t dispacher_init(char *stack, int stacksize, char priority,
     kernel_pid_t res;
 
     res = thread_create(stack, stacksize, priority, THREAD_CREATE_STACKTEST, 
-            _dispatcher, (void *) hdlc_thread_pid, name);
+            _dispatcher, (void *) (int) hdlc_thread_pid, name);
 
     if (res <= 0) {
         return -EINVAL;

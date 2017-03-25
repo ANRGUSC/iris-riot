@@ -83,7 +83,7 @@ static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 
 static hdlc_buf_t recv_buf = { .data = hdlc_recv_data };
-static hdlc_buf_t send_buf = { .data = hdlc_send_frame1 };
+static hdlc_buf_t send_buf = { .data = hdlc_send_frame };
 static hdlc_buf_t ack_buf  = { .data = hdlc_ack_frame };
 
 /* uart access control lock */
@@ -175,7 +175,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     }
 }
 
-static void *hdlc(void *arg)
+static void *_hdlc(void *arg)
 {
     uart_t dev = (uart_t)arg;
     msg_init_queue(_hdlc_msg_queue, 16);
@@ -256,11 +256,11 @@ static void *hdlc(void *arg)
     return NULL;
 }
 
-int hdlc_pkt_release(hdlc_buf_t *buf) 
+int hdlc_pkt_release(hdlc_pkt_t *pkt) 
 {
-    if(buf->mtx.queue.next != NULL) {
-        buf->control.frame = buf->control.seq_no = 0;
-        mutex_unlock(&buf->mtx);
+    if(recv_buf.mtx.queue.next != NULL) {
+        recv_buf.control.frame = recv_buf.control.seq_no = 0;
+        mutex_unlock(&recv_buf.mtx);
         return 0;
     }
 
@@ -281,7 +281,7 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
     uart_init(dev, 115200, rx_cb, (void *) dev);
 
     res = thread_create(stack, stacksize,
-                        priority, THREAD_CREATE_STACKTEST, hdlc, (void *) dev, name);
+                        priority, THREAD_CREATE_STACKTEST, _hdlc, (void *) dev, name);
 
     if (res <= 0) {
         return -EINVAL;

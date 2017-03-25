@@ -52,3 +52,5 @@ typedef struct dispatcher_entry {
 
 void dispatcher_register(dispatcher_entry_t *entry);
 void dispatcher_unregister(dispatcher_entry_t *entry);
+kernel_pid_t dispacher_init(char *stack, int stacksize, char priority, 
+    const char *name, kernel_pid_t hdlc_thread_pid);
