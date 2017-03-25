@@ -212,14 +212,35 @@ typedef struct netdev2_driver {
 
 #define RANGE_FLAG_BYTE0 0x72 /* == 'r' */
 #define RANGE_FLAG_BYTE1 0x67 /* == 'g' */
+#define RANGE_RX_COMPLETE   1
 
-void range_rx_init(char tx_node_id, int thresh, 
-    unsigned int line, unsigned int res, unsigned int max_adc_samps);
+/**
+ * Not thread safe.
+ * @param tx_node_id    [description]
+ * @param thresh        [description]
+ * @param line          [description]
+ * @param res           [description]
+ * @param max_adc_samps [description]
+ */
+void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
+                   unsigned int res, unsigned int max_adc_samps);
 
+/**
+ * Always call this function after you attempt to complete a sound ranging 
+ * request whether it succeeds or fails. Not thread safe.
+ * @return  [description]
+ */
 unsigned long range_rx_stop(void);
 
+/**
+ * Not thread safe.
+ * @param ranger_gpio_pin [description]
+ */
 void range_tx_init(unsigned int ranger_gpio_pin);
 
+/**
+ * Not thread safe.
+ */
 void range_tx_off(void);
 
 #ifdef __cplusplus
