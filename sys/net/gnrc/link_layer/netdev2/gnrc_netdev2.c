@@ -56,7 +56,7 @@ static int ranging_on           = 0;
 static int adc_res              = 0; /* default resolution */
 static uint32_t last            = 0;
 static uint32_t time_diff       = 0;
-static int ref                  = -1;
+static kernel_pid_t pid_of_request = NULL;
 
 /**
  * @brief   Function called by the device driver on device events
@@ -92,6 +92,7 @@ static void _event_cb(netdev2_t *dev, netdev2_event_t event)
                             _tx_node_id == ((uint8_t *) pkt->data)[2])
                         {
                             _sound_ranging();
+                            ranging_on = 0;
                         }
                     }
 
@@ -119,13 +120,14 @@ static void _sound_ranging(void)
 {
     int cnt = 0;
     last = xtimer_now();
+    msg_t msg;
 
     unsigned old_state = irq_disable();
 
     while(cnt < max_samps)
     {
         sample = adc_sample(adc_line, adc_res) 
-            >> SOCADC_7_BIT_RSHIFT;
+            >> socadc_rshift;
 
         /* wait for 200us before next poll for input capacitor to settle */
         xtimer_spin(200);
@@ -141,6 +143,13 @@ static void _sound_ranging(void)
     }
 
     irq_restore(old_state);
+
+    if (pid_of_request) {
+        msg.type = RANGE_RX_COMPLETE;
+        msg.content.value = (uint32_t) time_diff;
+        time_diff = 0;
+        msg_send(&msg, pid_of_request);
+    }
 }
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
@@ -256,7 +265,6 @@ kernel_pid_t gnrc_netdev2_init(char *stack, int stacksize, char priority,
     return res;
 }
 
-/* Successful ranging will immediately turn off ranging mode. */
 void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
                    unsigned int res, unsigned int max_adc_samps)
 {
@@ -264,13 +272,12 @@ void range_rx_init(char tx_node_id, int thresh, unsigned int line,
     _tx_node_id = tx_node_id;
     ultrasound_thresh = thresh;
     adc_line = line;
-    adc_init(adc_line);
     max_samps = max_adc_samps;
     adc_res = res; 
-    ref = 2;
     time_diff = 0;
+    pid_of_request = thread_getpid();
 
-    switch(adc_res)
+    switch(res)
     {
         case ADC_RES_7BIT:
             socadc_rshift = SOCADC_7_BIT_RSHIFT;
@@ -292,14 +299,8 @@ void range_rx_init(char tx_node_id, int thresh, unsigned int line,
     DEBUG("ranging initialized!\n");
 }
 
-unsigned long range_rx_stop(void)
+void range_rx_stop(void)
 {
     ranging_on = 0;
-    ref--;
-
-    if (ref == 0) {
-        return time_diff;
-    } else {
-        return 0;
-    }
+    pid_of_request = NULL;
 }
