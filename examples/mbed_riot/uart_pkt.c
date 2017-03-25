@@ -44,14 +44,15 @@
  * 
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
 #include "uart_pkt.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
-uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
+void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
 {
     if (buf_len < UART_PKT_HDR_LEN) {
         DEBUG("Buffer size too small\n");
@@ -59,7 +60,7 @@ uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, const uart_pkt_hdr_t 
     }
 
     memcpy(buf, hdr, sizeof(uart_pkt_hdr_t));
-    return buf[UART_PKT_DATA_FIELD];
+    return (buf + UART_PKT_DATA_FIELD);
 }
 
 /**
@@ -70,7 +71,7 @@ uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, const uart_pkt_hdr_t 
  * @param  data_len size of buffer containing data
  * @return          total size of packet on success or 0 on failure.
  */
-size_t uart_pkt_insert_data(uint8_t *buf, size_t buf_len, const uint8_t *data, 
+size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
     size_t data_len)
 {
     if (data_len + 5 > buf_len) {
@@ -82,13 +83,13 @@ size_t uart_pkt_insert_data(uint8_t *buf, size_t buf_len, const uint8_t *data,
     return (UART_PKT_HDR_LEN + data_len);
 }
 
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const uint8_t *src, size_t src_len)
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
 {
     if(src_len < 5) {
         DEBUG("Invalid source buffer size.\n");
         return -1;
     }
 
-    memcpy(hdr, src, UART_PKT_HDR_LEN);
+    memcpy(dst_hdr, src, UART_PKT_HDR_LEN);
     return 0;
 }
