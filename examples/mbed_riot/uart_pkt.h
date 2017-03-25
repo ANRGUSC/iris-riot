@@ -63,16 +63,16 @@ typedef struct __attribute__((packed)) {
 typedef enum {
     RADIO_SET_CHAN          = 0,
     RADIO_SET_POWER         = 1,
-    SOUND_RANGE             = 2,
+    SOUND_RANGE_REQ         = 2,
     SOUND_RANGE_X10_REQ     = 3,
     RSSI_DUMP_START         = 4,
     RSSI_DUMP_STOP          = 5
-} mbed_to_riot_msg_t;
+} mbed_to_riot_t;
 
 /**
  * @brief Message types from riot-os to mbed-os
  */
-typedef enum {
+typedef enum  {
     RADIO_SET_CHAN_SUCCESS  = 0,
     RADIO_SET_CHAN_FAIL     = 1,
     RADIO_SET_POWER_SUCCESS = 2,
@@ -82,11 +82,10 @@ typedef enum {
     RSSI_SCAN_STOPPED       = 6,
     RSSI_DATA_PKT           = 7,
     RADIO_FWD_UDP_PKT       = 8
-} riot_to_mbed_msg_t;
+} riot_to_mbed_t;
 
-uint8_t *uart_pkt_insert_hdr(uint8_t *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
-size_t uart_pkt_cpy_data(uint8_t *buf, size_t buf_len, const uint8_t *data, 
-    const size_t data_len);
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const uint8_t *src,  size_t src_len)
+void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
+size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, size_t data_len);
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src,  size_t src_len);
 
 #endif /* UART_PKT_H_ */

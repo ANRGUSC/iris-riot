@@ -90,7 +90,7 @@ enum {
     HDLC_PKT_RDY
 };
 
-int hdlc_pkt_release(hdlc_buf_t *buf);
+int hdlc_pkt_release(hdlc_pkt_t *buf);
 int hdlc_send_pkt(hdlc_pkt_t *pkt);
 kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
 
