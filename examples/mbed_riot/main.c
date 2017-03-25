@@ -66,6 +66,8 @@
 #include "uart_pkt.h"
 #include "main-conf.h"
 
+#include 
+
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
@@ -151,7 +153,7 @@ static int _set_tx_power(uint16_t power)
 /* Note, the use of a mutex may slow down RSSI readings */
 static void *_rssi_dump(void *arg) 
 {
-    kernel_pid_t hdlc_thread_pid = (kernel_pid_t)arg;
+    kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     kernel_pid_t *sender_pid;
     msg_t *msg;
     gnrc_netreg_entry_t rssi_dump_server = {NULL, RSSI_DUMP_PORT, thread_getpid()};
@@ -244,53 +246,19 @@ static void *_rssi_dump(void *arg)
     DEBUG("Error: Reached Exit!");
 }
 
-static int _handle_pkt(hdlc_pkt_t *send_pkt, uint8_t *data, size_t length) 
-{
-    uart_pkt_hdr_t rcv_hdr;
-    uart_pkt_parse_hdr(&rcv_hdr, data, length);
-
-    switch (rcv_hdr.pkt_type)
-    {
-        /* TODO: free any radio packets received */
-        case RADIO_SET_CHAN:
-            uart_pkt_hdr_t hdr;
-            hdr.dst_port = rcv_hdr.src_port; 
-            hdr.src_port = rcv_hdr.dst_port; 
-            uart_pkt_insert_hdr(send_pkt->data, HDLC_MAX_PKT_SIZE, &hdr);
-            uint16_t channel = data[UART_PKT_DATA_FIELD];
-            kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-            gnrc_netif_get(ifs);
-
-            if(gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t)) < 0) {
-                send_pkt->data[UART_PKT_TYPE_FIELD] = RADIO_SET_CHAN_FAIL;
-            } else {
-                send_pkt->data[UART_PKT_TYPE_FIELD] = RADIO_SET_CHAN_SUCCESS;
-            }
-
-            send_pkt->data[UART_PKT_DATA_FIELD] = (uint8_t)channel;
-            send_pkt->length = UART_PKT_HDR_LEN + 1;
-            return 1; /* need to send packet */
-        case RADIO_SET_POWER:
-            /* TODO */
-            break;
-        case SOUND_RANGE_REQ:
-            ultrasound_range_recv();
-            /* initialize sound ranging */
-            /* do sound ranging */
-            /* once done, send packet containing TDoA to mbed */
-            break;
-        case SOUND_RANGE_X10_REQ:
-            /* TODO */
-            break;
-        default:
-            DEBUG("Unknown packet type.\n");
-            return 1;
-    }
-    return 0
-}
-
 int main(void)
 {
+    msg_t msg, msg_snd_pkt;
+    uint32_t sound_rf_tdoa;
+    char send_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    uart_pkt_hdr_t uart_hdr;
+    gnrc_netreg_entry_t main_thr_server = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
+    dispatcher_entry_t main_thr = { .next = NULL, .port = GET_SET_RANGING_THR_PORT, 
+        .pid = thread_getpid() };
+
+    msg_init_queue(main_msg_queue, 8);
+
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
         "hdlc", UART_DEV(1));
     kernel_pid_t dispatcher_pid = dispacher_init(dispatcher_stack, 
@@ -298,95 +266,198 @@ int main(void)
     kernel_pid_t rssi_dump_pid = thread_create(rssi_dump_stack, 
         sizeof(rssi_dump_stack), RSSI_DUMP_PRIO, "rssi_dump", hdlc_pid);
 
-    msg_init_queue(main_msg_queue, 8);
-
-    msg_t msg, msg_snd_pkt;
-    char send_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
-
-    dispatcher_entry_t main_thr = { .next = NULL, .port = GET_SET_RANGING_THR_PORT, 
-        .pid = thread_getpid() };
     dispatcher_register(&main_thr);
-
-    send_hdlc_lock = 0;
 
     /* this thread handles set tx power, set channel, and ranging requests */
     while(1)
     {
-        while(!send_hdlc_lock)
+        msg_receive(&msg);
+
+        switch (msg.type)
         {
-            msg_receive(&msg);
+            case HDLC_RESP_SND_SUCC:
+                already_sending = 0;
+                break;
+            case HDLC_RESP_RETRY_W_TIMEO:
+                xtimer_usleep(msg_resp.content.value);
+                msg_send(&msg_req, hdlc_pid);
+                break;
+            case HDLC_PKT_RDY:
+                hdlc_pkt_t *recv_pkt = msg.content.ptr;
+                uart_pkt_hdr_t uart_hdr;
+                uart_pkt_parse_hdr(&uart_hdr, recv_pkt->data, recv_pkt->length);
+                switch (uart_hdr.pkt_type) 
+                {
+                    case RADIO_SET_CHAN:
+                        _set_channel(recv_pkt->data[UART_PKT_DATA_FIELD]);
+                        /* TODO: respond to mbed via RADIO_SET_CHAN_X msg */
+                        break;
+                    case RADIO_SET_POWER:
+                        _set_tx_power(recv_pkt->data[UART_PKT_DATA_FIELD]);
+                        /* TODO: respond to mbed via RADIO_SET_POWER_X msg */
+                        break;
+                    case SOUND_RANGE_REQ:
+                        ipv6_addr_t sound_rf_sender_ip;
+                        gnrc_netreg_register(GNRC_NETTYPE_UDP, &main_thr_server);
+                        if (ipv6_addr_from_str(&sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_IPV6_ADDR) == NULL) {
+                            DEBUG("Error: unable to parse destination address");
+                            return 1;
+                        }
+                        sound_rf_ping_req(GET_SET_RANGING_THR_PORT, 
+                            &sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_PORT, 
+                            ARREST_LEADER_SOUNDRF_ID);
+                        break;
+                    case SOUND_RANGE_X10_REQ:
+                        /* TODO */
+                        break;
+                    default:
+                        DEBUG("rssi_dump: invalid packet!\n");
+                        break;
+                }
+                hdlc_pkt_release(recv_pkt);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                gnrc_pktsnip_t *gnrc_pkt = msg.content.ptr;
+                gnrc_pktsnip_t *snip = gnrc_pktsnip_search_type(gnrc_pkt, GNRC_NETTYPE_UNDEF);
+                if ( RANGE_RDY_FLAG == ((uint8_t *) snip->data)[0] && 
+                     TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
+                    DEBUG("Got init msg. Turning on ranging mode.");
+                    /* no need for anymore UDP packets. unregister. */
+                    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &main_thr_server);
+                    sound_rf_tdoa = _sound_rf_ping_go();
+                    range_rx_stop();
+                } else {
+                    DEBUG("Unknown packet.");
+                    /* cancel sound ranging */
+                    range_rx_stop();
+                }
 
-            switch (msg.type)
-            {
-                case HDLC_RESP_SND_SUCC:
-                    send_hdlc_lock = 1;
-                    break;
-                case HDLC_RESP_RETRY_W_TIMEO:
-                    xtimer_usleep(msg.content.value);
-                    msg_send(&msg_snd_pkt, hdlc_pid);
-                    break;
-                case HDLC_PKT_RDY:
-                    hdlc_pkt_t *recv_pkt = msg.content.ptr;
-                    uart_pkt_hdr_t uart_hdr;
-                    uart_pkt_parse_hdr(&uart_hdr, recv_pkt->data, recv_pkt->length);
-                    switch (uart_hdr.pkt_type) 
-                    {
-                        case RADIO_SET_CHAN:
-                            _set_channel(recv_pkt->[UART_PKT_DATA_FIELD]);
-                            /* TODO: respond to mbed via RADIO_SET_CHAN_X msg */
-                            break;
-                        case RADIO_SET_POWER:
-                            _set_tx_power(recv_pkt->[UART_PKT_DATA_FIELD]);
-                            /* TODO: respond to mbed via RADIO_SET_POWER_X msg */
-                            break;
-                        case SOUND_RANGE_REQ:
-                            sound_rf_ping_req();
-                            break;
-                        case SOUND_RANGE_X10_REQ:
-                            /* TODO */
-                            break;
-                        default:
-                            DEBUG("rssi_dump: invalid packet!\n");
-                            break;
-                    }
-                    hdlc_pkt_release(recv_pkt);
-                    break;
-                case GNRC_NETAPI_MSG_TYPE_RCV:
-                    gnrc_pktsnip_t *gnrc_pkt = msg.content.ptr;
-                    gnrc_pktbuf_release(gnrc_pkt);
-                    break;
+                if(!already_sending) {
+                    uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
+                    uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
+                    uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                    uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
+                    uart_pkt_cpy_data(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
 
-                default:
-                    /* error */
+                    msg.type = HDLC_MSG_SND;
+                    msg.content.ptr = hdlc_pkt;
+                    msg_send(&msg, hdlc_pid);
+                    already_sending = 1;
+                } else {
+                    DEBUG("Already sending. Should not be happening!\n");
                     LED3_ON;
-                    break;
-            }
-        }
+                }
 
+                gnrc_pktbuf_release(gnrc_pkt);
+                break;
+            default:
+                /* error */
+                LED3_ON;
+                break;
+        }
     }
+
 
     /* should be never reached */
     return 0;
 }
 
-static int sound_rf_ping_req()
+static gnrc_pktsnip_t *_sound_rf_ping_req(uint16_t rcvr_port, 
+    ipv6_addr_t *sender_ip, uint16_t sender_port, uint8_t sender_node_id)
 {
-    /* register thread for response */
+    buf[2] = {RANGE_REQ_FLAG, sender_node_id};
+    gnrc_pktsnip_t *payload, *udp, *ip;
 
+    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        puts("Error: unable to copy data to packet buffer");
+        return 1;
+    }
+
+    udp = gnrc_udp_hdr_build(payload, sender_port, rcvr_port);
+    if (udp == NULL) {
+        puts("Error: unable to allocate UDP header");
+        gnrc_pktbuf_release(payload);
+        return 1;
+    }
+
+    ip = gnrc_ipv6_hdr_build(udp, NULL, sender_ip);
+    if (ip == NULL) {
+        puts("Error: unable to allocate IPv6 header");
+        gnrc_pktbuf_release(udp);
+        return 1;
+    }
+
+    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
+        puts("Error: unable to locate UDP thread");
+        gnrc_pktbuf_release(ip);
+        return 1;
+    }
 }
 
-static int sound_rf_ping_go()
-{
-    /* turn off UART temporarily */
-    /* turn off any other interrupts if needed */
-    /* unregister thread from zigbee packets */
+static uint32_t _sound_rf_ping_go(uint16_t rcvr_port, 
+    ipv6_addr_t *sender_ip, uint16_t sender_port, uint8_t sender_node_id){
+
+    msg_t msg;
+    uint32_t retval;
+
+    /* turn off UART temporarily because of HDLC*/
+    UART0.cc2538_uart_ctl.CTLbits.UARTEN = 0;
+    /* depending on implementation, turn off any other interrupts as needed */
+
     /* range_rx_init() */
     /* send GO udp pkt */
-    /* xtimer_msg_receive_timeout -- to be woken up by network layer externally*/
-    /* on timeout or packet receive, reset UART just in case */
-    /* manually reset cc2538 uart */
+    /* send "GO" packet */
+    buf[2] = { RANGE_GO_FLAG, TX_NODE_ID }
+    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        puts("Error: unable to copy data to packet buffer");
+        return 0;
+    }
 
+    udp = gnrc_udp_hdr_build(payload, CLIENT_PORT, SERVER_PORT);
+    if (udp == NULL) {
+        puts("Error: unable to allocate UDP header");
+        gnrc_pktbuf_release(payload);
+        return 0;
+    }
+
+    ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
+    if (ip == NULL) {
+        puts("Error: unable to allocate IPv6 header");
+        gnrc_pktbuf_release(udp);
+        return 0;
+    }
+
+    range_rx_init(TX_NODE_ID, ultrasound_thresh, AD4_PIN, ADC_RES_7BIT, 2000);
+
+    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, 
+        ip)) {
+        puts("Error: unable to locate UDP thread");
+        gnrc_pktbuf_release(ip);
+        return 0;
+    }
+
+    /* there should be other messages being sent to this thread at this point */
+    /* wait 500ms */
+    if(xtimer_msg_receive_timeout(&msg, 500000) < 0) {
+        /* timed out */
+        retval = 0;
+    } else {
+        retval = ((uint32_t) msg.content.value);
+    }
+
+    /* on timeout or packet receive, manually reset UART just in case 
+    see CC2538's uart.c) */
+    UART1.cc2538_uart_ctl.CTLbits.RXE = 1;
+    UART1.cc2538_uart_ctl.CTLbits.TXE = 1;
+    UART1.cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+    UART1.cc2538_uart_dr.ECR = 0xFF;
+    UART1.cc2538_uart_lcrh.LCRH &= ~FEN;
+    UART1.cc2538_uart_lcrh.LCRH |= FEN;
+    UART1.cc2538_uart_ctl.CTLbits.UARTEN = 1;
+
+    return retval;
 }
 
 
