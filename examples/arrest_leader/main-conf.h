@@ -32,3 +32,5 @@
 #define DEFAULT_ULTRASOUND_THRESH           25
 
 #define REMOTE_CTRL_FLAG                    0x99 /* 10011001 */
+
+#define RANGE_REQ_TIMEO_USEC                1000000
