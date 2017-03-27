@@ -79,7 +79,7 @@ size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data,
         return 0;
     }
 
-    memcpy(buf, data, data_len);
+    memcpy(buf + UART_PKT_HDR_LEN, data, data_len);
     return (UART_PKT_HDR_LEN + data_len);
 }
 
