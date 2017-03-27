@@ -163,7 +163,9 @@ static int _set_tx_power(uint16_t power)
 static void *_rssi_dump(void *arg) 
 {
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
-    msg_t msg;
+    msg_t msg, msg_send;
+    bool rssi_pkt = FALSE;
+    bool hdlc_snd_locked = FALSE;
     hdlc_pkt_t *recv_pkt;
     gnrc_netif_hdr_t *netif_hdr;
     uint8_t *dst_addr;
@@ -178,16 +180,9 @@ static void *_rssi_dump(void *arg)
 
     _set_hwaddr_short(ARREST_FOLLOWER_SHORT_HWADDR);
 
-    mutex_t send_pkt_mtx;
     char send_data[UART_PKT_HDR_LEN + 1];
     hdlc_pkt_t send_pkt = { .data = send_data, .length = UART_PKT_HDR_LEN + 1 };
-    uart_pkt_hdr_t uart_hdr = {
-        .src_port = RSSI_DUMP_PORT,
-        .dst_port = 0,               /* no dst_port needed for mbed's dispatcher */
-        .pkt_type = RSSI_DATA_PKT
-    };
-    /* same header for all outgoing packets */
-    uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1, &uart_hdr); 
+    uart_pkt_hdr_t uart_hdr;
 
     while(1)
     {
@@ -209,11 +204,37 @@ static void *_rssi_dump(void *arg)
                             /* default localization channel */
                             _set_channel(RSSI_LOCALIZATION_CHAN);
                         }
+
+                        hdlc_snd_locked = TRUE; 
+                        uart_hdr.dst_port = recv_uart_hdr.src_port;
+                        uart_hdr.src_port = RSSI_DUMP_PORT;
+                        uart_hdr.pkt_type = RSSI_SCAN_STARTED;
+                        uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                            &uart_hdr);
+                        send_pkt.length = UART_PKT_HDR_LEN;
+
+                        msg_send.type = HDLC_MSG_SND;
+                        msg_send.content.ptr &send_pkt;
+                        msg_send(&msg_send, hdlc_pid);
+
                         gnrc_netreg_register(1, &rssi_dump_server);
                         break;
                     case RSSI_DUMP_STOP:
                         gnrc_netreg_unregister(1, &rssi_dump_server);
                         _set_channel(main_channel);
+                        
+                        hdlc_snd_locked = TRUE; 
+                        uart_hdr.dst_port = recv_uart_hdr.src_port;
+                        uart_hdr.src_port = RSSI_DUMP_PORT;
+                        uart_hdr.pkt_type = RSSI_SCAN_STOPPED;
+                        uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                            &uart_hdr);
+                        send_pkt.length = UART_PKT_HDR_LEN;
+
+                        msg_send.type = HDLC_MSG_SND;
+                        msg_send.content.ptr &send_pkt;
+                        msg_send(&msg_send, hdlc_pid);
+                        /* TODO: send RSSI_SCAN_STOPPED to mbed */
                         break;
                     default:
                         DEBUG("rssi_dump: invalid packet!\n");
@@ -222,26 +243,39 @@ static void *_rssi_dump(void *arg)
                 hdlc_pkt_release(recv_pkt);
                 break;
             case HDLC_RESP_RETRY_W_TIMEO:
-                /* don't bother retrying */
-                mutex_unlock(&send_pkt_mtx);
+                if (rssi_pkt) {
+                    /* don't bother resending */
+                    rssi_pkt = FALSE;
+                    hdlc_snd_locked = FALSE;
+                } else {
+                    xtimer_usleep(msg_resp.content.value);
+                    msg_send(&msg_send, hdlc_pid);
+                }
                 break;
             case HDLC_RESP_SND_SUCC:
-                mutex_unlock(&send_pkt_mtx);
+                hdlc_snd_locked = TRUE;
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                if (mutex_trylock(&send_pkt_mtx)) {
+                if (!hdlc_snd_locked) {
                     netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->data;
                     dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
                     /* need to subtract 73 from raw RSSI (do on mbed side) to get dBm value */
                     uint8_t raw_rssi = netif_hdr->rssi;
 
                     if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, ARREST_FOLLOWER_SHORT_HWADDR, 2)) {
+                        mutex_lock(&hdlc_snd_locked);
+                        uart_hdr.src_port = RSSI_DUMP_PORT;
+                        uart_hdr.dst_port = 0; /* taken care of by dispatcher */
+                        uart_hdr.pkt_type = RSSI_DATA_PKT;
+                        uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                            &uart_hdr);
                         send_pkt.length = uart_pkt_cpy_data(send_pkt.data, 
                             UART_PKT_HDR_LEN + 1, &raw_rssi, 1); 
 
-                        msg.type = HDLC_MSG_SND;
-                        msg.content.ptr = &send_pkt;
-                        msg_send(&msg, hdlc_pid);
+                        rssi_pkt = TRUE;
+                        msg_send.type = HDLC_MSG_SND;
+                        msg_send.content.ptr = &send_pkt;
+                        msg_send(&msg_send, hdlc_pid);
                     }
                 } /* else { do nothing, wait for next packet } */
 
@@ -337,7 +371,7 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
         return 0;
     }
 
-    /* there should be other messages being sent to this thread at this point */
+    /* there should no be other messages being sent to this thread at this point */
     /* wait 500ms */
     if(xtimer_msg_receive_timeout(&msg, 500000) < 0) {
         /* timed out */
@@ -362,8 +396,10 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
 int main(void)
 {
     msg_t msg, msg_snd_pkt;
-    int already_sending = 0;
+    int hdlc_send_locked = 0;
+    int range_req = 0;
     uint32_t sound_rf_tdoa;
+    uint32_t range_req_time;
     hdlc_pkt_t *recv_pkt;
     gnrc_pktsnip_t *gnrc_pkt;
     gnrc_pktsnip_t *snip;
@@ -372,10 +408,9 @@ int main(void)
     hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     uart_pkt_hdr_t uart_hdr;
     gnrc_netreg_entry_t main_thr_server = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
-    dispatcher_entry_t main_thr = { .next = NULL, .port = GET_SET_RANGING_THR_PORT, 
-        .pid = thread_getpid() };
+    dispatcher_entry_t main_thr = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
 
-    msg_init_queue(main_msg_queue, 8);
+    msg_init_queue(main_msg_queue, sizeof(main_msg_queue));
 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
         "hdlc", UART_DEV(1));
@@ -389,12 +424,45 @@ int main(void)
     /* this thread handles set tx power, set channel, and ranging requests */
     while(1)
     {
-        msg_receive(&msg);
+        if(range_req) {
+            uint32_t timeout = (uint32_t) (range_req_time + RANGE_REQ_TIMEO_USEC) 
+                          - (uint32_t) xtimer_now();
+            if(timeout < 0) {
+                range_req = 0;
+                if(!hdlc_send_locked) {
+                    uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
+                    uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
+                    uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                    uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
+                    hdlc_pkt.length = uart_pkt_cpy_data(hdlc_pkt.data, 
+                        HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    sound_rf_tdoa = 0;
+
+                    msg_snd_pkt.type = HDLC_MSG_SND;
+                    msg_snd_pkt.content.ptr = &hdlc_pkt;
+                    msg_send(&msg_snd_pkt, hdlc_pid);
+                    hdlc_send_locked = 1;
+                    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &main_thr_server);
+                } else {
+                    DEBUG("Error: Already sending SOUND_RANGE_DONE.\n");
+                    LED3_ON;
+                }
+
+                msg_receive(&msg);
+            } else {
+                if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
+                    range_req = 0;
+                    /* send fail msg to mbed */
+                }
+            }
+        } else {
+            msg_receive(&msg);
+        }
 
         switch (msg.type)
         {
             case HDLC_RESP_SND_SUCC:
-                already_sending = 0;
+                hdlc_send_locked = 0;
                 break;
             case HDLC_RESP_RETRY_W_TIMEO:
                 xtimer_usleep(msg.content.value);
@@ -420,6 +488,8 @@ int main(void)
                             DEBUG("Error: unable to parse destination address");
                             return 1;
                         }
+                        range_req = 1;
+                        range_req_time = xtimer_now();
                         _sound_rf_ping_req(GET_SET_RANGING_THR_PORT, 
                             &sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_PORT, 
                             ARREST_LEADER_SOUNDRF_ID);
@@ -448,26 +518,29 @@ int main(void)
                     sound_rf_tdoa = _sound_rf_ping_go(GET_SET_RANGING_THR_PORT, 
                         &sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_PORT, 
                         ARREST_LEADER_SOUNDRF_ID);
+                    range_req = 0;  /* turnoff range req timeo */
                     range_rx_stop();
                 } else {
                     DEBUG("Unknown packet.");
-                    /* cancel sound ranging */
-                    range_rx_stop();
+                    gnrc_pktbuf_release(gnrc_pkt);
+                    break;
                 }
 
-                if(!already_sending) {
+                if(!hdlc_send_locked) {
                     uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
                     uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
                     uart_hdr.pkt_type = SOUND_RANGE_DONE;
                     uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
-                    uart_pkt_cpy_data(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    hdlc_pkt.length = uart_pkt_cpy_data(hdlc_pkt.data, 
+                        HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    sound_rf_tdoa = 0;
 
                     msg_snd_pkt.type = HDLC_MSG_SND;
                     msg_snd_pkt.content.ptr = &hdlc_pkt;
                     msg_send(&msg_snd_pkt, hdlc_pid);
-                    already_sending = 1;
+                    hdlc_send_locked = 1;
                 } else {
-                    DEBUG("Already sending. Should not be happening!\n");
+                    DEBUG("Error: Already sending SOUND_RANGE_DONE.\n");;
                     LED3_ON;
                 }
 
