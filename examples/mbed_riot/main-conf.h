@@ -26,6 +26,7 @@
 #define RANGE_GO_FLAG       0x56
 
 #define DEFAULT_ULTRASOUND_THRESH   25
+#define RANGE_REQ_TIMEO_USEC        1000000
 
 
 
