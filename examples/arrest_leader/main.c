@@ -158,6 +158,14 @@ static int _set_tx_power(uint16_t power)
     return -1; /* fail */
 }
 
+/**
+ * Only supports having one netif.
+ * @param  rcvr_ip        IP address of soundrf ping receiving node.
+ * @param  rcvr_port      Port of soundrf ping receiving thread.
+ * @param  sender_port    Port of soundrf ping sending thread.
+ * @param  sender_node_id Node ID of soundrf ping sender.
+ * @return                [description]
+ */
 static int _soundrf_sender_rdy(ipv6_addr_t *rcvr_ip, uint16_t rcvr_port, 
                                uint16_t sender_port, uint8_t sender_node_id)
 {
@@ -193,6 +201,13 @@ static int _soundrf_sender_rdy(ipv6_addr_t *rcvr_ip, uint16_t rcvr_port,
     return 0;
 }
 
+/**
+ * Only supports having one netif.
+ * @param  rcvr_hwaddr     [description]
+ * @param  rcvr_hwaddr_len [description]
+ * @param  sender_node_id  [description]
+ * @return                 [description]
+ */
 static int _soundrf_send_pings(uint8_t *rcvr_hwaddr, size_t rcvr_hwaddr_len, 
                                     uint8_t sender_node_id)
 {
@@ -258,23 +273,21 @@ static void *_soundrf_sender(void *arg)
     msg_t msg;
     uint8_t rcvr_hwaddr[MAX_ADDR_LEN];
     size_t rcvr_hwaddr_len;
-    ipv6_addr_t soundrf_rcvr_ipaddr;
+    ipv6_addr_t soundrf_rcvr_ip;
     gnrc_pktsnip_t *gnrc_pkt, *snip;
     gnrc_netreg_entry_t sender_server = {NULL, ARREST_LEADER_SOUNDRF_PORT, thread_getpid()};
 
     msg_init_queue(soundrf_sender_queue, sizeof(soundrf_sender_queue));
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &sender_server);
 
-    // Not Needed
-    // _set_hwaddr_short(ARREST_LEADER_SHORT_HWADDR);
-    
+    /* Turn off MB13XX ultrasonic sensor using the following pin */ 
     gpio_clear(GPIO_PD3);
 
     /* max out tx power */
     _set_tx_power(7);
 
 
-    if (ipv6_addr_from_str(&soundrf_rcvr_ipaddr, ARREST_FOLLOWER_IPV6_ADDR)) {
+    if (ipv6_addr_from_str(&soundrf_rcvr_ip, ARREST_FOLLOWER_IPV6_ADDR)) {
         DEBUG("Error: unable to parse destination address");
         return NULL;
     }
@@ -295,7 +308,7 @@ static void *_soundrf_sender(void *arg)
                 if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
                     DEBUG("Got REQ. Sending 'RDY' pkt now!\n");
-                    _soundrf_sender_rdy(&soundrf_rcvr_ipaddr, ARREST_FOLLOWER_RANGE_THR_PORT,
+                    _soundrf_sender_rdy(&soundrf_rcvr_ip, ARREST_FOLLOWER_RANGE_THR_PORT,
                         ARREST_LEADER_SOUNDRF_PORT, ARREST_LEADER_SOUNDRF_ID);
                 } else if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
