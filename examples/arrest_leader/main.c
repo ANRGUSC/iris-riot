@@ -65,9 +65,6 @@
 #include "net/gnrc/netapi.h"
 #include "net/netdev2.h"
 #include "periph/uart.h"
-#include "hdlc.h"
-#include "dispatcher.h"
-#include "uart_pkt.h"
 #include "main-conf.h"
 #include "periph/adc.h"
 
