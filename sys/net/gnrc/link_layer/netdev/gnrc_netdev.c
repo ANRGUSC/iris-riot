@@ -56,7 +56,7 @@ static int ranging_on           = 0;
 static int adc_res              = 0; /* default resolution */
 static uint32_t last            = 0;
 static uint32_t time_diff       = 0;
-static kernel_pid_t pid_of_request = NULL;
+static kernel_pid_t pid_of_request = -1;
 
 /**
  * @brief   Function called by the device driver on device events
@@ -144,7 +144,7 @@ static void _sound_ranging(void)
 
     irq_restore(old_state);
 
-    if (pid_of_request) {
+    if (pid_of_request != -1) {
         msg.type = RANGE_RX_COMPLETE;
         msg.content.value = (uint32_t) time_diff;
         time_diff = 0;
@@ -302,5 +302,5 @@ void range_rx_init(char tx_node_id, int thresh, unsigned int line,
 void range_rx_stop(void)
 {
     ranging_on = 0;
-    pid_of_request = NULL;
+    pid_of_request = -1;
 }
