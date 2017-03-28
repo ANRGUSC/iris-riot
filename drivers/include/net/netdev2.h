@@ -230,7 +230,7 @@ void range_rx_init(char tx_node_id, int thresh, unsigned int line,
  * request whether it succeeds or fails. Not thread safe.
  * @return  [description]
  */
-unsigned long range_rx_stop(void);
+void range_rx_stop(void);
 
 /**
  * Not thread safe.
