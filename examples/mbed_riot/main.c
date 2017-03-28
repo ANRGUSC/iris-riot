@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <stdbool.h>
 
 #include "board.h"
 #include "thread.h"
@@ -163,9 +164,9 @@ static int _set_tx_power(uint16_t power)
 static void *_rssi_dump(void *arg) 
 {
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
-    msg_t msg, msg_send;
-    bool rssi_pkt = FALSE;
-    bool hdlc_snd_locked = FALSE;
+    msg_t msg, msg2;
+    bool rssi_pkt = false;
+    bool hdlc_snd_locked = false;
     hdlc_pkt_t *recv_pkt;
     gnrc_netif_hdr_t *netif_hdr;
     uint8_t *dst_addr;
@@ -205,7 +206,7 @@ static void *_rssi_dump(void *arg)
                             _set_channel(RSSI_LOCALIZATION_CHAN);
                         }
 
-                        hdlc_snd_locked = TRUE; 
+                        hdlc_snd_locked = true; 
                         uart_hdr.dst_port = recv_uart_hdr.src_port;
                         uart_hdr.src_port = RSSI_DUMP_PORT;
                         uart_hdr.pkt_type = RSSI_SCAN_STARTED;
@@ -213,9 +214,9 @@ static void *_rssi_dump(void *arg)
                             &uart_hdr);
                         send_pkt.length = UART_PKT_HDR_LEN;
 
-                        msg_send.type = HDLC_MSG_SND;
-                        msg_send.content.ptr &send_pkt;
-                        msg_send(&msg_send, hdlc_pid);
+                        msg2.type = HDLC_MSG_SND;
+                        msg2.content.ptr = &send_pkt;
+                        msg_send(&msg2, hdlc_pid);
 
                         gnrc_netreg_register(1, &rssi_dump_server);
                         break;
@@ -223,7 +224,7 @@ static void *_rssi_dump(void *arg)
                         gnrc_netreg_unregister(1, &rssi_dump_server);
                         _set_channel(main_channel);
                         
-                        hdlc_snd_locked = TRUE; 
+                        hdlc_snd_locked = true; 
                         uart_hdr.dst_port = recv_uart_hdr.src_port;
                         uart_hdr.src_port = RSSI_DUMP_PORT;
                         uart_hdr.pkt_type = RSSI_SCAN_STOPPED;
@@ -231,9 +232,9 @@ static void *_rssi_dump(void *arg)
                             &uart_hdr);
                         send_pkt.length = UART_PKT_HDR_LEN;
 
-                        msg_send.type = HDLC_MSG_SND;
-                        msg_send.content.ptr &send_pkt;
-                        msg_send(&msg_send, hdlc_pid);
+                        msg2.type = HDLC_MSG_SND;
+                        msg2.content.ptr = &send_pkt;
+                        msg_send(&msg2, hdlc_pid);
                         /* TODO: send RSSI_SCAN_STOPPED to mbed */
                         break;
                     default:
@@ -245,15 +246,15 @@ static void *_rssi_dump(void *arg)
             case HDLC_RESP_RETRY_W_TIMEO:
                 if (rssi_pkt) {
                     /* don't bother resending */
-                    rssi_pkt = FALSE;
-                    hdlc_snd_locked = FALSE;
+                    rssi_pkt = false;
+                    hdlc_snd_locked = false;
                 } else {
-                    xtimer_usleep(msg_resp.content.value);
-                    msg_send(&msg_send, hdlc_pid);
+                    xtimer_usleep(msg.content.value);
+                    msg_send(&msg2, hdlc_pid);
                 }
                 break;
             case HDLC_RESP_SND_SUCC:
-                hdlc_snd_locked = TRUE;
+                hdlc_snd_locked = true;
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 if (!hdlc_snd_locked) {
@@ -263,7 +264,7 @@ static void *_rssi_dump(void *arg)
                     uint8_t raw_rssi = netif_hdr->rssi;
 
                     if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, ARREST_FOLLOWER_SHORT_HWADDR, 2)) {
-                        mutex_lock(&hdlc_snd_locked);
+                        hdlc_snd_locked = true;
                         uart_hdr.src_port = RSSI_DUMP_PORT;
                         uart_hdr.dst_port = 0; /* taken care of by dispatcher */
                         uart_hdr.pkt_type = RSSI_DATA_PKT;
@@ -272,10 +273,10 @@ static void *_rssi_dump(void *arg)
                         send_pkt.length = uart_pkt_cpy_data(send_pkt.data, 
                             UART_PKT_HDR_LEN + 1, &raw_rssi, 1); 
 
-                        rssi_pkt = TRUE;
-                        msg_send.type = HDLC_MSG_SND;
-                        msg_send.content.ptr = &send_pkt;
-                        msg_send(&msg_send, hdlc_pid);
+                        rssi_pkt = true;
+                        msg2.type = HDLC_MSG_SND;
+                        msg2.content.ptr = &send_pkt;
+                        msg_send(&msg2, hdlc_pid);
                     }
                 } /* else { do nothing, wait for next packet } */
 
@@ -362,7 +363,7 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
         return 0;
     }
 
-    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, AD4_PIN, ADC_RES_7BIT, 2000);
+    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, ON_SLEEP_PIN, ADC_RES_7BIT, 2000);
 
     if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, 
         ip)) {
