@@ -111,7 +111,7 @@ int main(void)
     DEBUG("%s\n", gnrc_netif_addr_to_str(hwaddr_long_str, sizeof(hwaddr_long_str),
                                             hwaddr_long, res));
 
-    uint16_t channel = DEFAULT_CHANNEL;
+    uint16_t channel = ARREST_DATA_CHANNEL;
     uint16_t tx_power = MAX_TX_POWER;
     gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
     gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
@@ -130,9 +130,10 @@ int main(void)
 
     uart_init(UART_DEV(0), 115200, rx_cb, (void *) UART_DEV(0));
 
+    char buf[2] = {REMOTE_CTRL_FLAG, 0};
+
     while (1) {
         msg_receive(&msg);
-        char c;
 
         while (1) 
         {
@@ -140,12 +141,12 @@ int main(void)
             if (ret == -1) {
                 break;
             } else {
-                c = (char) ret;
-                printf("%c\n", c);
+                buf[1] = (char) ret;
+                printf("%c\n", buf[1]);
                 fflush(stdout);
 
                 /* put packet together */
-                pkt = gnrc_pktbuf_add(NULL, &c, sizeof(c), GNRC_NETTYPE_UNDEF);
+                pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
                 if (pkt == NULL) {
                     puts("error: packet buffer full");
                     return 1;
