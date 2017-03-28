@@ -44,7 +44,7 @@
  * @author      Jason A. Tran <jasontra@usc.edu>
  *
  * @}
- */*/
+ */
 
 #include <stdio.h>
 #include <string.h>
@@ -70,7 +70,7 @@
 #include "debug.h"
 
 
-#define TX_POWER            7       //valid range: -27 to 7
+#define MAX_TX_POWER            7       //valid range: -27 to 7
 /* set default chan in makefile */
 
 
@@ -112,7 +112,9 @@ int main(void)
                                             hwaddr_long, res));
 
     uint16_t channel = DEFAULT_CHANNEL;
+    uint16_t tx_power = MAX_TX_POWER;
     gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
+    gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
     
     /* setup IPC queue for main thread*/
     msg_t msg;
