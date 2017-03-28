@@ -57,7 +57,7 @@
 #include "utlist.h"
 #include "net/gnrc.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 /* TODO: merge dispatcher into hdlc? */
@@ -119,6 +119,7 @@ static void *_dispatcher(void *arg)
                 uart_pkt_parse_hdr(&hdr, recv_pkt->data, recv_pkt->length);
                 LL_SEARCH_SCALAR(dispatcher_reg, entry, port, hdr.dst_port);
                 /* fwd msg to thread */
+                DEBUG("dispatcher: received a packet for port %d", hdr.dst_port);
                 if(entry) {
                     msg_send(&msg, entry->pid);
                 } else {
