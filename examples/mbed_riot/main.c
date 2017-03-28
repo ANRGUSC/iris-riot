@@ -170,7 +170,7 @@ static void *_rssi_dump(void *arg)
     hdlc_pkt_t *recv_pkt;
     gnrc_netif_hdr_t *netif_hdr;
     uint8_t *dst_addr;
-    gnrc_netreg_entry_t rssi_dump_server = {NULL, RSSI_DUMP_PORT, thread_getpid()};
+    gnrc_netreg_entry_t rssi_dump_server = {NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid()};
 
 
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
@@ -181,6 +181,10 @@ static void *_rssi_dump(void *arg)
 
     _set_hwaddr_short(ARREST_FOLLOWER_SHORT_HWADDR);
 
+    /* assuming _set_hwaddr_short above was successful */
+    uint8_t my_hwaddr_short[2];
+    gnrc_netif_addr_from_str(my_hwaddr_short, sizeof(my_hwaddr_short), ARREST_LEADER_SHORT_HWADDR);
+
     char send_data[UART_PKT_HDR_LEN + 1];
     hdlc_pkt_t send_pkt = { .data = send_data, .length = UART_PKT_HDR_LEN + 1 };
     uart_pkt_hdr_t uart_hdr;
@@ -188,7 +192,6 @@ static void *_rssi_dump(void *arg)
     while(1)
     {
         msg_receive(&msg);
-        DEBUG("_rssi_dump: Received a packet\n");
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
@@ -207,7 +210,6 @@ static void *_rssi_dump(void *arg)
                             /* default localization channel */
                             _set_channel(RSSI_LOCALIZATION_CHAN);
                         }
-                        DEBUG("_rssi_dump : channel set done \n");
 
                         hdlc_snd_locked = true; 
                         uart_hdr.dst_port = recv_uart_hdr.src_port;
@@ -220,14 +222,15 @@ static void *_rssi_dump(void *arg)
                         msg2.type = HDLC_MSG_SND;
                         msg2.content.ptr = &send_pkt;
                         msg_send(&msg2, hdlc_pid);
-                        DEBUG("_rssi_dump : Dumping started \n");
+
+                        DEBUG("rssi_dump : dump STARTING... \n");
 
                         gnrc_netreg_register(1, &rssi_dump_server);
                         break;
                     case RSSI_DUMP_STOP:
                         gnrc_netreg_unregister(1, &rssi_dump_server);
                         _set_channel(main_channel);
-                        DEBUG("_rssi_dump : Dumping stop command received \n");
+                        DEBUG("rssi_dump: dump STOPPED.");
 
                         hdlc_snd_locked = true; 
                         uart_hdr.dst_port = recv_uart_hdr.src_port;
@@ -269,29 +272,35 @@ static void *_rssi_dump(void *arg)
                 DEBUG("_rssi_dump : received a beacon \n");
 
                 if (!hdlc_snd_locked) {
-                    netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->data;
+                    DEBUG("rssi_dump: getting RSSI and sending to mbed...\n"); 
+
+                    netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->next->data;
                     dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
                     /* need to subtract 73 from raw RSSI (do on mbed side) to get dBm value */
                     uint8_t raw_rssi = netif_hdr->rssi;
 
-                    if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, ARREST_FOLLOWER_SHORT_HWADDR, 2)) {
+                    if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, my_hwaddr_short, 2)) {
                         hdlc_snd_locked = true;
                         uart_hdr.src_port = RSSI_DUMP_PORT;
-                        uart_hdr.dst_port = 0; /* taken care of by dispatcher */
+                        uart_hdr.dst_port = 0xFF; /* taken care of by dispatcher */
                         uart_hdr.pkt_type = RSSI_DATA_PKT;
                         uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
                             &uart_hdr);
                         send_pkt.length = uart_pkt_cpy_data(send_pkt.data, 
-                            UART_PKT_HDR_LEN + 1, &raw_rssi, 1); 
+                            UART_PKT_HDR_LEN + 1, &raw_rssi, sizeof(raw_rssi)); 
 
                         rssi_pkt = true;
                         msg2.type = HDLC_MSG_SND;
                         msg2.content.ptr = &send_pkt;
+
+                        DEBUG("rssi_dump: sending RSSI over uart...\n");
+
                         msg_send(&msg2, hdlc_pid);
                     }
                 } /* else { do nothing, wait for next packet } */
 
                 gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                break;
             default:
                 /* error */
                 DEBUG("rssi_dump: invalid packet\n");
@@ -441,6 +450,7 @@ int main(void)
                           - (uint32_t) xtimer_now();
             if(timeout < 0) {
                 range_req = 0;
+                DEBUG("Ranging REQ timeout!\n");
                 if(!hdlc_send_locked) {
                     uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
                     uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
@@ -464,6 +474,7 @@ int main(void)
             } else {
                 if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
                     range_req = 0;
+                    DEBUG("Ranging REQ timeout!\n");
                     uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
                     uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
                     uart_hdr.pkt_type = SOUND_RANGE_DONE;
@@ -500,15 +511,17 @@ int main(void)
                 switch (recv_uart_hdr.pkt_type) 
                 {
                     case RADIO_SET_CHAN:
+                        DEBUG("Set channel request received\n");
                         _set_channel(recv_pkt->data[UART_PKT_DATA_FIELD]);
                         /* TODO: respond to mbed via RADIO_SET_CHAN_X msg */
                         break;
                     case RADIO_SET_POWER:
+                        DEBUG("Set tx power request received.\n");
                         _set_tx_power(recv_pkt->data[UART_PKT_DATA_FIELD]);
                         /* TODO: respond to mbed via RADIO_SET_POWER_X msg */
                         break;
                     case SOUND_RANGE_REQ:
-                        DEBUG("sound range req received!\n");
+                        DEBUG("ranging: SOUND_RANGE_REQ received!\n");
 
                         gnrc_netreg_register(GNRC_NETTYPE_UDP, &main_thr_server);
                         if (ipv6_addr_from_str(&sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_IPV6_ADDR) == NULL) {
@@ -547,6 +560,7 @@ int main(void)
                         ARREST_LEADER_SOUNDRF_ID);
                     range_req = 0;  /* turnoff range req timeo */
                     range_rx_stop();
+                    DEBUG("ranging: 'GO' done\n");
                 } else {
                     DEBUG("Unknown packet.");
                     gnrc_pktbuf_release(gnrc_pkt);
@@ -554,6 +568,7 @@ int main(void)
                 }
 
                 if(!hdlc_send_locked) {
+                    DEBUG("ranging: sending SOUND_RANGE_DONE over UART\n");
                     uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
                     uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
                     uart_hdr.pkt_type = SOUND_RANGE_DONE;
