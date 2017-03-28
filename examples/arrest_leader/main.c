@@ -342,6 +342,7 @@ int main(void)
     gnrc_pktsnip_t *snip;
     gnrc_netif_hdr_t *hdr;
     uint8_t *dst_addr;
+    gnrc_netreg_entry_t rmt_ctrl_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
 
     msg_init_queue(main_msg_queue, 8);
 
@@ -355,12 +356,17 @@ int main(void)
     thread_create(soundrf_sender_stack, sizeof(soundrf_sender_stack), SOUNDRF_SENDER_PRIO, 0,
                   _soundrf_sender, (void *) 0, "soundrf_sender");
 
+    gnrc_netreg_register(1, &rmt_ctrl_serv);
+
+    DEBUG("Starting main thread...\n");
+
     while (1) {
         uint8_t *c_ptr = NULL;
         msg_receive(&msg);
 
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
+                DEBUG("Remote control received packet.\n");
                 /* content of message holds a linked list of all the packet contents*/
                 snip = msg.content.ptr;
                 /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
