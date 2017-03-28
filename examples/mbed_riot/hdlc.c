@@ -62,7 +62,7 @@
 #include "yahdlc.h"
 #include "periph/uart.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 #define UART_BUFSIZE            (512U)

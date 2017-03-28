@@ -93,7 +93,7 @@ static msg_t main_msg_queue[8];
 static msg_t rssi_dump_msg_queue[16];
 
 static char hdlc_stack[THREAD_STACKSIZE_MAIN];
-static char dispatcher_stack[512];
+static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
 static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];
 
 /* Holds the current main radio channel. */
@@ -188,13 +188,15 @@ static void *_rssi_dump(void *arg)
     while(1)
     {
         msg_receive(&msg);
-
+        DEBUG("_rssi_dump: Received a packet\n");
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
                 recv_pkt = msg.content.ptr;
                 uart_pkt_hdr_t recv_uart_hdr;
                 uart_pkt_parse_hdr(&recv_uart_hdr, recv_pkt->data, recv_pkt->length);
+                DEBUG("_rssi_dump: Packet type : %d \n",recv_uart_hdr.pkt_type);
+
                 switch (recv_uart_hdr.pkt_type) 
                 {
                     case RSSI_DUMP_START:
@@ -205,6 +207,7 @@ static void *_rssi_dump(void *arg)
                             /* default localization channel */
                             _set_channel(RSSI_LOCALIZATION_CHAN);
                         }
+                        DEBUG("_rssi_dump : channel set done \n");
 
                         hdlc_snd_locked = true; 
                         uart_hdr.dst_port = recv_uart_hdr.src_port;
@@ -217,13 +220,15 @@ static void *_rssi_dump(void *arg)
                         msg2.type = HDLC_MSG_SND;
                         msg2.content.ptr = &send_pkt;
                         msg_send(&msg2, hdlc_pid);
+                        DEBUG("_rssi_dump : Dumping started \n");
 
                         gnrc_netreg_register(1, &rssi_dump_server);
                         break;
                     case RSSI_DUMP_STOP:
                         gnrc_netreg_unregister(1, &rssi_dump_server);
                         _set_channel(main_channel);
-                        
+                        DEBUG("_rssi_dump : Dumping stop command received \n");
+
                         hdlc_snd_locked = true; 
                         uart_hdr.dst_port = recv_uart_hdr.src_port;
                         uart_hdr.src_port = RSSI_DUMP_PORT;
@@ -235,6 +240,8 @@ static void *_rssi_dump(void *arg)
                         msg2.type = HDLC_MSG_SND;
                         msg2.content.ptr = &send_pkt;
                         msg_send(&msg2, hdlc_pid);
+                        DEBUG("_rssi_dump : Dumping stopped \n");
+
                         /* TODO: send RSSI_SCAN_STOPPED to mbed */
                         break;
                     default:
@@ -244,6 +251,7 @@ static void *_rssi_dump(void *arg)
                 hdlc_pkt_release(recv_pkt);
                 break;
             case HDLC_RESP_RETRY_W_TIMEO:
+                DEBUG("_rssi_dump : retry frame \n");
                 if (rssi_pkt) {
                     /* don't bother resending */
                     rssi_pkt = false;
@@ -254,9 +262,12 @@ static void *_rssi_dump(void *arg)
                 }
                 break;
             case HDLC_RESP_SND_SUCC:
+                DEBUG("_rssi_dump : sent frame \n");
                 hdlc_snd_locked = true;
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
+                DEBUG("_rssi_dump : received a beacon \n");
+
                 if (!hdlc_snd_locked) {
                     netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->data;
                     dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
