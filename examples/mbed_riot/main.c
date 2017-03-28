@@ -464,12 +464,25 @@ int main(void)
             } else {
                 if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
                     range_req = 0;
-                    /* send fail msg to mbed */
+                    uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
+                    uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
+                    uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                    uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
+                    hdlc_pkt.length = uart_pkt_cpy_data(hdlc_pkt.data, 
+                        HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    sound_rf_tdoa = 0;
+
+                    msg_snd_pkt.type = HDLC_MSG_SND;
+                    msg_snd_pkt.content.ptr = &hdlc_pkt;
+                    msg_send(&msg_snd_pkt, hdlc_pid);
+                    hdlc_send_locked = 1;
+                    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &main_thr_server);
                 }
             }
         } else {
             msg_receive(&msg);
         }
+        DEBUG("received a msg!\n");
 
         switch (msg.type)
         {
@@ -495,6 +508,8 @@ int main(void)
                         /* TODO: respond to mbed via RADIO_SET_POWER_X msg */
                         break;
                     case SOUND_RANGE_REQ:
+                        DEBUG("sound range req received!\n");
+
                         gnrc_netreg_register(GNRC_NETTYPE_UDP, &main_thr_server);
                         if (ipv6_addr_from_str(&sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_IPV6_ADDR) == NULL) {
                             DEBUG("Error: unable to parse destination address");

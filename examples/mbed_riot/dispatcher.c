@@ -92,7 +92,6 @@ static void *_dispatcher(void *arg)
     dispatcher_entry_t *entry;
     hdlc_pkt_t *recv_pkt;
     gnrc_pktsnip_t *recv_gnrc_pkt;
-    int i =0;
     msg_init_queue(_dispatcher_msg_queue, 8);
 
     msg.type = HDLC_MSG_REG_DISPATCHER;
