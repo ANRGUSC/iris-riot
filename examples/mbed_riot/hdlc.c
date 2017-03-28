@@ -81,11 +81,12 @@ static uart_ctx_t ctx;
 static char hdlc_recv_data[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
+static char hdlc_pkt_data[HDLC_MAX_PKT_SIZE];
 
 static hdlc_buf_t recv_buf = { .data = hdlc_recv_data };
 static hdlc_buf_t send_buf = { .data = hdlc_send_frame };
 static hdlc_buf_t ack_buf  = { .data = hdlc_ack_frame };
-
+static hdlc_pkt_t recv_pkt = { .data = hdlc_pkt_data };
 /* uart access control lock */
 static uint32_t uart_lock = 0;
 
@@ -114,7 +115,6 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     int ret;
     int retval;
     char c;
-
     while(1) {
         retval = ringbuffer_get_one(&(ctx.rx_buf));
 
@@ -145,10 +145,11 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
             if (recv_buf.control.seq_no == *recv_seq_no % 8) {
                 /* lock pkt until dispatcher makes a copy and unlocks */
                 mutex_lock(&(recv_buf.mtx));
-                recv_buf.length = recv_buf.length;
-                // DEBUG("got and expected seq_no %d\n", *recv_seq_no);
+                memcpy(recv_pkt.data, recv_buf.data, recv_buf.length);
+                recv_pkt.length = recv_buf.length;
+                DEBUG("got and expected seq_no %d, %d\n", *recv_seq_no,recv_buf.length);
                 msg.type = HDLC_PKT_RDY;
-                msg.content.ptr = &recv_buf;
+                msg.content.ptr = &recv_pkt;
                 msg_send(&msg, hdlc_dispatcher_pid);
 
                 (*recv_seq_no)++;
@@ -164,7 +165,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg.type = HDLC_RESP_SND_SUCC;
                 msg.content.value = (uint32_t) 0;
                 DEBUG("sender_pid is %d\n", sender_pid);
-                msg_send(&msg, hdlc_dispatcher_pid);
+                msg_send(&msg, sender_pid);
                 (*send_seq_no)++;
                 uart_lock = 0;
             }

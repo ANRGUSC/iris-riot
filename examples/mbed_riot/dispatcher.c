@@ -92,7 +92,7 @@ static void *_dispatcher(void *arg)
     dispatcher_entry_t *entry;
     hdlc_pkt_t *recv_pkt;
     gnrc_pktsnip_t *recv_gnrc_pkt;
-
+    int i =0;
     msg_init_queue(_dispatcher_msg_queue, 8);
 
     msg.type = HDLC_MSG_REG_DISPATCHER;
@@ -111,15 +111,15 @@ static void *_dispatcher(void *arg)
     while(1)
     {
         msg_receive(&msg);
-
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
                 recv_pkt = (hdlc_pkt_t *)msg.content.ptr;
+
                 uart_pkt_parse_hdr(&hdr, recv_pkt->data, recv_pkt->length);
                 LL_SEARCH_SCALAR(dispatcher_reg, entry, port, hdr.dst_port);
                 /* fwd msg to thread */
-                DEBUG("dispatcher: received a packet for port %d", hdr.dst_port);
+                DEBUG("dispatcher: received a packet for port %d\n", hdr.dst_port);
                 if(entry) {
                     msg_send(&msg, entry->pid);
                 } else {
