@@ -7,7 +7,7 @@ BOARD ?= openmote-cc2538
 PROGRAMMER ?= jlink
 
 USEMODULE += xtimer
-FEATURES_REQUIRED += periph_timer
+FEATURES_REQUIRED += periph_timer periph_gpio
 
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..

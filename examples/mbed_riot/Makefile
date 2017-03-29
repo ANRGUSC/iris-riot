@@ -26,7 +26,7 @@ USEMODULE += gnrc_pktdump
 # USEMODULE += netstats_ipv6
 
 # Set a custom 802.15.4 channel if needed
-DEFAULT_CHANNEL ?= 26
+DEFAULT_CHANNEL ?= 25
 CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 # Comment this out to disable code in RIOT that does safety checking

@@ -379,7 +379,7 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
         return 0;
     }
 
-    udp = gnrc_udp_hdr_build(payload, sender_port, rcvr_port);
+    udp = gnrc_udp_hdr_build(payload, rcvr_port, sender_port);
     if (udp == NULL) {
         puts("Error: unable to allocate UDP header");
         gnrc_pktbuf_release(payload);
@@ -405,10 +405,12 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
 
     /* there should no be other messages being sent to this thread at this point */
     /* wait 500ms */
-    if(xtimer_msg_receive_timeout(&msg, 500000) < 0) {
+    if(xtimer_msg_receive_timeout(&msg, 1000000) < 0) {
         /* timed out */
+        DEBUG("netdev ranging timed out\n");
         retval = 0;
     } else {
+        DEBUG("TDoA: %ld\n", (uint32_t) msg.content.value);
         retval = ((uint32_t) msg.content.value);
     }
 
