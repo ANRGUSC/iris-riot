@@ -57,6 +57,7 @@
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
 #include "../arrest_leader/main-conf.h"
+#include "xtimer.h"
 
 
 #define SHELL_BUFSIZE       (128U)
@@ -129,6 +130,10 @@ int main(void)
             continue;
         }
         DEBUG("Sent packet!\n");
+        /* RIOT CC2538 drivers mishandles extremely fast packets. Beaconer needs
+        to slow down its rate a little. 200us is minimum, but still causes 
+        errors. Currently set at 1200us to be safe. */
+        xtimer_usleep(1200);
     }
 
     /* this should never be reached */
