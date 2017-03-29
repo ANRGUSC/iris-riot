@@ -65,7 +65,7 @@
 #include "net/gnrc/netapi.h"
 #include "net/netdev2.h"
 #include "periph/uart.h"
-#include "main-conf.h"
+#include "../mbed_riot/main-conf.h"
 #include "periph/adc.h"
 
 #define ENABLE_DEBUG (1)
@@ -175,7 +175,7 @@ static int _soundrf_sender_rdy(ipv6_addr_t *rcvr_ip, uint16_t rcvr_port,
         return 1;
     }
 
-    udp = gnrc_udp_hdr_build(payload, rcvr_port, sender_port);
+    udp = gnrc_udp_hdr_build(payload, sender_port, rcvr_port);
     if (udp == NULL) {
         DEBUG("Error: unable to allocate UDP header");
         gnrc_pktbuf_release(payload);
@@ -284,7 +284,7 @@ static void *_soundrf_sender(void *arg)
     _set_tx_power(7);
 
 
-    if (ipv6_addr_from_str(&soundrf_rcvr_ip, ARREST_FOLLOWER_IPV6_ADDR)) {
+    if (ipv6_addr_from_str(&soundrf_rcvr_ip, ARREST_FOLLOWER_IPV6_ADDR) == NULL) {
         DEBUG("Error: unable to parse destination address");
         return NULL;
     }
@@ -310,7 +310,7 @@ static void *_soundrf_sender(void *arg)
                 if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
                     DEBUG("Got REQ. Sending 'RDY' pkt now!\n");
-                    _soundrf_sender_rdy(&soundrf_rcvr_ip, ARREST_FOLLOWER_RANGE_THR_PORT,
+                    _soundrf_sender_rdy(&soundrf_rcvr_ip, GET_SET_RANGING_THR_PORT,
                         ARREST_LEADER_SOUNDRF_PORT, ARREST_LEADER_SOUNDRF_ID);
                 } else if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
