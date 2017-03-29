@@ -179,8 +179,6 @@ static void *_rssi_dump(void *arg)
                                          .pid = thread_getpid() };
     dispatcher_register(&rssi_dump_thr);
 
-    _set_hwaddr_short(ARREST_FOLLOWER_SHORT_HWADDR);
-
     /* assuming _set_hwaddr_short above was successful */
     uint8_t my_hwaddr_short[2];
     gnrc_netif_addr_from_str(my_hwaddr_short, sizeof(my_hwaddr_short), ARREST_FOLLOWER_SHORT_HWADDR);
@@ -454,6 +452,9 @@ int main(void)
                   _rssi_dump, (void *) (uint32_t) hdlc_pid, "rssi_dump");
 
     dispatcher_register(&main_thr);
+
+    _set_hwaddr_short(ARREST_FOLLOWER_SHORT_HWADDR);
+    _set_channel(main_channel);
 
     /* this thread handles set tx power, set channel, and ranging requests */
     while(1)
