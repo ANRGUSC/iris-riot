@@ -97,7 +97,7 @@ static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
 static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];
 
 /* Holds the current main radio channel. */
-static uint16_t main_channel = DEFAULT_CHANNEL;
+static uint16_t main_channel = ARREST_DATA_CHANNEL;
 
 /* TODO: need to program leader-follower IP discovery */
 
@@ -165,7 +165,7 @@ static void *_rssi_dump(void *arg)
 {
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
     msg_t msg, msg2;
-    bool rssi_pkt = false;
+    bool is_rssi_pkt = false;
     bool hdlc_snd_locked = false;
     hdlc_pkt_t *recv_pkt;
     gnrc_netif_hdr_t *netif_hdr;
@@ -183,11 +183,15 @@ static void *_rssi_dump(void *arg)
 
     /* assuming _set_hwaddr_short above was successful */
     uint8_t my_hwaddr_short[2];
-    gnrc_netif_addr_from_str(my_hwaddr_short, sizeof(my_hwaddr_short), ARREST_LEADER_SHORT_HWADDR);
+    gnrc_netif_addr_from_str(my_hwaddr_short, sizeof(my_hwaddr_short), ARREST_FOLLOWER_SHORT_HWADDR);
 
     char send_data[UART_PKT_HDR_LEN + 1];
-    hdlc_pkt_t send_pkt = { .data = send_data, .length = UART_PKT_HDR_LEN + 1 };
+    hdlc_pkt_t send_pkt = { send_data, UART_PKT_HDR_LEN + 1 };
+    char rssi_data[UART_PKT_HDR_LEN + 1];
+    hdlc_pkt_t rssi_pkt = { rssi_data, UART_PKT_HDR_LEN + 1 };
+
     uart_pkt_hdr_t uart_hdr;
+    uart_pkt_hdr_t rssi_uart_hdr;
 
     while(1)
     {
@@ -203,25 +207,26 @@ static void *_rssi_dump(void *arg)
                 switch (recv_uart_hdr.pkt_type) 
                 {
                     case RSSI_DUMP_START:
-                        /* check for custom channel request */
-                        if (recv_pkt->length > UART_PKT_HDR_LEN) {
-                            _set_channel(recv_pkt->data[UART_PKT_DATA_FIELD]);
+                        /* TODO: check for custom channel request */
+                        /* default localization channel */
+                        _set_channel(RSSI_LOCALIZATION_CHAN);
+
+                        if(!hdlc_snd_locked) {
+                            hdlc_snd_locked = true; 
+                            uart_hdr.dst_port = recv_uart_hdr.src_port;
+                            uart_hdr.src_port = RSSI_DUMP_PORT;
+                            uart_hdr.pkt_type = RSSI_SCAN_STARTED;
+                            uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                                &uart_hdr);
+                            send_pkt.length = UART_PKT_HDR_LEN;
+
+                            msg2.type = HDLC_MSG_SND;
+                            msg2.content.ptr = &send_pkt;
+                            msg_send(&msg2, hdlc_pid);
                         } else {
-                            /* default localization channel */
-                            _set_channel(RSSI_LOCALIZATION_CHAN);
+                            /* requeue the msg_t */
+                            msg_send_to_self(&msg);
                         }
-
-                        hdlc_snd_locked = true; 
-                        uart_hdr.dst_port = recv_uart_hdr.src_port;
-                        uart_hdr.src_port = RSSI_DUMP_PORT;
-                        uart_hdr.pkt_type = RSSI_SCAN_STARTED;
-                        uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
-                            &uart_hdr);
-                        send_pkt.length = UART_PKT_HDR_LEN;
-
-                        msg2.type = HDLC_MSG_SND;
-                        msg2.content.ptr = &send_pkt;
-                        msg_send(&msg2, hdlc_pid);
 
                         DEBUG("rssi_dump : dump STARTING... \n");
 
@@ -230,20 +235,25 @@ static void *_rssi_dump(void *arg)
                     case RSSI_DUMP_STOP:
                         gnrc_netreg_unregister(1, &rssi_dump_server);
                         _set_channel(main_channel);
-                        DEBUG("rssi_dump: dump STOPPED.");
+                        DEBUG("rssi_dump: dump STOPPED.\n");
 
-                        hdlc_snd_locked = true; 
-                        uart_hdr.dst_port = recv_uart_hdr.src_port;
-                        uart_hdr.src_port = RSSI_DUMP_PORT;
-                        uart_hdr.pkt_type = RSSI_SCAN_STOPPED;
-                        uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
-                            &uart_hdr);
-                        send_pkt.length = UART_PKT_HDR_LEN;
+                        if (!hdlc_snd_locked) {
+                            hdlc_snd_locked = true; 
+                            uart_hdr.dst_port = recv_uart_hdr.src_port;
+                            uart_hdr.src_port = RSSI_DUMP_PORT;
+                            uart_hdr.pkt_type = RSSI_SCAN_STOPPED;
+                            uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                                &uart_hdr);
+                            send_pkt.length = UART_PKT_HDR_LEN;
 
-                        msg2.type = HDLC_MSG_SND;
-                        msg2.content.ptr = &send_pkt;
-                        msg_send(&msg2, hdlc_pid);
-                        DEBUG("_rssi_dump : Dumping stopped \n");
+                            msg2.type = HDLC_MSG_SND;
+                            msg2.content.ptr = &send_pkt;
+                            msg_send(&msg2, hdlc_pid);
+                            DEBUG("_rssi_dump : Dumping stopped \n");
+                        } else {
+                            /* requeue the msg_t */
+                            msg_send_to_self(&msg);
+                        }
 
                         /* TODO: send RSSI_SCAN_STOPPED to mbed */
                         break;
@@ -255,45 +265,47 @@ static void *_rssi_dump(void *arg)
                 break;
             case HDLC_RESP_RETRY_W_TIMEO:
                 DEBUG("_rssi_dump : retry frame \n");
-                if (rssi_pkt) {
+                if (is_rssi_pkt) {
                     /* don't bother resending */
-                    rssi_pkt = false;
+                    is_rssi_pkt = false;
                     hdlc_snd_locked = false;
                 } else {
                     xtimer_usleep(msg.content.value);
+                    DEBUG("rssi_dump: resend UART packet\n");
                     msg_send(&msg2, hdlc_pid);
                 }
+
                 break;
             case HDLC_RESP_SND_SUCC:
-                DEBUG("_rssi_dump : sent frame \n");
-                hdlc_snd_locked = true;
+                // DEBUG("_rssi_dump : sent frame \n");
+                hdlc_snd_locked = false;
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                DEBUG("_rssi_dump : received a beacon \n");
+                // DEBUG("_rssi_dump : received a beacon \n");
 
                 if (!hdlc_snd_locked) {
-                    DEBUG("rssi_dump: getting RSSI and sending to mbed...\n"); 
+                    // DEBUG("rssi_dump: getting RSSI and sending to mbed...\n"); 
 
                     netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->next->data;
                     dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
                     /* need to subtract 73 from raw RSSI (do on mbed side) to get dBm value */
                     uint8_t raw_rssi = netif_hdr->rssi;
-
-                    if (netif_hdr->dst_l2addr_len == 2 && !memcmp(dst_addr, my_hwaddr_short, 2)) {
+                    if(dst_addr == 0){/* do nothing*/}
+                    if (netif_hdr->dst_l2addr_len == 2 ) {//&& !memcmp(dst_addr, my_hwaddr_short, 2)) {
                         hdlc_snd_locked = true;
-                        uart_hdr.src_port = RSSI_DUMP_PORT;
-                        uart_hdr.dst_port = 0xFF; /* taken care of by dispatcher */
-                        uart_hdr.pkt_type = RSSI_DATA_PKT;
-                        uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
-                            &uart_hdr);
-                        send_pkt.length = uart_pkt_cpy_data(send_pkt.data, 
+                        rssi_uart_hdr.src_port = RSSI_DUMP_PORT;
+                        rssi_uart_hdr.dst_port = 0xFF; /* taken care of by dispatcher */
+                        rssi_uart_hdr.pkt_type = RSSI_DATA_PKT;
+                        uart_pkt_insert_hdr(rssi_pkt.data, UART_PKT_HDR_LEN + 1,
+                            &rssi_uart_hdr);
+                        rssi_pkt.length = uart_pkt_cpy_data(rssi_pkt.data, 
                             UART_PKT_HDR_LEN + 1, &raw_rssi, sizeof(raw_rssi)); 
 
-                        rssi_pkt = true;
+                        is_rssi_pkt = true;
                         msg2.type = HDLC_MSG_SND;
-                        msg2.content.ptr = &send_pkt;
+                        msg2.content.ptr = &rssi_pkt;
 
-                        DEBUG("rssi_dump: sending RSSI over uart...\n");
+                        // DEBUG("rssi_dump: sending RSSI over uart...\n");
 
                         msg_send(&msg2, hdlc_pid);
                     }
