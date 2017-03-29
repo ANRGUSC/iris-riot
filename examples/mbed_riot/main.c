@@ -395,7 +395,8 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
         return 0;
     }
 
-    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, ON_SLEEP_PIN, ADC_RES_7BIT, 2000);
+    adc_init(AD5_PIN);
+    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, AD5_PIN, ADC_RES_7BIT, 2000);
 
     if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, 
         ip)) {
