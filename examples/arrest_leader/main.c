@@ -292,6 +292,11 @@ static void *_soundrf_sender(void *arg)
     rcvr_hwaddr_len = gnrc_netif_addr_from_str(rcvr_hwaddr, sizeof(rcvr_hwaddr), 
                                                ARREST_FOLLOWER_SHORT_HWADDR);
 
+    if (rcvr_hwaddr_len == 0) {
+        puts("error: invalid address given");
+        return 1;
+    }
+
     while(1)
     {
         msg_receive(&msg);
@@ -310,7 +315,6 @@ static void *_soundrf_sender(void *arg)
                 } else if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
                     DEBUG("Got GO. Time to send sound/rf ping!\n");
-                    _set_channel(RSSI_LOCALIZATION_CHAN);
                     range_tx_init(GPIO_PD3);
                     _soundrf_send_pings(rcvr_hwaddr, rcvr_hwaddr_len, 
                                         ARREST_LEADER_SOUNDRF_ID);
