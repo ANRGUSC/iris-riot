@@ -304,7 +304,7 @@ static int _send(netdev2_t *netdev, const struct iovec *vector, unsigned count)
         gpio_set(ranging_dev_gpio_pin);
 
         /* ultrasound ping should execute 20.5msec after gpio pin goes up */
-        xtimer_spin(100);
+        xtimer_spin(500);
 
         gpio_clear(ranging_dev_gpio_pin);
         irq_restore(old_state);
