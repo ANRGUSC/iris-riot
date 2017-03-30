@@ -583,6 +583,11 @@ int main(void)
                         ARREST_LEADER_SOUNDRF_ID);
                     range_req = 0;  /* turnoff range req timeo */
                     range_rx_stop();
+
+                    /* WARNING: if the time between two sound range requests to 
+                    the openmote is too short, your TDoA values may be unusually
+                    low. This may be because the ADC is not settling properly. */
+                    
                     DEBUG("ranging: 'GO' done\n");
                 } else {
                     DEBUG("Unknown packet.");
