@@ -292,7 +292,7 @@ static void *_rssi_dump(void *arg)
                     if (netif_hdr->dst_l2addr_len == 2 ) {//&& !memcmp(dst_addr, my_hwaddr_short, 2)) {
                         hdlc_snd_locked = true;
                         rssi_uart_hdr.src_port = RSSI_DUMP_PORT;
-                        rssi_uart_hdr.dst_port = 0xFF; /* taken care of by dispatcher */
+                        rssi_uart_hdr.dst_port = 0xFFFF; /* taken care of by dispatcher */
                         rssi_uart_hdr.pkt_type = RSSI_DATA_PKT;
                         uart_pkt_insert_hdr(rssi_pkt.data, UART_PKT_HDR_LEN + 1,
                             &rssi_uart_hdr);
@@ -309,6 +309,10 @@ static void *_rssi_dump(void *arg)
                     }
                 } /* else { do nothing, wait for next packet } */
 
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_SND:
+                /* just in case */
                 gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                 break;
             default:
@@ -408,7 +412,7 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
 
     /* there should no be other messages being sent to this thread at this point */
     /* wait 500ms */
-    if(xtimer_msg_receive_timeout(&msg, 1000000) < 0) {
+    if(xtimer_msg_receive_timeout(&msg, 500000) < 0) {
         /* timed out */
         DEBUG("netdev ranging timed out\n");
         retval = 0;
