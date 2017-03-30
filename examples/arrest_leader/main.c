@@ -86,9 +86,9 @@
 #define FEN   BIT( 4) /**< Enable FIFOs */
 #define UART_CTL_HSE_VALUE    0
 
-static msg_t main_msg_queue[8];
+static msg_t main_msg_queue[16];
 /* larger queue for fast incoming RSSI packets */
-static msg_t soundrf_sender_queue[8];
+static msg_t soundrf_sender_queue[16];
 
 static char soundrf_sender_stack[THREAD_STACKSIZE_MAIN];
 
@@ -116,6 +116,23 @@ static int _set_hwaddr_short(const char *target_hwaddr_str)
 
     return -1; /* fail */
 }
+
+static int _set_hwaddr_long(const char *target_hwaddr_str)
+{
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    uint8_t target_hwaddr_long[MAX_ADDR_LEN];
+    size_t target_hwaddr_long_len;
+    size_t numof = gnrc_netif_get(ifs);
+    if (numof == 1) {
+        target_hwaddr_long_len = gnrc_netif_addr_from_str(target_hwaddr_long, 
+                                  sizeof(target_hwaddr_long), target_hwaddr_str);
+        return gnrc_netapi_set(ifs[0], NETOPT_ADDRESS_LONG, 0, target_hwaddr_long, 
+                               target_hwaddr_long_len);
+    }
+
+    return -1; /* fail */
+}
+
 
 /**
  * Set channel of radio. Works only if one netif exists.
@@ -210,6 +227,7 @@ static int _soundrf_send_pings(uint8_t *rcvr_hwaddr, size_t rcvr_hwaddr_len,
                                     uint8_t sender_node_id)
 {
     gnrc_pktsnip_t *pkt, *hdr;
+    msg_t msg;
     gnrc_netif_hdr_t *nethdr;
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     uint8_t flags = 0x00;
@@ -280,7 +298,7 @@ static void *_soundrf_sender(void *arg)
 
     /* Turn off MB13XX ultrasonic sensor using the following pin */ 
     if(gpio_init(GPIO_PA4, GPIO_OUT) < 0) {
-        puts("Error initializing GPIO_PIN.");
+        DEBUG("Error initializing GPIO_PIN.\n");
         return 1;
     }
     gpio_clear(GPIO_PA4);
@@ -298,7 +316,7 @@ static void *_soundrf_sender(void *arg)
                                                ARREST_FOLLOWER_SHORT_HWADDR);
 
     if (rcvr_hwaddr_len == 0) {
-        puts("error: invalid address given");
+        DEBUG("error: invalid address given\n");
         return 1;
     }
 
@@ -315,21 +333,24 @@ static void *_soundrf_sender(void *arg)
                 if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
                     DEBUG("Got REQ. Sending 'RDY' pkt now!\n");
+                    gnrc_pktbuf_release(gnrc_pkt);  
                     _soundrf_sender_rdy(&soundrf_rcvr_ip, GET_SET_RANGING_THR_PORT,
                         ARREST_LEADER_SOUNDRF_PORT, ARREST_LEADER_SOUNDRF_ID);
                 } else if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
                     DEBUG("Got GO. Time to send sound/rf ping!\n");
+                    gnrc_pktbuf_release(gnrc_pkt);  
                     range_tx_init(GPIO_PA4);
                     _soundrf_send_pings(rcvr_hwaddr, rcvr_hwaddr_len, 
                                         ARREST_LEADER_SOUNDRF_ID);
                     range_tx_off();
                     DEBUG("RF and ultrasound pings sent!\n");
                 } else {
+                    gnrc_pktbuf_release(gnrc_pkt);  
                     DEBUG("soundrf_sender: invalid pkt!\n");
                 }
 
-                gnrc_pktbuf_release(gnrc_pkt);
+                
                 break;
             default:
                 /* error */
@@ -358,6 +379,7 @@ int main(void)
     gnrc_netif_addr_from_str(my_hwaddr_short, sizeof(my_hwaddr_short), ARREST_LEADER_SHORT_HWADDR);
 
     _set_hwaddr_short(ARREST_LEADER_SHORT_HWADDR);
+    // _set_hwaddr_long(ARREST_LEADER_LONG_HWADDR);
     _set_channel(ARREST_DATA_CHANNEL);
 
     thread_create(soundrf_sender_stack, sizeof(soundrf_sender_stack), SOUNDRF_SENDER_PRIO, 0,
@@ -395,9 +417,15 @@ int main(void)
                         DEBUG("\n");
                     } 
                 }
-                gnrc_pktbuf_release(msg.content.ptr);
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_SND:
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                 break;
             default:
+                // gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                DEBUG("msg.type = %d", msg.type);
+                DEBUG("remote_ctrl: unknown msg_t!\n");
                 break;
         }
     }
