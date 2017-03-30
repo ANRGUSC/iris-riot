@@ -57,7 +57,7 @@
 #include "periph/uart.h"
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
-#include "../arrest_leader/main-conf.h"
+#include "../mbed_riot/main-conf.h"
 
 
 #define SHELL_BUFSIZE       (128U)
