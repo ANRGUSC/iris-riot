@@ -15,7 +15,8 @@
 #define RSSI_LOCALIZATION_CHAN              26
 #define ARREST_DATA_CHANNEL                 25
 
-#define ARREST_LEADER_SOUNDRF_IPV6_ADDR     "fe80::212:4b00:433:ed81"
+#define ARREST_LEADER_LONG_HWADDR           "00:12:4b:00:04:33:ed:81"
+#define ARREST_LEADER_SOUNDRF_IPV6_ADDR     "fe80::212:4b00:433:ed5e"
 
 #define ARREST_LEADER_SOUNDRF_PORT          9200
 
