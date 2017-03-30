@@ -30,7 +30,7 @@
 #define RANGE_RDY_FLAG                      0x34
 #define RANGE_GO_FLAG                       0x56
 
-#define DEFAULT_ULTRASOUND_THRESH           50
+#define DEFAULT_ULTRASOUND_THRESH           55
 #define MAX_SOUND_SAMPLES                   500
 
 #define REMOTE_CTRL_FLAG                    0x99 /* 10011001 */
