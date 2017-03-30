@@ -24,7 +24,7 @@
 
 #define ARREST_FOLLOWER_RANGE_THR_PORT      9300
 
-#define ARREST_FOLLOWER_IPV6_ADDR           "fe80::212:4b00:433:ece1"
+#define ARREST_FOLLOWER_IPV6_ADDR           "fe80::212:4b00:433:eca3"
 
 #define RANGE_REQ_FLAG                      0x12
 #define RANGE_RDY_FLAG                      0x34
