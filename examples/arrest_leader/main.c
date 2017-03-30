@@ -67,6 +67,7 @@
 #include "periph/uart.h"
 #include "../mbed_riot/main-conf.h"
 #include "periph/adc.h"
+#include "periph/gpio.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
@@ -278,7 +279,11 @@ static void *_soundrf_sender(void *arg)
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &sender_server);
 
     /* Turn off MB13XX ultrasonic sensor using the following pin */ 
-    gpio_clear(GPIO_PD3);
+    if(gpio_init(GPIO_PA4, GPIO_OUT) < 0) {
+        puts("Error initializing GPIO_PIN.");
+        return 1;
+    }
+    gpio_clear(GPIO_PA4);
 
     /* max out tx power */
     _set_tx_power(7);
@@ -315,12 +320,10 @@ static void *_soundrf_sender(void *arg)
                 } else if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
                     DEBUG("Got GO. Time to send sound/rf ping!\n");
-                    range_tx_init(GPIO_PD3);
+                    range_tx_init(GPIO_PA4);
                     _soundrf_send_pings(rcvr_hwaddr, rcvr_hwaddr_len, 
                                         ARREST_LEADER_SOUNDRF_ID);
                     range_tx_off();
-                    /* switch back to data channel */
-                    _set_channel(main_channel);
                     DEBUG("RF and ultrasound pings sent!\n");
                 } else {
                     DEBUG("soundrf_sender: invalid pkt!\n");

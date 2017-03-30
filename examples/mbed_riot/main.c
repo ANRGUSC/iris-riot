@@ -335,7 +335,7 @@ static int _sound_rf_ping_req(uint16_t rcvr_port,
         return 1;
     }
 
-    udp = gnrc_udp_hdr_build(payload, sender_port, rcvr_port);
+    udp = gnrc_udp_hdr_build(payload, rcvr_port, sender_port);
     if (udp == NULL) {
         puts("Error: unable to allocate UDP header");
         gnrc_pktbuf_release(payload);
@@ -394,7 +394,8 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
     }
 
     adc_init(AD5_PIN);
-    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, AD5_PIN, ADC_RES_7BIT, 2000);
+    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, AD5_PIN, 
+        ADC_RES_7BIT, MAX_SOUND_SAMPLES);
 
     if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, 
         ip)) {
@@ -402,6 +403,8 @@ static uint32_t _sound_rf_ping_go(uint16_t rcvr_port,
         gnrc_pktbuf_release(ip);
         return 0;
     }
+
+    DEBUG("PID of req is %d\n", thread_getpid());
 
     /* there should no be other messages being sent to this thread at this point */
     /* wait 500ms */
