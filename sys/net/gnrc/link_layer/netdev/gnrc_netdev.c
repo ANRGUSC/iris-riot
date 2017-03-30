@@ -135,21 +135,24 @@ static void _sound_ranging(void)
         if (sample > ultrasound_thresh) {
             time_diff = xtimer_now() - last; 
             DEBUG("Ranging Successful - sample: %d, time_diff: %lu\n", sample, time_diff);
-            range_rx_stop();
             break;
         }
 
         ++cnt;
     }
 
-    irq_restore(old_state);
-
     if (pid_of_request != -1) {
         msg.type = RANGE_RX_COMPLETE;
         msg.content.value = (uint32_t) time_diff;
         time_diff = 0;
+        DEBUG("Sending TDoA to pid %d\n", pid_of_request);
         msg_send(&msg, pid_of_request);
     }
+
+
+    range_rx_stop();
+
+    irq_restore(old_state);
 }
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
@@ -268,7 +271,6 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
                    unsigned int res, unsigned int max_adc_samps)
 {
-    ranging_on = 1;
     _tx_node_id = tx_node_id;
     ultrasound_thresh = thresh;
     adc_line = line;
@@ -297,6 +299,9 @@ void range_rx_init(char tx_node_id, int thresh, unsigned int line,
     }
 
     DEBUG("ranging initialized!\n");
+
+    /* need to place this at end because the ISR will trigger real fast? */
+    ranging_on = 1;
 }
 
 void range_rx_stop(void)
