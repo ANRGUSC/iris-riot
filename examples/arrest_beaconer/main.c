@@ -56,7 +56,7 @@
 #include "msg.h"
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
-#include "../arrest_leader/main-conf.h"
+#include "../mbed_riot/main-conf.h"
 #include "xtimer.h"
 
 
@@ -108,6 +108,9 @@ int main(void)
     while (1) 
     {
         char c = 0xAA;
+
+        xtimer_usleep(1200);
+        
         /* put packet together */
         pkt = gnrc_pktbuf_add(NULL, &c, sizeof(c), GNRC_NETTYPE_UNDEF);
         if (pkt == NULL) {
@@ -133,7 +136,6 @@ int main(void)
         /* RIOT CC2538 drivers mishandles extremely fast packets. Beaconer needs
         to slow down its rate a little. 200us is minimum, but still causes 
         errors. Currently set at 1200us to be safe. */
-        xtimer_usleep(1200);
     }
 
     /* this should never be reached */
