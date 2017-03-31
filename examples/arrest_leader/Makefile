@@ -9,6 +9,8 @@ PROGRAMMER ?= jlink
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer periph_gpio
 
+CFLAGS += -DLOG_LEVEL=LOG_NONE
+
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
 
