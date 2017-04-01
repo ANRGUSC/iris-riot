@@ -31,11 +31,11 @@
 #define RANGE_GO_FLAG                       0x56
 
 #define DEFAULT_ULTRASOUND_THRESH           45
-#define MAX_SOUND_SAMPLES                   500
+#define MAX_SOUND_SAMPLES                   250
 
 #define REMOTE_CTRL_FLAG                    0x99 /* 10011001 */
 
-#define RANGE_REQ_TIMEO_USEC                1000000
+#define RANGE_REQ_TIMEO_USEC                500000
 
 
 

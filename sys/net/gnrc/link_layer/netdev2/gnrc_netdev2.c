@@ -20,6 +20,8 @@
 
 #include <errno.h>
 
+#include <stdio.h>
+
 #include "msg.h"
 #include "thread.h"
 
@@ -129,12 +131,14 @@ static void _sound_ranging(void)
         sample = adc_sample(adc_line, adc_res) 
             >> socadc_rshift;
 
+        printf("%d ", sample);
+
         /* wait for 200us before next poll for input capacitor to settle */
         xtimer_spin(300);
 
         if (sample > ultrasound_thresh) {
             time_diff = xtimer_now() - last; 
-            DEBUG("Ranging Successful - sample: %d, time_diff: %lu\n", sample, time_diff);
+            printf("Ranging Successful - sample: %d, time_diff: %lu\n", sample, time_diff);
             break;
         }
 
