@@ -119,7 +119,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 static void _sound_ranging(void)
 {
     int cnt = 0;
-    last = xtimer_now();
+    last = xtimer_now().ticks32;
     msg_t msg;
 
     unsigned old_state = irq_disable();
@@ -130,10 +130,10 @@ static void _sound_ranging(void)
             >> socadc_rshift;
 
         /* wait for 200us before next poll for input capacitor to settle */
-        xtimer_spin(300);
+        xtimer_spin(xtimer_ticks_from_usec(300));
 
         if (sample > ultrasound_thresh) {
-            time_diff = xtimer_now() - last; 
+            time_diff = xtimer_now().ticks32 - last; 
             DEBUG("Ranging Successful - sample: %d, time_diff: %lu\n", sample, time_diff);
             break;
         }

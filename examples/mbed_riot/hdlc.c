@@ -187,7 +187,7 @@ static void *_hdlc(void *arg)
 
     while(1) {
         if(uart_lock) {
-            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) xtimer_now();
+            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) xtimer_now().ticks32;
             if(timeout < 0) {
                 /* send message to self to resend msg */
                 msg2.type = HDLC_MSG_RESEND;
@@ -225,7 +225,7 @@ static void *_hdlc(void *arg)
                     yahdlc_frame_data(&(send_buf.control), pkt->data, 
                             pkt->length, send_buf.data, &send_buf.length);
                     uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                    last_sent = xtimer_now();
+                    last_sent = xtimer_now().ticks32;
                 }
                 break;
             case HDLC_MSG_SND_ACK:
@@ -239,7 +239,7 @@ static void *_hdlc(void *arg)
             case HDLC_MSG_RESEND:
                 DEBUG("hdlc: Resending frame w/ seq no %d (on send_seq_no %d)\n", send_buf.control.seq_no, send_seq_no);
                 uart_write(dev, (uint8_t *)send_buf.data, send_buf.length);
-                last_sent = xtimer_now();
+                last_sent = xtimer_now().ticks32;
                 break;
             case HDLC_MSG_REG_DISPATCHER:
                 DEBUG("hdlc: Registering dispatcher thread.\n");

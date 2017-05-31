@@ -62,7 +62,7 @@
 #include "net/gnrc.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/udp.h"
-#include "net/netdev2.h"
+#include "net/netdev.h"
 #include "periph/uart.h"
 #include "hdlc.h"
 #include "dispatcher.h"
@@ -170,7 +170,7 @@ static void *_rssi_dump(void *arg)
     hdlc_pkt_t *recv_pkt;
     gnrc_netif_hdr_t *netif_hdr;
     uint8_t *dst_addr;
-    gnrc_netreg_entry_t rssi_dump_server = {NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid()};
+    gnrc_netreg_entry_t rssi_dump_server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
 
 
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
@@ -448,7 +448,7 @@ int main(void)
     char send_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     uart_pkt_hdr_t uart_hdr;
-    gnrc_netreg_entry_t main_thr_server = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
+    gnrc_netreg_entry_t main_thr_server = { NULL, GET_SET_RANGING_THR_PORT, {thread_getpid()} };
     dispatcher_entry_t main_thr = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
 
     msg_init_queue(main_msg_queue, sizeof(main_msg_queue));
@@ -470,7 +470,7 @@ int main(void)
     {
         if(range_req) {
             uint32_t timeout = (uint32_t) (range_req_time + RANGE_REQ_TIMEO_USEC) 
-                          - (uint32_t) xtimer_now();
+                          - (uint32_t) xtimer_now().ticks32;
             if(timeout < 0) {
                 range_req = 0;
                 DEBUG("Ranging REQ timeout!\n");
@@ -552,7 +552,7 @@ int main(void)
                             return 1;
                         }
                         range_req = 1;
-                        range_req_time = xtimer_now();
+                        range_req_time = xtimer_now().ticks32;
                         _sound_rf_ping_req(GET_SET_RANGING_THR_PORT, 
                             &sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_PORT, 
                             ARREST_LEADER_SOUNDRF_ID);
