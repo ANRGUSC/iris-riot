@@ -15,9 +15,9 @@ the IPv6 global address in the localhost (ex fd00:dead:beef::1).
 
 To connect the border router and the python server, send the start signal to
 the python server:
-	udp send fd00:dead:beef::1 8888 $$START$$
+  * udp send fd00:dead:beef::1 8888 $$START$$
 with a general message syntax:
-	udp send <IPv6 Address> <Port> message
+  * udp send <IPv6 Address> <Port> message
 
 The $$START$$ signal registers the connecting client or mote's address in a
 list in the server, as the server publishes the data it receives to all
@@ -43,3 +43,8 @@ After receiving a message from any source, the server sends an $$ACK$$ reply
 acknowledging the transmission back to the source.  This is currently used by
 the client script to tell it to stop sending a message, but could be
 implemented to work with other sources as well.
+
+The border router is based on the gnrc_border_router with the addition of
+some of the modules of gnrc_networking to allow for UDP transmissions. The
+README files for both examples have been included in the old README's file for
+reference.
