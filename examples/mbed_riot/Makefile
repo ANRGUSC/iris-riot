@@ -33,6 +33,7 @@ CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 # which is not needed in a production environment but helps in the
 # development process:
 CFLAGS += -DDEVELHELP -Wno-error=int-conversion
+WERROR=0
 # Comment this out to join RPL DODAGs even if DIOs do not contain
 # DODAG Configuration Options (see the doc for more info)
 # CFLAGS += -DGNRC_RPL_DODAG_CONF_OPTIONAL_ON_JOIN
