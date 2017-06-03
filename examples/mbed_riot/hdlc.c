@@ -31,7 +31,7 @@
  * CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH 
- * THE SOFTWARE.
+ * THE SOFTWARE.g
  */
 
 /**
@@ -62,7 +62,7 @@
 #include "yahdlc.h"
 #include "periph/uart.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 #define UART_BUFSIZE            (512U)
@@ -78,18 +78,19 @@ typedef struct {
 
 static uart_ctx_t ctx;
 
+/* uart access control lock */
+static uint32_t uart_lock = 0;
+
 static char hdlc_recv_data[HDLC_MAX_PKT_SIZE];
 static char hdlc_send_frame[2 * (HDLC_MAX_PKT_SIZE + 2 + 2 + 2)];
 static char hdlc_ack_frame[2 + 2 + 2 + 2];
 static char hdlc_pkt_data[HDLC_MAX_PKT_SIZE];
 
-static hdlc_buf_t recv_buf = { .data = hdlc_recv_data };
+static hdlc_buf_t recv_buf = { .data = hdlc_recv_data };    //hdlc internal buffer
 static hdlc_buf_t send_buf = { .data = hdlc_send_frame };
 static hdlc_buf_t ack_buf  = { .data = hdlc_ack_frame };
-static hdlc_pkt_t recv_pkt = { .data = hdlc_pkt_data };
-/* uart access control lock */
-static uint32_t uart_lock = 0;
-
+static hdlc_pkt_t recv_pkt = { .data = hdlc_pkt_data };     //buffer used to pass on packet
+static mutex_t recv_pkt_mutex;
 
 static void rx_cb(void *arg, uint8_t data)
 {
@@ -107,14 +108,13 @@ static void rx_cb(void *arg, uint8_t data)
     }
 }
 
-
-
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
     msg_t msg, ack_msg;
     int ret;
     int retval;
     char c;
+
     while(1) {
         retval = ringbuffer_get_one(&(ctx.rx_buf));
 
@@ -130,11 +130,21 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
         mutex_unlock(&(recv_buf.mtx));
 
-        if (recv_buf.length > 0 && ret != -EIO && 
+        if (ret == -ENOMSG) {
+            continue;
+        }
+
+        if (ret == -EIO) {
+            DEBUG("hdlc: FCS ERROR OR INVALID FRAME!\n");
+            recv_buf.control.frame = recv_buf.control.seq_no = 0;
+            return;
+        }
+
+        if (recv_buf.length > 0 && 
             (recv_buf.control.seq_no == *recv_seq_no % 8 ||
             recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
             /* valid data frame received */
-            DEBUG("received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
+            DEBUG("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             /* always send ack */
             ack_msg.type = HDLC_MSG_SND_ACK;
@@ -143,36 +153,38 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             /* pass on packet to dispatcher */
             if (recv_buf.control.seq_no == *recv_seq_no % 8) {
+                DEBUG("passing on pkt w/ seq_no %d\n", *recv_seq_no % 8);
+                // DEBUG("mutex is (%d)\n", recv_pkt_mutex.queue.next);
+
                 /* lock pkt until dispatcher makes a copy and unlocks */
-                mutex_lock(&(recv_buf.mtx));
+                mutex_lock(&recv_pkt_mutex);
                 memcpy(recv_pkt.data, recv_buf.data, recv_buf.length);
                 recv_pkt.length = recv_buf.length;
-                DEBUG("got and expected seq_no %d, %d\n", *recv_seq_no,recv_buf.length);
+                (*recv_seq_no)++;
                 msg.type = HDLC_PKT_RDY;
                 msg.content.ptr = &recv_pkt;
                 msg_send(&msg, hdlc_dispatcher_pid);
-
-                (*recv_seq_no)++;
             }
 
             recv_buf.control.frame = recv_buf.control.seq_no =  0;
+            return;
         } else if (recv_buf.length == 0 && 
                     (recv_buf.control.frame == YAHDLC_FRAME_ACK ||
                      recv_buf.control.frame == YAHDLC_FRAME_NACK)) {
-            DEBUG("received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
+            DEBUG("hdlc: received ACK/NACK w/ seq_no: %d\n", recv_buf.control.seq_no);
 
             if(recv_buf.control.seq_no == *send_seq_no % 8) {
+                uart_lock = 0;
+                (*send_seq_no)++;
                 msg.type = HDLC_RESP_SND_SUCC;
                 msg.content.value = (uint32_t) 0;
-                DEBUG("sender_pid is %d\n", sender_pid);
+                DEBUG("hdlc: valid ACK, tell pid %d a pkt is ready\n", sender_pid);
                 msg_send(&msg, sender_pid);
-                (*send_seq_no)++;
-                uart_lock = 0;
             }
                                 
             recv_buf.control.frame = recv_buf.control.seq_no = 0;
+            return;
         } 
-
     }
 }
 
@@ -218,7 +230,8 @@ static void *_hdlc(void *arg)
                 } else {
                     uart_lock = 1;
                     sender_pid = msg.sender_pid;
-                    DEBUG("hdlc: sender_pid set to %d\n", sender_pid);
+                    DEBUG("hdlc: sender_pid set to %d, send_seq_no %d\n", 
+                          sender_pid, send_seq_no % 8);
                     send_buf.control.frame = YAHDLC_FRAME_DATA;
                     send_buf.control.seq_no = send_seq_no % 8; 
                     hdlc_pkt_t *pkt = msg.content.ptr;
@@ -259,9 +272,10 @@ static void *_hdlc(void *arg)
 
 int hdlc_pkt_release(hdlc_pkt_t *pkt) 
 {
-    if(recv_buf.mtx.queue.next != NULL) {
-        recv_buf.control.frame = recv_buf.control.seq_no = 0;
-        mutex_unlock(&recv_buf.mtx);
+    if(recv_pkt_mutex.queue.next != NULL) {
+        DEBUG("unlocking recv_pkt\n");
+        // mutex_unlock(&(recv_buf.mtx));
+        mutex_unlock(&recv_pkt_mutex);
         return 0;
     }
 
@@ -280,6 +294,7 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
 
     ringbuffer_init(&(ctx.rx_buf), ctx.rx_mem, UART_BUFSIZE);
     uart_init(dev, 115200, rx_cb, (void *) dev);
+    // DEBUG("mutex is (%d)\n", recv_pkt_mutex.queue.next);
 
     res = thread_create(stack, stacksize,
                         priority, THREAD_CREATE_STACKTEST, _hdlc, (void *) dev, name);

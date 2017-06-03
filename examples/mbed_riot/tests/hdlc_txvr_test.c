@@ -64,7 +64,7 @@
 #include "debug.h"
 
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
-#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN - 1)
+#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN )
 
 #define MAIN_THR_PORT   1234
 #define THREAD2_PORT    5678
@@ -74,17 +74,17 @@
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
-static msg_t thread2_msg_queue[8];
-static msg_t main_msg_queue[8];
+static msg_t thread2_msg_queue[16];
+static msg_t main_msg_queue[16];
 
-static char hdlc_stack[THREAD_STACKSIZE_MAIN];
+static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
 static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
 static char thread2_stack[THREAD_STACKSIZE_MAIN];
 
 static void *_thread2(void *arg)
 {
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
-    msg_init_queue(thread2_msg_queue, 8);
+    msg_init_queue(thread2_msg_queue, 16);
     dispatcher_entry_t thread2 = { NULL, THREAD2_PORT, thread_getpid() };
     dispatcher_register(&thread2);
 
@@ -111,11 +111,11 @@ static void *_thread2(void *arg)
         hdlc_snd_pkt.data[UART_PKT_DATA_FIELD] = frame_no;
 
         /* fill packet with chars that will not be escaped */
-        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+        for(int i = 6; i < HDLC_MAX_PKT_SIZE; i++) {
             hdlc_snd_pkt.data[i] = (char) (random_uint32() % 0x7E);
         }
 
-        DEBUG("main_thr: sending pkt no %d\n", frame_no);
+        DEBUG("thread2: sending pkt no %d\n", frame_no);
 
         msg_snd.type = HDLC_MSG_SND;
         msg_snd.content.ptr = &hdlc_snd_pkt;
@@ -133,6 +133,7 @@ static void *_thread2(void *arg)
                     break;
                 case HDLC_RESP_RETRY_W_TIMEO:
                     xtimer_usleep(msg_rcv.content.value);
+                    DEBUG("thread2: retrying frame_no %d\n", frame_no);
                     msg_send(&msg_snd, hdlc_pid);
                     break;
                 case HDLC_PKT_RDY:
@@ -163,8 +164,11 @@ void main(void)
 {
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */
-    msg_init_queue(main_msg_queue, 8);
+    msg_init_queue(main_msg_queue, 16);
 
+    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
+    dispatcher_register(&main_thr);
+    
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(1));
     dispacher_init(dispatcher_stack, sizeof(dispatcher_stack), HDLC_PRIO, 
@@ -172,9 +176,6 @@ void main(void)
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
                   THREAD_CREATE_STACKTEST, _thread2, hdlc_pid, "thread2");
 
-    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
-
-    dispatcher_register(&main_thr);
 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
@@ -192,7 +193,7 @@ void main(void)
 
     random_init(xtimer_now().ticks32);
 
-    DEBUG("hdlc_txvr_test pid is %" PRIkernel_pid "\n", thread_getpid());
+    DEBUG("main_thr pid is %" PRIkernel_pid "\n", thread_getpid());
 
     int exit = 0;
 
@@ -201,7 +202,7 @@ void main(void)
         hdlc_snd_pkt.data[UART_PKT_DATA_FIELD] = frame_no;
 
         /* fill packet with chars that will not be escaped */
-        for(int i = 1; i < HDLC_MAX_PKT_SIZE; i++) {
+        for(int i = 6; i < HDLC_MAX_PKT_SIZE; i++) {
             hdlc_snd_pkt.data[i] = (char) (random_uint32() % 0x7E);
         }
 
@@ -223,6 +224,7 @@ void main(void)
                     break;
                 case HDLC_RESP_RETRY_W_TIMEO:
                     xtimer_usleep(msg_rcv.content.value);
+                    DEBUG("main_thr: retrying frame_no %d\n", frame_no);
                     msg_send(&msg_snd, hdlc_pid);
                     break;
                 case HDLC_PKT_RDY:
