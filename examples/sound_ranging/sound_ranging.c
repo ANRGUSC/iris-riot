@@ -36,8 +36,8 @@
 #include "msg.h"
 
 #define TX_POWER            7
-#define TX_NODE_IPV6_ADDR   "fe80::212:4b00:433:ed81"
-#define RX_NODE_IPV6_ADDR   "fe80::212:4b00:433:ed4f"
+#define TX_NODE_IPV6_ADDR   "fe80::212:4b00:613:622 "
+#define RX_NODE_IPV6_ADDR   "fe80::212:4b00:433:ece1"
 #define CLIENT_PORT         8000
 #define SERVER_PORT         8888
 
@@ -393,3 +393,37 @@ start:
     return 0; 
 }
 
+int scan_tx(int argc, char **argv)
+{
+
+    puts("Initializing GPIO_PD3");
+    /* enable output on Port D pin 3 */
+    if(gpio_init(GPIO_PD3, GPIO_OUT) < 0) {
+        puts("Error initializing GPIO_PIN.");
+        return 1;
+    }
+
+    puts("Clearing GPIO_PD3");
+    gpio_clear(GPIO_PD3);
+
+    puts("Pinging...");
+    /* set pin to 1 for around 50uS */
+    gpio_set(GPIO_PD3);
+
+    /* ultrasound ping should execute 20.5msec after gpio pin goes up */
+    xtimer_spin(100);
+
+    puts("Enter 'kill' to kill signal");
+    char str[40];
+    gets(str);
+
+    if(strcmp(str, "kill") == 0)
+    {
+        // range_tx_off();
+        gpio_clear(GPIO_PD3);
+        puts("finished");
+        return 0;
+    }
+
+    return 0;
+}

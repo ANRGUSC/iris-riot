@@ -29,11 +29,13 @@ static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 extern int udp_cmd(int argc, char **argv);
 extern int range_tx(int argc, char **argv);
 extern int range_rx(int argc, char **argv);
+extern int scan_tx(int argc, char **argv);
 
 static const shell_command_t shell_commands[] = {
     { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
     { "range_tx", "act as the transmitter for sound ranging", range_tx},
     { "range_rx", "act as the receiver for sound ranging", range_rx},
+    { "scan_tx", "act as the receiver for sound ranging", scan_tx},
     { NULL, NULL, NULL }
 };
 
