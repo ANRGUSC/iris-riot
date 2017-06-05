@@ -36,8 +36,9 @@
 #include "msg.h"
 
 #define TX_POWER            7
-#define TX_NODE_IPV6_ADDR   "fe80::212:4b00:613:622 "
-#define RX_NODE_IPV6_ADDR   "fe80::212:4b00:433:ece1"
+#define TX_NODE_IPV6_ADDR   "fe80::212:4b00:613:622" //fe80::212:4b00:433:ed81"
+#define RX_NODE_IPV6_ADDR   "fe80::212:4b00:433:ece1" //"fe80::212:4b00:433:ed4f"
+
 #define CLIENT_PORT         8000
 #define SERVER_PORT         8888
 
@@ -50,6 +51,26 @@
 #define RANGE_RDY_FLAG      0x34
 #define RANGE_GO_FLAG       0x56
 #define TX_NODE_ID 0x00
+
+typedef struct {
+    int* num_threads;
+    int* stop_flag;
+    int udelay;
+    int adc_line;
+    int adc_res;
+} scan_rx_param;
+
+int QUIT_RX_SCAN_FLAG = 0;
+int NUM_SCAN_RX_THREADS = 0;
+
+char scan_rx_stack[THREAD_STACKSIZE_MAIN];
+
+scan_rx_param param;
+int udelay;
+uint8_t _tx_node_id      = 0;
+unsigned int adc_line;
+int socadc_rshift        = 0;
+int adc_res              = 0; /* default resolution */
 
 static gnrc_netreg_entry_t server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
                                         KERNEL_PID_UNDEF};
@@ -137,6 +158,8 @@ int range_rx(int argc, char **argv)
         gnrc_pktbuf_release(ip);
         return 1;
     }
+
+    printf("REQ signal sent to %s",tx_node_addr_str);
 
     /* wait for "RDY" packet */
     while(1) {   
@@ -255,7 +278,7 @@ int range_tx(int argc, char **argv)
         puts("Error: unable to parse destination address");
         return 1;
     }
-
+    puts("Waiting for REQ signal");
     /* ultrasound transmitter is always ready for request (infinite loop) */
     while(1) {
 
@@ -425,5 +448,104 @@ int scan_tx(int argc, char **argv)
         return 0;
     }
 
+    return 0;
+}
+
+/*************************************************/
+//scan_rx stuff
+
+
+void *scan_rx_thread(void *arg)
+{
+    printf("Started scan_rx_thread\n");
+    int adcsample;
+    scan_rx_param* param = (scan_rx_param*) arg;
+    (*(param->num_threads))++;
+    printf("Flag value: %d\n",*(param->stop_flag));
+    while(*(param->stop_flag) == 0){
+        xtimer_usleep(param->udelay);
+        adcsample = adc_sample(param->adc_line, param->adc_res) >> SOCADC_7_BIT_RSHIFT;
+        if(adcsample > 60){
+            printf("Ping Recieved: High- %d\n",adcsample);
+            xtimer_usleep(2000);
+            continue;
+        }
+        if(adcsample > 50){
+            printf("Ping Recieved: Med- %d\n",adcsample);
+            xtimer_usleep(2000);
+            continue;
+        }
+    }
+    (*(param->num_threads))--;
+    printf("Thread stopped\n");
+    return NULL;
+}
+
+int scan_rx_start(int argc, char **argv)
+{
+    if(NUM_SCAN_RX_THREADS != 0){
+        printf("There already exists a scan_rx thread\n");
+        return 1;
+    }
+
+    if (argc < 2) {
+        printf("usage: %s <udelay>\n", argv[0]);
+        return 1;
+    }
+
+    if (atoi(argv[1]) <= 0)
+    {
+        puts("error: please input value greater than 0\n");
+        return 1;
+    }
+    QUIT_RX_SCAN_FLAG = 0;
+    udelay = atoi(argv[1]);
+    _tx_node_id = TX_NODE_ID;
+    adc_line = AD4_PIN;
+    adc_init(adc_line);
+    adc_res = ADC_RES_7BIT; 
+
+    switch(adc_res)
+    {
+        case ADC_RES_7BIT:
+            socadc_rshift = SOCADC_7_BIT_RSHIFT;
+            break;
+        case ADC_RES_9BIT:
+            socadc_rshift = SOCADC_9_BIT_RSHIFT;
+            break;
+        case ADC_RES_10BIT:
+            socadc_rshift = SOCADC_10_BIT_RSHIFT;
+            break;
+        case ADC_RES_12BIT:
+            socadc_rshift = SOCADC_12_BIT_RSHIFT;
+            break;
+        default:
+            return 1;
+    }
+    param.num_threads = &NUM_SCAN_RX_THREADS;
+    param.stop_flag = &QUIT_RX_SCAN_FLAG;
+    param.udelay = udelay;
+    param.adc_line = adc_line;
+    param.adc_res = adc_res;
+
+    puts("Trying to start thread\n");
+    thread_create(scan_rx_stack, sizeof(scan_rx_stack),
+                         THREAD_PRIORITY_MAIN - 1,
+                         THREAD_CREATE_STACKTEST,
+                         scan_rx_thread, &param,
+                         "thread");
+
+    puts("Thread should be started\n");
+    return 0;
+}
+
+int scan_rx_stop(int argc, char **argv)
+{
+    if(NUM_SCAN_RX_THREADS == 0){
+        printf("No scan threads currently running\n");
+        return 1;
+    }
+    printf("Trying to stop thread\n");
+    QUIT_RX_SCAN_FLAG = 1;
     return 0;
 }
