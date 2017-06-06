@@ -58,6 +58,8 @@ typedef struct {
     int udelay;
     int adc_line;
     int adc_res;
+    int adc_shift;
+    int sample_size;
 } scan_rx_param;
 
 int QUIT_RX_SCAN_FLAG = 0;
@@ -71,6 +73,8 @@ uint8_t _tx_node_id      = 0;
 unsigned int adc_line;
 int socadc_rshift        = 0;
 int adc_res              = 0; /* default resolution */
+int adc_shift;
+int sample_size = -1;
 
 static gnrc_netreg_entry_t server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
                                         KERNEL_PID_UNDEF};
@@ -457,40 +461,102 @@ int scan_tx(int argc, char **argv)
 
 void *scan_rx_thread(void *arg)
 {
+    scan_rx_param* param = (scan_rx_param*) arg;
+
+    int low = 35;
+    int med = 50;
+    int high = 60;
+    int pinged = 0;
+
     printf("Started scan_rx_thread\n");
     int adcsample = 0;
     int i=0;
+    int j=0;
     int ping_rcvd=0;
-    scan_rx_param* param = (scan_rx_param*) arg;
-    (*(param->num_threads))++;
-    printf("Flag value: %d\n",*(param->stop_flag));
+    int sample_size = param->sample_size;
+    double avg = 0;
 
-    while (adcsample < 60 && *(param->stop_flag) == 0){
-        adcsample = adc_sample(param->adc_line, param->adc_res) >> SOCADC_7_BIT_RSHIFT;
+    int num_ping_rcvd=0;
+    
+    (*(param->num_threads))++;
+
+    switch(param->adc_res)
+    {
+        case ADC_RES_7BIT:
+            break;
+        case ADC_RES_9BIT:
+            med *= 4;
+            high *= 4;
+            break;
+        case ADC_RES_10BIT:
+            med *= 8;
+            high *= 8;
+            break;
+        case ADC_RES_12BIT:
+            med *= 10;
+            high *= 10;
+            break;
+        default:
+            return NULL;
     }
 
+    printf("Flag value: %d\n",*(param->stop_flag));
+
+    while (adcsample < high && *(param->stop_flag) == 0){
+        adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+    }
+
+
+
+    int num_iter = (int)(99000/param->udelay);
     while(*(param->stop_flag) == 0){
         //xtimer_usleep(param->udelay);
+
         ping_rcvd=0;
-        for(i=0; i<99; i++){
-            adcsample = adc_sample(param->adc_line, param->adc_res) >> SOCADC_7_BIT_RSHIFT;
-            if(adcsample > 60){
-                printf("Ping Recieved: High- %d\n",adcsample);
-                xtimer_usleep(5000);
-                i+=5;
-                ping_rcvd=1;
-            }
-            if(adcsample > 50){
+        pinged = 0;
+        for(i=0; i<num_iter; i++){
+            adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+            if(adcsample > high && !pinged){
                 printf("Ping Recieved: Med- %d\n",adcsample);
-                xtimer_usleep(5000);
                 ping_rcvd=1;
-                i+=5;
+                pinged = 1;
+                avg+=adcsample;
+                num_ping_rcvd++;
+                j++;
+                
             }
+            else if(adcsample > med && !pinged){
+                printf("Ping Recieved: Med- %d\n",adcsample);
+                ping_rcvd=1;
+                pinged = 1;
+                avg+=adcsample;
+                num_ping_rcvd++;
+                j++;
+            }
+            else if(adcsample < low){
+                pinged = 0;
+            }
+            //printf("%d\n",adcsample);
+            if(sample_size>0){
+            if(j>=sample_size){
+                avg/=sample_size;
+                double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
+                printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
+                printf("Percent loss: %d%%\n", (int)percent_loss);
+                printf("Average strength: %d\n", (int)avg);
+                (*(param->num_threads))--;
+                printf("Thread stopped\n");
+                return NULL;
+            }
+        }
             xtimer_usleep(param->udelay);
         }
         if(!ping_rcvd){
-            printf("Ping missed\n");
+           
+            printf("Ping missed\n");   
+            j++;
         }
+        
     }
     (*(param->num_threads))--;
     printf("Thread stopped\n");
@@ -499,13 +565,16 @@ void *scan_rx_thread(void *arg)
 
 int scan_rx_start(int argc, char **argv)
 {
+
+    sample_size = -1;
+
     if(NUM_SCAN_RX_THREADS != 0){
         printf("There already exists a scan_rx thread\n");
         return 1;
     }
 
     if (argc < 2) {
-        printf("usage: %s <udelay>\n", argv[0]);
+        printf("usage: %s <udelay> -s <sample_size>\n", argv[0]);
         return 1;
     }
 
@@ -513,6 +582,13 @@ int scan_rx_start(int argc, char **argv)
     {
         puts("error: please input value greater than 0\n");
         return 1;
+    }
+
+    if(strcmp(argv[2],"-s") == 0){
+        sample_size = atoi(argv[3]);
+        if(atoi(argv[3])<0){
+            puts("error: sample size must be greater than 0");
+        }
     }
 
     QUIT_RX_SCAN_FLAG = 0;
@@ -539,11 +615,14 @@ int scan_rx_start(int argc, char **argv)
         default:
             return 1;
     }
+
     param.num_threads = &NUM_SCAN_RX_THREADS;
     param.stop_flag = &QUIT_RX_SCAN_FLAG;
     param.udelay = udelay;
     param.adc_line = adc_line;
     param.adc_res = adc_res;
+    param.adc_shift = socadc_rshift;
+    param.sample_size = sample_size;
 
     puts("Trying to start thread\n");
     thread_create(scan_rx_stack, sizeof(scan_rx_stack),
