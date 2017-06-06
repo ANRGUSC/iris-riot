@@ -62,7 +62,7 @@
 #include "yahdlc.h"
 #include "periph/uart.h"
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 #define UART_BUFSIZE            (512U)
@@ -220,7 +220,7 @@ static void *_hdlc(void *arg)
                 _hdlc_receive(&recv_seq_no, &send_seq_no);
                 break;
             case HDLC_MSG_SND:
-                // DEBUG("hdlc: request to send received from pid %d\n", msg.sender_pid);
+                DEBUG("hdlc: request to send received from pid %d\n", msg.sender_pid);
                 if (uart_lock) {
                     /* ask thread to try again in x usec */
                     DEBUG("hdlc: uart locked, telling thr to retry\n");

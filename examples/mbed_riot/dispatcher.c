@@ -122,6 +122,7 @@ static void *_dispatcher(void *arg)
                 if(entry) {
                     msg_send(&msg, entry->pid);
                 } else {
+                    DEBUG("dispatcher: target thread does not exist!");
                     hdlc_pkt_release(recv_pkt);
                 }
                 break;

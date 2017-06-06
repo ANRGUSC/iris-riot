@@ -41,6 +41,23 @@
  * @file
  * @brief       Full-duplex hdlc test using a single thread (run on both sides).
  *
+ * In this test, the main thread and thread2 thread will contend for the same
+ * UART line to communicate to another MCU also running a main and thread2 
+ * thread. It seems as though stability deteriorates if the hdlc thread is given
+ * a higher priority than the two application threads (RIOT's MAC layer priority
+ * is well below the default priority for the main thread. Note that two threads
+ * are equally contending for the UART line, one thread may starve the other to 
+ * the point where the other thread will continue to retry. Increasing the msg 
+ * queue size of hdlc's thread may also increase stability. Since this test can
+ * easily stress the system, carefully picking the transmission rates (see below)
+ * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
+ * may lead to different stability results. The following is one known stable
+ * set of values for running this test:
+ *
+ * -100ms interpacket intervals in xtimer_usleep() below
+ * -RTRY_TIMEO_USEC = 200000
+ * -RETRANSMIT_TIMEO_USEC 50000
+ *
  * @author      Jason A. Tran <jasontra@usc.edu>
  *
  * @}
@@ -64,7 +81,7 @@
 #include "debug.h"
 
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
-#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN )
+#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN)
 
 #define MAIN_THR_PORT   1234
 #define THREAD2_PORT    5678
@@ -119,7 +136,13 @@ static void *_thread2(void *arg)
 
         msg_snd.type = HDLC_MSG_SND;
         msg_snd.content.ptr = &hdlc_snd_pkt;
-        msg_send(&msg_snd, hdlc_pid);
+        if(!msg_try_send(&msg_snd, hdlc_pid)) {
+            /* TODO: use xtimer_msg_receive_timeout() instead */
+            /* this is where applications can decide on a timeout */
+            msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
+            msg_rcv.content.value = RTRY_TIMEO_USEC;
+            msg_send_to_self(&msg_rcv);
+        }
 
         while(1)
         {
@@ -134,7 +157,10 @@ static void *_thread2(void *arg)
                 case HDLC_RESP_RETRY_W_TIMEO:
                     xtimer_usleep(msg_rcv.content.value);
                     DEBUG("thread2: retrying frame_no %d\n", frame_no);
-                    msg_send(&msg_snd, hdlc_pid);
+                    if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                        DEBUG("thread2: HDLC msg queue full!\n");
+                        msg_send_to_self(&msg_rcv);
+                    }
                     break;
                 case HDLC_PKT_RDY:
                     hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
@@ -154,6 +180,9 @@ static void *_thread2(void *arg)
         }
 
         frame_no++;
+
+        /* control transmission rate via interpacket intervals */
+        xtimer_usleep(100000);
     }
 
     /* should be never reached */
@@ -173,6 +202,8 @@ void main(void)
                                       "hdlc", UART_DEV(1));
     dispacher_init(dispatcher_stack, sizeof(dispatcher_stack), HDLC_PRIO, 
                    "dispatcher", (void *) (uint32_t) hdlc_pid);
+
+    /* comment the lines below to test a single thread */
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
                   THREAD_CREATE_STACKTEST, _thread2, hdlc_pid, "thread2");
 
@@ -210,7 +241,13 @@ void main(void)
 
         msg_snd.type = HDLC_MSG_SND;
         msg_snd.content.ptr = &hdlc_snd_pkt;
-        msg_send(&msg_snd, hdlc_pid);
+        if(!msg_try_send(&msg_snd, hdlc_pid)) {
+            /* TODO: use xtimer_msg_receive_timeout() instead */
+            /* this is where applications can decide on a timeout */
+            msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
+            msg_rcv.content.value = RTRY_TIMEO_USEC;
+            msg_send_to_self(&msg_rcv);
+        }
 
         while(1)
         {
@@ -225,7 +262,11 @@ void main(void)
                 case HDLC_RESP_RETRY_W_TIMEO:
                     xtimer_usleep(msg_rcv.content.value);
                     DEBUG("main_thr: retrying frame_no %d\n", frame_no);
-                    msg_send(&msg_snd, hdlc_pid);
+                    if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                        DEBUG("main_thr: HDLC msg queue full!\n");
+                        msg_send_to_self(&msg_rcv);
+                    }
+
                     break;
                 case HDLC_PKT_RDY:
                     hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
@@ -245,6 +286,9 @@ void main(void)
         }
 
         frame_no++;
+
+        /* control transmission rate via interpacket intervals */
+        xtimer_usleep(100000);
     }
 
     /* should be never reached */
