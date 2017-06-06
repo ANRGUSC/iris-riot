@@ -476,15 +476,15 @@ void *scan_rx_thread(void *arg)
             adcsample = adc_sample(param->adc_line, param->adc_res) >> SOCADC_7_BIT_RSHIFT;
             if(adcsample > 60){
                 printf("Ping Recieved: High- %d\n",adcsample);
-                xtimer_usleep(4000);
+                xtimer_usleep(5000);
+                i+=5;
                 ping_rcvd=1;
-                break;
             }
             if(adcsample > 50){
                 printf("Ping Recieved: Med- %d\n",adcsample);
-                xtimer_usleep(4000);
+                xtimer_usleep(5000);
                 ping_rcvd=1;
-                break;
+                i+=5;
             }
             xtimer_usleep(param->udelay);
         }
@@ -514,6 +514,7 @@ int scan_rx_start(int argc, char **argv)
         puts("error: please input value greater than 0\n");
         return 1;
     }
+
     QUIT_RX_SCAN_FLAG = 0;
     udelay = atoi(argv[1]);
     _tx_node_id = TX_NODE_ID;
