@@ -458,22 +458,38 @@ int scan_tx(int argc, char **argv)
 void *scan_rx_thread(void *arg)
 {
     printf("Started scan_rx_thread\n");
-    int adcsample;
+    int adcsample = 0;
+    int i=0;
+    int ping_rcvd=0;
     scan_rx_param* param = (scan_rx_param*) arg;
     (*(param->num_threads))++;
     printf("Flag value: %d\n",*(param->stop_flag));
-    while(*(param->stop_flag) == 0){
-        xtimer_usleep(param->udelay);
+
+    while (adcsample < 60 && *(param->stop_flag) == 0){
         adcsample = adc_sample(param->adc_line, param->adc_res) >> SOCADC_7_BIT_RSHIFT;
-        if(adcsample > 60){
-            printf("Ping Recieved: High- %d\n",adcsample);
-            xtimer_usleep(2000);
-            continue;
+    }
+
+    while(*(param->stop_flag) == 0){
+        //xtimer_usleep(param->udelay);
+        ping_rcvd=0;
+        for(i=0; i<99; i++){
+            adcsample = adc_sample(param->adc_line, param->adc_res) >> SOCADC_7_BIT_RSHIFT;
+            if(adcsample > 60){
+                printf("Ping Recieved: High- %d\n",adcsample);
+                xtimer_usleep(4000);
+                ping_rcvd=1;
+                break;
+            }
+            if(adcsample > 50){
+                printf("Ping Recieved: Med- %d\n",adcsample);
+                xtimer_usleep(4000);
+                ping_rcvd=1;
+                break;
+            }
+            xtimer_usleep(param->udelay);
         }
-        if(adcsample > 50){
-            printf("Ping Recieved: Med- %d\n",adcsample);
-            xtimer_usleep(2000);
-            continue;
+        if(!ping_rcvd){
+            printf("Ping missed\n");
         }
     }
     (*(param->num_threads))--;
