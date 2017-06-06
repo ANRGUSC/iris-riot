@@ -51,15 +51,17 @@ int udp_rx(int port, char *message)
 		return 1;
 	}
 
+	pkt = msg.content.ptr;
+
 	if(msg.type == GNRC_NETAPI_MSG_TYPE_RCV)
 	{
-		pkt = msg.content.ptr;
 		snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
 		word = snip->data;
 	}
 	else
 	{
 		printf("Received unexpected data\n");
+		gnrc_pktbuf_release(pkt);
 		_unregister_thread();
 		return 1;
 	}
@@ -67,6 +69,7 @@ int udp_rx(int port, char *message)
 	if(strcmp(word, message))	//Two not equal because returns 0 if equal
 	{
 		printf("Data received not identical to requested data\n");
+		gnrc_pktbuf_release(pkt);
 		_unregister_thread();
 		return 1;
 	}

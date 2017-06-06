@@ -52,7 +52,7 @@ int main(void)
     char *temp[7];
     temp[0] = "udp";
     temp[1] = "send";
-    temp[2] = "fd00:dead:beef::2";
+    temp[2] = "fd00:dead:beef::1";
     temp[3] = "8888";
     temp[4] = "$$START$$";
     temp[5] = "1";
