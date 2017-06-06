@@ -163,13 +163,17 @@ int range_rx(int argc, char **argv)
         return 1;
     }
 
-    printf("REQ signal sent to %s",tx_node_addr_str);
+    printf("REQ signal sent to %s\n",tx_node_addr_str);
 
     /* wait for "RDY" packet */
     while(1) {   
         puts("Waiting for RDY pkt.");
-        msg_receive(&msg);
-
+        int response= xtimer_msg_receive_timeout(&msg,1000000);
+        if(response < 0){
+            puts ("Timed out");
+             _unregister_thread();
+            return 1;
+        }
         if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
             pkt = msg.content.ptr;
 
@@ -282,12 +286,12 @@ int range_tx(int argc, char **argv)
         puts("Error: unable to parse destination address");
         return 1;
     }
-    puts("Waiting for REQ signal");
+    
     /* ultrasound transmitter is always ready for request (infinite loop) */
     while(1) {
-
+        puts("Waiting for REQ signal");
 start: 
-
+        
         /* wait until for ranging request packet */
         while(1) {
             msg_receive(&msg);
@@ -462,7 +466,6 @@ int scan_tx(int argc, char **argv)
 void *scan_rx_thread(void *arg)
 {
     scan_rx_param* param = (scan_rx_param*) arg;
-
     int low = 35;
     int med = 50;
     int high = 60;
@@ -516,17 +519,9 @@ void *scan_rx_thread(void *arg)
         pinged = 0;
         for(i=0; i<num_iter; i++){
             adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-            if(adcsample > high && !pinged){
-                printf("Ping Recieved: Med- %d\n",adcsample);
-                ping_rcvd=1;
-                pinged = 1;
-                avg+=adcsample;
-                num_ping_rcvd++;
-                j++;
-                
-            }
-            else if(adcsample > med && !pinged){
-                printf("Ping Recieved: Med- %d\n",adcsample);
+            
+            if(adcsample > med && !pinged){
+                printf("Ping Recieved: %d\n",adcsample);
                 ping_rcvd=1;
                 pinged = 1;
                 avg+=adcsample;
