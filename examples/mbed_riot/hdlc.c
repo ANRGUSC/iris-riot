@@ -55,6 +55,8 @@
 #include <inttypes.h>
 
 #include "hdlc.h"
+#include "utlist.h"
+#include "uart_pkt.h"
 
 #include "msg.h"
 #include "xtimer.h"
@@ -108,12 +110,27 @@ static void rx_cb(void *arg, uint8_t data)
     }
 }
 
+static hdlc_entry_t *hdlc_reg;
+
+void hdlc_register(hdlc_entry_t *entry)
+{
+    LL_PREPEND(hdlc_reg, entry);
+}
+
+void hdlc_unregister(hdlc_entry_t *entry)
+{
+    LL_DELETE(hdlc_reg, entry);
+}
+
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 {
     msg_t msg, ack_msg;
     int ret;
     int retval;
     char c;
+    uart_pkt_hdr_t hdr;
+    hdlc_entry_t *entry;
+
 
     while(1) {
         retval = ringbuffer_get_one(&(ctx.rx_buf));
@@ -153,17 +170,22 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 
             /* pass on packet to dispatcher */
             if (recv_buf.control.seq_no == *recv_seq_no % 8) {
-                DEBUG("passing on pkt w/ seq_no %d\n", *recv_seq_no % 8);
-                // DEBUG("mutex is (%d)\n", recv_pkt_mutex.queue.next);
-
-                /* lock pkt until dispatcher makes a copy and unlocks */
+                /* lock pkt until receiving thread makes a copy and unlocks */
                 mutex_lock(&recv_pkt_mutex);
                 memcpy(recv_pkt.data, recv_buf.data, recv_buf.length);
                 recv_pkt.length = recv_buf.length;
+                uart_pkt_parse_hdr(&hdr, recv_pkt.data, recv_pkt.length);
+                LL_SEARCH_SCALAR(hdlc_reg, entry, port, hdr.dst_port);
+                DEBUG("hdlc: received packet for port %d\n", hdr.dst_port);
                 (*recv_seq_no)++;
-                msg.type = HDLC_PKT_RDY;
-                msg.content.ptr = &recv_pkt;
-                msg_send(&msg, hdlc_dispatcher_pid);
+                if(entry) {
+                    msg.type = HDLC_PKT_RDY;
+                    msg.content.ptr = &recv_pkt;
+                    msg_send(&msg, entry->pid);
+                } else {
+                    DEBUG("hdlc: no thread subscribed to port!\n");
+                    hdlc_pkt_release(&recv_pkt);
+                }
             }
 
             recv_buf.control.frame = recv_buf.control.seq_no =  0;
@@ -274,7 +296,6 @@ int hdlc_pkt_release(hdlc_pkt_t *pkt)
 {
     if(recv_pkt_mutex.queue.next != NULL) {
         DEBUG("unlocking recv_pkt\n");
-        // mutex_unlock(&(recv_buf.mtx));
         mutex_unlock(&recv_pkt_mutex);
         return 0;
     }

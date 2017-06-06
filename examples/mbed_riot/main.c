@@ -65,7 +65,6 @@
 #include "net/netdev.h"
 #include "periph/uart.h"
 #include "hdlc.h"
-#include "dispatcher.h"
 #include "uart_pkt.h"
 #include "main-conf.h"
 #include "periph/adc.h"
@@ -175,9 +174,9 @@ static void *_rssi_dump(void *arg)
 
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
 
-    dispatcher_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_DUMP_PORT, 
+    hdlc_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_DUMP_PORT, 
                                          .pid = thread_getpid() };
-    dispatcher_register(&rssi_dump_thr);
+    hdlc_register(&rssi_dump_thr);
 
     /* assuming _set_hwaddr_short above was successful */
     uint8_t my_hwaddr_short[2];
@@ -449,18 +448,16 @@ int main(void)
     hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     uart_pkt_hdr_t uart_hdr;
     gnrc_netreg_entry_t main_thr_server = { NULL, GET_SET_RANGING_THR_PORT, {thread_getpid()} };
-    dispatcher_entry_t main_thr = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
+    hdlc_entry_t main_thr = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
 
     msg_init_queue(main_msg_queue, sizeof(main_msg_queue));
 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
         "hdlc", UART_DEV(1));
-    dispacher_init(dispatcher_stack, sizeof(dispatcher_stack), DISPATCHER_PRIO, 
-                   "dispatcher", (void *) (uint32_t) hdlc_pid);
     thread_create(rssi_dump_stack, sizeof(rssi_dump_stack), RSSI_DUMP_PRIO, NULL,
                   _rssi_dump, (void *) (uint32_t) hdlc_pid, "rssi_dump");
 
-    dispatcher_register(&main_thr);
+    hdlc_register(&main_thr);
 
     _set_hwaddr_short(ARREST_FOLLOWER_SHORT_HWADDR);
     _set_channel(main_channel);
