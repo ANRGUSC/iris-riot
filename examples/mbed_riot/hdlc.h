@@ -78,6 +78,12 @@ typedef struct {
     unsigned int length;
 } hdlc_pkt_t;
 
+typedef struct hdlc_entry {
+    struct hdlc_entry *next;
+    uint16_t port;
+    kernel_pid_t pid;
+} hdlc_entry_t;
+
 /* HDLC thread messages */
 enum {
     HDLC_MSG_REG_DISPATCHER,
@@ -90,6 +96,8 @@ enum {
     HDLC_PKT_RDY
 };
 
+void hdlc_register(hdlc_entry_t *entry);
+void hdlc_unregister(hdlc_entry_t *entry);
 int hdlc_pkt_release(hdlc_pkt_t *buf);
 int hdlc_send_pkt(hdlc_pkt_t *pkt);
 kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
