@@ -1,3 +1,4 @@
+#pylint: disable=C0103, C0111, C0301, C0330, W0603, W0611, W0612, W0613
 from __future__ import print_function
 import sys
 import re
@@ -9,61 +10,103 @@ from serial import Serial
 # from subprocess import call
 
 # Default port that openmote connects to.
-port_usb = '0'
+# port_usb = '0'
 
-#Distance being tested - ~1-10 ft. 
-# dist = input('Enter distance: ')
+#Boolean flag for testing quickly.
+quick = True
+
+#Distance being tested - ~1-10 ft.
 dist = 2
+if not quick:
+    dist = input('Enter distance: ')
+
 
 #Number of samples - ~200.
-# samp = input('Enter number of samples: ')
 samp = 20
+if not quick:
+    samp = input('Enter number of samples: ')
+
 
 #Threshold - ~45.
-# thresh = input('Enter threshold: ')
 thresh = 45
+if not quick:
+    thresh = input('Enter threshold: ')
+
 
 #Delay
 delay = 1
+if not quick:
+    delay = input('Enter delay: ')
+
 
 #Need sudo to make term for ttyUSB - call the following command in terminal:
 #sudo adduser 'Your username here' dialout
 #Adds you to the dialout group - no need to call sudo to flash/access ttyUSB.
-# call(['sudo make term PORT=ttyUSB' + port_usb])
 # call(['ls'])
+# call(['sudo make term PORT=/dev/ttyUSB' + port_usb])
 # call(['sudo make term'])
 # run(["ls"])
 # run("sudo make term", shell=True)
 
-#read from term?
-# port.readline()
-
-#readlines?
-# port.write(b'ifconfig\n')
-
-# print('test1')
 # call(['range_rx ' + thresh])
 # run('range_rx ' + thresh, shell=True)
-# 115200
 
 def script(port):
 
+    output1 = open("out" + str(dist) + ".txt", 'w')
+
     port.write(b'reboot\n')
 
-    line = b'sample'
+    line = b' '
     while line is not b'':
-        print(line)
         line = port.readline()
-
-    # port.write(b'range_rx 45\n')
+        print(line)
 
     port.write(('scan_rx_start %d %d\n' % (delay, samp)).encode())
+
+    line = b' '
+    while b'Ping' not in line:
+        line = port.readline()
+        print(line)
+
+    data = []
+    # i = 0
+    # while b'Ping' in line or line is b'':
+    while b'Sample' not in line:
+        line = port.readline()
+        print(line)
+        # i += 1 #sloppy
+        # if i >= samp:
+            # break
+        #set up queue?
+        # datum = 0
+        words = line.split()
+        if b'Recieved' in words: #should be received
+            # ind = words.index('Recieved')
+            # datum += int(words[ind + 2])
+            #should have a check statement to make sure words
+            #has at least 3 entries
+            datum = int(words[2])
+        data.append(datum)
+
+    while b'Thread' not in line:
+        line = port.readline()
+        print(line)
+
+    output1.write('Distance: ' + str(dist) + '\n')
+    output1.write('Samples: ' + str(samp) + '\n')
+    output1.write('Threshold: ' + str(thresh) + '\n')
+    output1.write('Delay: ' + str(delay) + '\n')
+    output1.write('Data: \n')
+    for datum in data:
+        output1.write(str(datum) + ', ')
+        # output1.write(datum + '\n')
+
+    output1.close()
 
     while True:
         line = port.readline()
         print(line)
-        # line.split()
-        # if
 
     # command = input('Awaiting your command: ')
     # port.write(command.encode())
@@ -83,7 +126,6 @@ def configure_interface(port, channel):
             iface = int(match.group(1))
             break
 
-    script(port)
 
 # def connect(argv):
 def connect():
@@ -96,7 +138,7 @@ def connect():
         try:
             # conn = Serial(argv[2], argv[3], dsrdtr=0, rtscts=0,
                         #   timeout=1)
-            conn = Serial('/dev/ttyUSB0', '115200', dsrdtr=0, rtscts=0,
+            conn = Serial('/dev/ttyUSB1', '115200', dsrdtr=0, rtscts=0,
                           timeout=1)
         except IOError:
             print("error opening serial port", file=sys.stderr)
@@ -119,16 +161,20 @@ def main():
     # conn = connect(argv)
     print('Connecting...')
     conn = connect()
-
     print('Connected!')
-    print('Configuring...')
 
+    print('Configuring...')
     sleep(1)
     # configure_interface(conn, int(argv[4]))
     configure_interface(conn, 0)
     sleep(1)
+    print('Configured!')
 
+    print('Running script...')
+    script(conn)
+    print('Script complete!')
+    sleep(3)
 
 if __name__ == "__main__":
     # main(sys.argv)
-    main()
+main()
