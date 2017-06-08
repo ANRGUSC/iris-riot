@@ -160,10 +160,6 @@
 +    conn = connect()
 +    print('Connected!')
 +
-+    print('Configuring...')
-+    sleep(1)
-+    # configure_interface(conn, int(argv[4]))
-+    configure_interface(conn, 0)
 +    sleep(1)
 +    print('Configured!')
 +
