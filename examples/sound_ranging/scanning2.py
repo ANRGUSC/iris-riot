@@ -2,6 +2,8 @@
 from __future__ import print_function
 import sys
 import re
+import os.path
+
 # import socket
 from time import sleep, time
 from struct import pack
@@ -10,31 +12,29 @@ from serial import Serial
 # from subprocess import call
 
 # Default port that openmote connects to.
-# port_usb = '0'
+port_usb = '0'
 
 #Boolean flag for testing quickly.
 quick = True
 
-#Distance being tested - ~1-10 ft.
-dist = 2
-if not quick:
-    dist = input('Enter distance: ')
-
-
 #Number of samples - ~200.
-samp = 20
+samp = 100
 if not quick:
     samp = input('Enter number of samples: ')
 
 
 #Threshold - ~45.
-thresh = 45
+thresh = 50
 if not quick:
     thresh = input('Enter threshold: ')
 
+#orientation based on angle between sensor and vector pointing from tx to rx
+tx_orient = 0
+rx_orient = 180
+
 
 #Delay
-delay = 1
+delay = 2000
 if not quick:
     delay = input('Enter delay: ')
 
@@ -52,61 +52,89 @@ if not quick:
 # run('range_rx ' + thresh, shell=True)
 
 def script(port):
+    fileexists = True
+    while(fileexists == True):
+        filename = raw_input("\nFile name: ")
+        userinput = " "
+        
+        try:
+            filecheck = open(filename + ".txt", 'r')
+            
+            while(userinput!="y" and userinput != "n"):
+                userinput = raw_input("File already exists, would you like to override it? (y/n) ")
+            fileexists= True
 
-    output1 = open("out" + str(dist) + ".txt", 'w')
+        except IOError as e:
+            print("File name is available")
+            fileexists=False
 
-    port.write(b'reboot\n')
+        if(fileexists==True):
+            if(userinput == "y"):
+                break;
 
-    line = b' '
-    while line is not b'':
-        line = port.readline()
-        print(line)
-
-    port.write(('scan_rx_start %d %d\n' % (delay, samp)).encode())
-
-    line = b' '
-    while b'Ping' not in line:
-        line = port.readline()
-        print(line)
-
-    data = []
-    # i = 0
-    # while b'Ping' in line or line is b'':
-    while b'Sample' not in line:
-        line = port.readline()
-        print(line)
-        # i += 1 #sloppy
-        # if i >= samp:
-            # break
-        #set up queue?
-        # datum = 0
-        words = line.split()
-        if b'Recieved' in words: #should be received
-            # ind = words.index('Recieved')
-            # datum += int(words[ind + 2])
-            #should have a check statement to make sure words
-            #has at least 3 entries
-            datum = int(words[2])
-        data.append(datum)
-
-    while b'Thread' not in line:
-        line = port.readline()
-        print(line)
-
-    output1.write('Distance: ' + str(dist) + '\n')
+    output1 = open(filename + ".txt", 'w')
+    output1.write('Ultrasound scanning\n')
+    output1.write('TX Orientation: '+str(tx_orient)+'\n')
+    output1.write('RX Orientation: '+str(rx_orient)+'\n')
     output1.write('Samples: ' + str(samp) + '\n')
     output1.write('Threshold: ' + str(thresh) + '\n')
     output1.write('Delay: ' + str(delay) + '\n')
-    output1.write('Data: \n')
-    for datum in data:
-        output1.write(str(datum) + ', ')
-        # output1.write(datum + '\n')
+    output1.write('\n')
+    output1.write('Distance,Avg,STDev,Data \n')
 
-    output1.close()
+    #port.write(b'reboot\n')
+    dist = " "
+    while(True):
+        dist = raw_input("Distance: ")
+        if(dist == "quit" or dist == "q"):
+            break
+        
+        line = b' '
+        
+        print("writing scan_rx_stop")
 
-    while True:
+        port.write('scan_rx_stop\n')
+
+        while line is not b'':
+            line = port.readline()
+
+        port.write(('scan_rx_start %d -s %d\n' % (delay, samp)).encode())
+        print("writing scan_rx_start")
+
         line = port.readline()
-        print(line)
+
+        data = []
+
+        i = 0
+        # while b'Ping' in line or line is b'':
+        while not (b'stopped' in line):
+            
+            print(str(i)+":"+line[:-1])
+            if b'Ping Recieved' in line:
+                i+=1
+                # i += 1 #sloppy
+                # if i >= samp:
+                    # break
+                #set up queue?
+                datum = 0
+                words = line.split(": ")
+                datum = int(words[1])
+                data.append(datum)
+
+            if b'missed' in line:
+                i+=1
+                data.append(0)
+            
+            line = port.readline()
+        
+        output1.write(dist+',,,')
+        for datum in data:
+            output1.write(str(datum) + ',')
+            # output1.write(datum + '\n')
+        print("Data gathered")
+    output1.close()
+    print("File written")
+    
 
     # command = input('Awaiting your command: ')
     # port.write(command.encode())
@@ -138,7 +166,7 @@ def connect():
         try:
             # conn = Serial(argv[2], argv[3], dsrdtr=0, rtscts=0,
                         #   timeout=1)
-            conn = Serial('/dev/ttyUSB1', '115200', dsrdtr=0, rtscts=0,
+            conn = Serial('/dev/ttyUSB'+port_usb, '115200', dsrdtr=0, rtscts=0,
                           timeout=1)
         except IOError:
             print("error opening serial port", file=sys.stderr)
@@ -161,20 +189,18 @@ def main():
     # conn = connect(argv)
     print('Connecting...')
     conn = connect()
-    print('Connected!')
+    if(conn.is_open):
+        print('Connected!')
+    else:
+        return
 
-    print('Configuring...')
-    sleep(1)
-    # configure_interface(conn, int(argv[4]))
-    configure_interface(conn, 0)
     sleep(1)
     print('Configured!')
 
     print('Running script...')
     script(conn)
-    print('Script complete!')
-    sleep(3)
+    print('Script complete!')\
 
 if __name__ == "__main__":
     # main(sys.argv)
-main()
+    main()

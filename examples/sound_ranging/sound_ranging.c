@@ -507,47 +507,68 @@ void *scan_rx_thread(void *arg)
 
     while (adcsample < high && *(param->stop_flag) == 0){
         adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+        xtimer_usleep(param->udelay);
     }
 
-
+    if(*(param->stop_flag) != 0){
+         (*(param->num_threads))--;
+        printf("Thread stopped\n");
+        return NULL;
+    }
 
     int num_iter = (int)(99000/param->udelay);
     while(*(param->stop_flag) == 0){
         //xtimer_usleep(param->udelay);
 
-        ping_rcvd=0;
+        ping_rcvd=1;
         pinged = 0;
-        for(i=0; i<num_iter; i++){
+        for(i=0; i<(num_iter); i++){
             adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
             
+            if(*(param->stop_flag) != 0){
+                (*(param->num_threads))--;
+                printf("Thread stopped\n");
+                return NULL;
+            }
+
             if(adcsample > med && !pinged){
-                printf("Ping Recieved: %d\n",adcsample);
-                ping_rcvd=1;
+                int increment = 0;
+                int prev_sample = adcsample;
+                xtimer_usleep(param->udelay);
+                adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+                while(prev_sample < adcsample){
+                    prev_sample = adcsample;
+                    xtimer_usleep(param->udelay);
+                    adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+                    increment++;
+                }
+                i=0;
+                printf("Ping Recieved: %d\n",prev_sample);
+                ping_rcvd=0;
                 pinged = 1;
-                avg+=adcsample;
+                avg+=prev_sample;
                 num_ping_rcvd++;
                 j++;
             }
             else if(adcsample < low){
                 pinged = 0;
             }
-            //printf("%d\n",adcsample);
+            //printf("%d: %d\n",i,adcsample);
             if(sample_size>0){
-            if(j>=sample_size){
-                avg/=sample_size;
-                double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
-                printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
-                printf("Percent loss: %d%%\n", (int)percent_loss);
-                printf("Average strength: %d\n", (int)avg);
-                (*(param->num_threads))--;
-                printf("Thread stopped\n");
-                return NULL;
+                if(j>=sample_size){
+                    avg/=sample_size;
+                    double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
+                    printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
+                    printf("Percent loss: %d%%\n", (int)percent_loss);
+                    printf("Average strength: %d\n", (int)avg);
+                    (*(param->num_threads))--;
+                    printf("Thread stopped\n");
+                    return NULL;
+                }
             }
-        }
             xtimer_usleep(param->udelay);
         }
-        if(!ping_rcvd){
-           
+        if(ping_rcvd){
             printf("Ping missed\n");   
             j++;
         }
