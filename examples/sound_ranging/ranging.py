@@ -22,7 +22,7 @@ if not quick:
 
 
 #Number of samples - ~200.
-samp = 5
+samp = 20
 if not quick:
     samp = input('Enter number of samples: ')
 
@@ -35,6 +35,8 @@ thresh = 45
 if not quick:
     thresh = input('Enter threshold: ')
 
+#delay between samples
+samp_delay= 0.1
 
 #Delay
 # delay = 1
@@ -106,22 +108,24 @@ def script(port):
     
         i+=1
 
-        # Wait until setup completes before entering command.
-        line = b' '
+        #Wait until setup completes before entering command.
+        # line = b' '
         
-        while line is not b'':
-            line = port.readline()
-            print(line[:-1])
+        # while line is not b'':
+        #     line = port.readline()
+        #     print(line[:-1])
 
-        # Runs the range_rx command.
+        sleep(samp_delay)
+        # # Runs the range_rx command.
         print("writing range_rx")
         port.write(('range_rx %d\n' % (thresh)).encode())
+
 
         # Checks for errors, if none, adds the final TDoA to data[].
         while (True):
 
             line = port.readline()
-
+            print(line[:-1])
             if b'Timed out' in line:
                 failed = 1
                 print("Timed out")
@@ -139,6 +143,7 @@ def script(port):
                 failed = 0
                 words = line.split("= ")
                 output1.write(words[1][:-1]+",")
+                break
 
             if line == b'':
                 #print("Got blank")
@@ -210,8 +215,7 @@ def main():
     print('Running script...')
     script(conn)
     print('Script complete!')
-    sleep(3)
-
+    
 if __name__ == "__main__":
     # main(sys.argv)
     main()

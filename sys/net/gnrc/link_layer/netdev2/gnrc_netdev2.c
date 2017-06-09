@@ -52,7 +52,7 @@ static uint8_t _tx_node_id      = 0;
 static unsigned int adc_line;
 static int socadc_rshift        = 0;
 static int max_samps            = 0;
-static int ranging_on           = 0;
+int ranging_on           = 0;
 static int adc_res              = 0; /* default resolution */
 static uint32_t last            = 0;
 static uint32_t time_diff       = 0;
@@ -126,7 +126,7 @@ static void _sound_ranging(void)
     {
         sample = adc_sample(adc_line, adc_res) 
             >> SOCADC_7_BIT_RSHIFT;
-        DEBUG ("%d ",sample);
+        DEBUG("%d ",sample);
         /* wait for 200us before next poll for input capacitor to settle */
         xtimer_spin(100);
 

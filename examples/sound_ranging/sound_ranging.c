@@ -76,6 +76,8 @@ int adc_res              = 0; /* default resolution */
 int adc_shift;
 int sample_size = -1;
 
+extern int ranging_on;
+
 static gnrc_netreg_entry_t server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
                                         KERNEL_PID_UNDEF};
 
@@ -223,9 +225,12 @@ int range_rx(int argc, char **argv)
         return 1;
     }
 
-    xtimer_sleep(1);
+    //xtimer_sleep(1);
+    while(ranging_on==1){
+        xtimer_usleep(10000);
+    }
 
-    if( (time_diff = range_rx_initstop()) > 0 ) {
+    if( (time_diff = range_rx_stop()) > 0 ) {
         printf("TDoA = %lu\n", time_diff);
     } else {
         puts("Ranging failed.");
