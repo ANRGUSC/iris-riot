@@ -225,7 +225,7 @@ int range_rx(int argc, char **argv)
 
     xtimer_sleep(1);
 
-    if( (time_diff = range_rx_stop()) > 0 ) {
+    if( (time_diff = range_rx_initstop()) > 0 ) {
         printf("TDoA = %lu\n", time_diff);
     } else {
         puts("Ranging failed.");
