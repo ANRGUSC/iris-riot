@@ -226,8 +226,14 @@ int range_rx(int argc, char **argv)
     }
 
     //xtimer_sleep(1);
+    int timeout=0;
     while(ranging_on==1){
+        timeout++;
         xtimer_usleep(10000);
+        if(timeout>50){
+            puts("Timed out");
+            break;
+        }
     }
 
     if( (time_diff = range_rx_stop()) > 0 ) {
@@ -294,9 +300,9 @@ int range_tx(int argc, char **argv)
     
     /* ultrasound transmitter is always ready for request (infinite loop) */
     while(1) {
-        puts("Waiting for REQ signal");
-start: 
         
+start: 
+        puts("Waiting for REQ signal");
         /* wait until for ranging request packet */
         while(1) {
             msg_receive(&msg);
@@ -479,7 +485,7 @@ void *scan_rx_thread(void *arg)
     printf("Started scan_rx_thread\n");
     int adcsample = 0;
     int i=0;
-    int j=0;
+    int sample_counter=0;
     int ping_rcvd=0;
     int sample_size = param->sample_size;
     double avg = 0;
@@ -553,14 +559,14 @@ void *scan_rx_thread(void *arg)
                 pinged = 1;
                 avg+=prev_sample;
                 num_ping_rcvd++;
-                j++;
+                sample_counter++;
             }
             else if(adcsample < low){
                 pinged = 0;
             }
             //printf("%d: %d\n",i,adcsample);
             if(sample_size>0){
-                if(j>=sample_size){
+                if(sample_counter>=sample_size){
                     avg/=sample_size;
                     double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
                     printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
@@ -575,7 +581,7 @@ void *scan_rx_thread(void *arg)
         }
         if(ping_rcvd){
             printf("Ping missed\n");   
-            j++;
+            sample_counter++;
         }
         
     }

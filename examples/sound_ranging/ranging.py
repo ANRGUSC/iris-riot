@@ -10,7 +10,7 @@ from serial import Serial
 # from subprocess import call
 
 # Default port that openmote connects to.
-port_usb = '0'
+port_usb = '1'
 
 #Boolean flag for testing quickly.
 quick = True
@@ -22,7 +22,7 @@ if not quick:
 
 
 #Number of samples - ~200.
-samp = 20
+samp = 200
 if not quick:
     samp = input('Enter number of samples: ')
 
@@ -36,7 +36,7 @@ if not quick:
     thresh = input('Enter threshold: ')
 
 #delay between samples
-samp_delay= 0.1
+samp_delay= 0.25
 
 #Delay
 # delay = 1
@@ -96,15 +96,18 @@ def script(port):
     failed = 0
     i=samp
     #start of loop
-    while choice is 'y':
+    while (True):
     
+    	if(choice=='n'):	
+    	    i=samp
+
         if(i >= samp-1):
             dist = raw_input("Distance: ")
             if(dist == 'quit' or dist == 'q'):
                 break
             else:
                 i=-1
-                output1.write(dist+',,,')
+                output1.write('\n'+dist+',,,')
     
         i+=1
 
@@ -132,7 +135,7 @@ def script(port):
                 i-=1
                 break
 
-            if b'Failed' in line:
+            if b'failed' in line:
                 failed = 1
                 print("Ranging failed")
                 i-=1

@@ -12,19 +12,19 @@ from serial import Serial
 # from subprocess import call
 
 # Default port that openmote connects to.
-port_usb = '0'
+port_usb = '1'
 
 #Boolean flag for testing quickly.
 quick = True
 
 #Number of samples - ~200.
-samp = 100
+samp = 200
 if not quick:
     samp = input('Enter number of samples: ')
 
 
 #Threshold - ~45.
-thresh = 50
+thresh = 45
 if not quick:
     thresh = input('Enter threshold: ')
 
@@ -102,6 +102,7 @@ def script(port):
         print("writing scan_rx_start")
 
         line = port.readline()
+        print(line)
 
         data = []
 
@@ -126,8 +127,9 @@ def script(port):
                 data.append(0)
             
             line = port.readline()
+            print(line)
         
-        output1.write(dist+',,,')
+        output1.write('\n'+dist+',,,')
         for datum in data:
             output1.write(str(datum) + ',')
             # output1.write(datum + '\n')
