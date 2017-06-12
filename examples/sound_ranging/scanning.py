@@ -52,41 +52,40 @@ if not quick:
 # run('range_rx ' + thresh, shell=True)
 
 def script(port):
-    fileexists = True
-    while(fileexists == True):
+    file_exists = True
+    while file_exists:
         filename = raw_input("\nFile name: ")
         userinput = " "
         
         try:
             filecheck = open(filename + ".txt", 'r')
             
-            while(userinput!="y" and userinput != "n"):
+            while userinput != "y" and userinput != "n":
                 userinput = raw_input("File already exists, would you like to override it? (y/n) ")
-            fileexists= True
+            file_exists= True
 
         except IOError as e:
             print("File name is available")
-            fileexists=False
+            file_exists=False
 
-        if(fileexists==True):
-            if(userinput == "y"):
-                break;
+        if file_exists and userinput == "y":
+                break
 
     output1 = open(filename + ".txt", 'w')
     output1.write('Ultrasound scanning\n')
-    output1.write('TX Orientation: '+str(tx_orient)+'\n')
-    output1.write('RX Orientation: '+str(rx_orient)+'\n')
+    output1.write('TX Orientation: ' + str(tx_orient) + '\n')
+    output1.write('RX Orientation: ' + str(rx_orient) + '\n')
     output1.write('Samples: ' + str(samp) + '\n')
     output1.write('Threshold: ' + str(thresh) + '\n')
     output1.write('Delay: ' + str(delay) + '\n')
     output1.write('\n')
-    output1.write('Distance,Avg,STDev,Data \n')
+    output1.write('Distance, Avg, STDev, Data \n')
 
     #port.write(b'reboot\n')
     dist = " "
-    while(True):
+    while True:
         dist = raw_input("Distance: ")
-        if(dist == "quit" or dist == "q"):
+        if dist == "quit" or dist == "q":
             break
         
         line = b' '
@@ -109,7 +108,7 @@ def script(port):
         # while b'Ping' in line or line is b'':
         while not (b'stopped' in line):
             
-            print(str(i)+":"+line[:-1])
+            print(str(i) + ":" + line[:-1])
             if b'Ping Recieved' in line:
                 i+=1
                 # i += 1 #sloppy
@@ -122,19 +121,18 @@ def script(port):
                 data.append(datum)
 
             if b'missed' in line:
-                i+=1
+                i += 1
                 data.append(0)
             
             line = port.readline()
         
-        output1.write(dist+',,,')
+        output1.write(dist + ',,,')
         for datum in data:
             output1.write(str(datum) + ',')
             # output1.write(datum + '\n')
         print("Data gathered")
     output1.close()
     print("File written")
-    
 
     # command = input('Awaiting your command: ')
     # port.write(command.encode())
@@ -166,17 +164,16 @@ def connect():
         try:
             # conn = Serial(argv[2], argv[3], dsrdtr=0, rtscts=0,
                         #   timeout=1)
-            conn = Serial('/dev/ttyUSB'+port_usb, '115200', dsrdtr=0, rtscts=0,
-                          timeout=1)
+            conn = Serial('/dev/ttyUSB' + port_usb, '115200', dsrdtr = 0, rtscts = 0,
+                          timeout = 1)
         except IOError:
-            print("error opening serial port", file=sys.stderr)
+            print("error opening serial port", file = sys.stderr)
             sys.exit(2)
     else:
         print("error: unsupported connection type. Use \"serial\" or \"socket\"")
         sys.exit(2)
 
     return conn
-
 
 # def main(argv):
 def main():
@@ -189,7 +186,7 @@ def main():
     # conn = connect(argv)
     print('Connecting...')
     conn = connect()
-    if(conn.is_open):
+    if conn.is_open:
         print('Connected!')
     else:
         return
@@ -199,7 +196,7 @@ def main():
 
     print('Running script...')
     script(conn)
-    print('Script complete!')\
+    print('Script complete!')
 
 if __name__ == "__main__":
     # main(sys.argv)

@@ -12,21 +12,20 @@ from serial import Serial
 # Default port that openmote connects to.
 port_usb = '0'
 
-#Boolean flag for testing quickly.
+# Boolean flag for testing quickly.
 quick = True
 
-#Distance being tested - ~1-10 ft.
+# Distance being tested - ~1-10 ft.
 dist = 2
 if not quick:
     dist = input('Enter distance: ')
 
-
-#Number of samples - ~200.
+# Number of samples - ~200.
 samp = 20
 if not quick:
     samp = input('Enter number of samples: ')
 
-#orientation based on angle between sensor and vector pointing from tx to rx
+# Orientation based on angle between sensor and vector pointing from tx to rx.
 tx_orient = 0
 rx_orient = 180
 
@@ -35,7 +34,7 @@ thresh = 45
 if not quick:
     thresh = input('Enter threshold: ')
 
-#delay between samples
+# Delay between samples.
 samp_delay= 0.1
 
 #Delay
@@ -60,53 +59,59 @@ def script(port):
 
     # Outputs are labeled r_out[distance].txt
     # Example: r_out3.txt = ranging output for 3 ft.
-    fileexists = True
-    while(fileexists == True):
+
+    # Creating and naming the output file.
+    # file_exists actually means whether the file exists or not -
+    #   if file_exists is true, then it doesn't exist and we're clear to make the file.
+    #   if false, then it does exist
+    file_exists = True
+
+    while file_exists:
         filename = raw_input("\nFile name: ")
         userinput = " "
         
         try:
             filecheck = open(filename + ".txt", 'r')
             
-            while(userinput!="y" and userinput != "n"):
+            while userinput != "y" and userinput != "n":
                 userinput = raw_input("File already exists, would you like to override it? (y/n) ")
-            fileexists= True
+            
+            file_exists = True
 
         except IOError as e:
             print("File name is available")
-            fileexists=False
+            file_exists = False
 
-        if(fileexists==True):
-            if(userinput == "y"):
-                break;
+        if file_exists and userinput == "y":
+                break
 
     output1 = open(filename + ".txt", 'w')
     output1.write('Ultrasound scanning\n')
-    output1.write('TX Orientation: '+str(tx_orient)+'\n')
-    output1.write('RX Orientation: '+str(rx_orient)+'\n')
+    output1.write('TX Orientation: ' + str(tx_orient) + '\n')
+    output1.write('RX Orientation: ' + str(rx_orient) + '\n')
     output1.write('Samples: ' + str(samp) + '\n')
     output1.write('Threshold: ' + str(thresh) + '\n')
     output1.write('\n')
-    output1.write('Distance,Avg,STDev,Data \n')
+    output1.write('Distance, Avg, STDev, Data \n')
 
     # Rebooting node for safety.
     port.write(b'reboot\n')
 
     choice = 'y'
     failed = 0
-    i=samp
+    i = samp
     #start of loop
     while choice is 'y':
     
-        if(i >= samp-1):
+        if i >= samp - 1 :
             dist = raw_input("Distance: ")
-            if(dist == 'quit' or dist == 'q'):
+            if dist == 'quit' or dist == 'q':
                 break
             else:
-                i=-1
-                output1.write(dist+',,,')
+                i = -1
+                output1.write(dist + ',,,')
     
-        i+=1
+        i += 1
 
         #Wait until setup completes before entering command.
         # line = b' '
@@ -116,42 +121,42 @@ def script(port):
         #     print(line[:-1])
 
         sleep(samp_delay)
+
         # # Runs the range_rx command.
         print("writing range_rx")
         port.write(('range_rx %d\n' % (thresh)).encode())
 
-
         # Checks for errors, if none, adds the final TDoA to data[].
-        while (True):
+        while True:
 
             line = port.readline()
             print(line[:-1])
             if b'Timed out' in line:
                 failed = 1
                 print("Timed out")
-                i-=1
+                i -= 1
                 break
 
             if b'Failed' in line:
                 failed = 1
                 print("Ranging failed")
-                i-=1
+                i -= 1
                 break
 
             if b'TDoA' in line:
-                print(str(i)+": "+line[:-1])
+                print(str(i) + ": " + line[:-1])
                 failed = 0
                 words = line.split("= ")
-                output1.write(words[1][:-1]+",")
+                output1.write(words[1][:-1] + ",")
                 break
 
             if line == b'':
                 #print("Got blank")
                 break
 
-        if(failed):
+        if failed:
             choice = ' '
-            while(choice != 'y' and choice != 'n'):
+            while choice != 'y' and choice != 'n':
                 choice = raw_input('TDoA failed, continue? (y/n) ')
             failed = 1
 
@@ -187,7 +192,7 @@ def connect():
         try:
             # conn = Serial(argv[2], argv[3], dsrdtr=0, rtscts=0,
                         #   timeout=1)
-            conn = Serial('/dev/ttyUSB'+port_usb, '115200', dsrdtr=0, rtscts=0,
+            conn = Serial('/dev/ttyUSB' + port_usb, '115200', dsrdtr=0, rtscts=0,
                           timeout=1)
         except IOError:
             print("error opening serial port", file=sys.stderr)
