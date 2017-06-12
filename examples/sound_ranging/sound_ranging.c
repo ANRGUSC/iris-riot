@@ -314,7 +314,7 @@ start:
                 snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
                 if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
-                    puts("Got REQ. Sending 'RDY' pkt now!");
+                    puts("Got REQ. Sending 'RDY' pkt now!"); //error!
                     break;
                 } else {
                     puts("Not a ranging request packet.");
@@ -477,7 +477,7 @@ int scan_tx(int argc, char **argv)
 void *scan_rx_thread(void *arg)
 {
     scan_rx_param* param = (scan_rx_param*) arg;
-    int low = 35;
+    int low = 30; // changed low to 30 instead of 35 - Richard
     int med = 50;
     int high = 60;
     int pinged = 0;
@@ -542,7 +542,9 @@ void *scan_rx_thread(void *arg)
                 return NULL;
             }
 
-            if(adcsample > med && !pinged){
+            // if(adcsample > med && !pinged){
+
+            if(adcsample >= low && !pinged){ // changed adcsample >= med to low -Richard
                 int increment = 0;
                 int prev_sample = adcsample;
                 xtimer_usleep(param->udelay);
