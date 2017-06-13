@@ -34,6 +34,8 @@ USEMODULE += ps
 USEMODULE += netstats_l2
 USEMODULE += netstats_ipv6
 
+WERROR = 0 
+
 # Set a custom 802.15.4 channel if needed
 DEFAULT_CHANNEL ?= 26
 CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)

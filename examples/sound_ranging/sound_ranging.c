@@ -479,22 +479,16 @@ int scan_tx(int argc, char **argv)
 void *scan_rx_thread(void *arg)
 {
     scan_rx_param* param = (scan_rx_param*) arg;
-    int low = 35;
     int med = 50;
     int high = 60;
-    int pinged = 0;
 
     printf("Started scan_rx_thread\n");
     int adcsample = 0;
-    int i=0;
     int sample_counter=0;
-    int ping_rcvd=0;
     int sample_size = param->sample_size;
-    double avg = 0;
     uint32_t start_time; // Holds the start time of the scan. (t0)
     uint32_t now; // Holds the current time of the scan since the starting time. 
                   //    (t1, t2, etc., or t_delta)
-    int num_ping_rcvd=0;
     
     (*(param->num_threads))++;
 
@@ -531,10 +525,8 @@ void *scan_rx_thread(void *arg)
         return NULL;
     }
 
-    int num_iter = (int)(99000/param->udelay);
-
     // Sets the start time and prints it to console.
-    start_time = _xtimer_now();
+    start_time = xtimer_now();
     printf("\nt0 = %d \n", (int)start_time);
 
     // Loops for as long as we don't stop it and we haven't gotten all the samples yet.
@@ -545,7 +537,7 @@ void *scan_rx_thread(void *arg)
     while(*(param->stop_flag) == 0 && sample_counter < sample_size)
     {
         adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-        now = _xtimer_now() - start_time;
+        now = xtimer_now() - start_time;
         printf("%d, %d\n", (int)now, adcsample);
         sample_counter++; 
         xtimer_usleep(param->udelay);
@@ -607,7 +599,6 @@ void *scan_rx_thread(void *arg)
     //         sample_counter++;
     //     }
         
-    }
     (*(param->num_threads))--;
     printf("Thread stopped\n");
     return NULL;
