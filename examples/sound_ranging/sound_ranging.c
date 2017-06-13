@@ -477,7 +477,7 @@ int scan_tx(int argc, char **argv)
 void *scan_rx_thread(void *arg)
 {
     scan_rx_param* param = (scan_rx_param*) arg;
-    int low = 30; // changed low to 30 instead of 35 - Richard
+    int low = 35;
     int med = 50;
     int high = 60;
     int pinged = 0;
@@ -489,7 +489,9 @@ void *scan_rx_thread(void *arg)
     int ping_rcvd=0;
     int sample_size = param->sample_size;
     double avg = 0;
-
+    uint32_t start_time; // Holds the start time of the scan. (t0)
+    uint32_t now; // Holds the current time of the scan since the starting time. 
+                  //    (t1, t2, etc., or t_delta)
     int num_ping_rcvd=0;
     
     (*(param->num_threads))++;
@@ -528,63 +530,79 @@ void *scan_rx_thread(void *arg)
     }
 
     int num_iter = (int)(99000/param->udelay);
-    while(*(param->stop_flag) == 0){
-        //xtimer_usleep(param->udelay);
 
-        ping_rcvd=1;
-        pinged = 0;
-        for(i=0; i<(num_iter); i++){
-            adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+    // Sets the start time and prints it to console.
+    start_time = _xtimer_now();
+    printf("\nt0 = %d \n", (int)start_time);
+
+    // Loops for as long as we don't stop it and we haven't gotten all the samples yet.
+    // If it turns out we just want to stop and don't care about the samples, comment
+    //      out all lines with sample_counter in them and uncomment the ones marked 
+    //      with three asterisks.
+    // while(*(param->stop_flag) == 0) // ***
+    while(*(param->stop_flag) == 0 && sample_counter < sample_size)
+    {
+        adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+        now = _xtimer_now() - start_time;
+        sample_counter++; 
+        xtimer_usleep(param->udelay);
+    }    
+
+    // while(*(param->stop_flag) == 0){
+    //     //xtimer_usleep(param->udelay);
+    //     ping_rcvd=1;
+    //     pinged = 0;
+    //     for(i=0; i<(num_iter); i++){
+    //         adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
             
-            if(*(param->stop_flag) != 0){
-                (*(param->num_threads))--;
-                printf("Thread stopped\n");
-                return NULL;
-            }
+    //         if(*(param->stop_flag) != 0){
+    //             (*(param->num_threads))--;
+    //             printf("Thread stopped\n");
+    //             return NULL;
+    //         }
 
-            // if(adcsample > med && !pinged){
-
-            if(adcsample >= low && !pinged){ // changed adcsample >= med to low -Richard
-                int increment = 0;
-                int prev_sample = adcsample;
-                xtimer_usleep(param->udelay);
-                adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-                while(prev_sample < adcsample){
-                    prev_sample = adcsample;
-                    xtimer_usleep(param->udelay);
-                    adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-                    increment++;
-                }
-                i=0;
-                printf("Ping Recieved: %d\n",prev_sample);
-                ping_rcvd=0;
-                pinged = 1;
-                avg+=prev_sample;
-                num_ping_rcvd++;
-                sample_counter++;
-            }
-            else if(adcsample < low){
-                pinged = 0;
-            }
-            //printf("%d: %d\n",i,adcsample);
-            if(sample_size>0){
-                if(sample_counter>=sample_size){
-                    avg/=sample_size;
-                    double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
-                    printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
-                    printf("Percent loss: %d%%\n", (int)percent_loss);
-                    printf("Average strength: %d\n", (int)avg);
-                    (*(param->num_threads))--;
-                    printf("Thread stopped\n");
-                    return NULL;
-                }
-            }
-            xtimer_usleep(param->udelay);
-        }
-        if(ping_rcvd){
-            printf("Ping missed\n");   
-            sample_counter++;
-        }
+    //         // if(adcsample > med && !pinged){
+    //         if(adcsample >= low && !pinged){ // changed adcsample >= med to low -Richard
+    //             int increment = 0;
+    //             int prev_sample = adcsample;
+    //             xtimer_usleep(param->udelay);
+    //             adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+    //             while(prev_sample < adcsample){
+    //                 prev_sample = adcsample;
+    //                 xtimer_usleep(param->udelay);
+    //                 adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
+    //                 increment++;
+    //             }
+    //             i=0;
+    //             printf("Ping Recieved: %d\n", prev_sample);
+    //             ping_rcvd=0;
+    //             pinged = 1;
+    //             avg+=prev_sample;
+    //             num_ping_rcvd++;
+    //             sample_counter++;
+    //         }
+    //         else if(adcsample < low){
+    //             pinged = 0;
+    //         }
+    //         //printf("%d: %d\n",i,adcsample);
+    //         if(sample_size>0){
+    //             if(sample_counter>=sample_size){
+    //                 avg/=sample_size;
+    //                 double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
+    //                 printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
+    //                 printf("Percent loss: %d%%\n", (int)percent_loss);
+    //                 printf("Average strength: %d\n", (int)avg);
+    //                 (*(param->num_threads))--;
+    //                 printf("Thread stopped\n");
+    //                 return NULL;
+    //             }
+    //         }
+    //         xtimer_usleep(param->udelay);
+    //     }
+    //     if(ping_rcvd){
+    //         printf("Ping missed\n");   
+    //         sample_counter++;
+    //     }
         
     }
     (*(param->num_threads))--;
