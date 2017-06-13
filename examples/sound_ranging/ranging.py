@@ -21,7 +21,7 @@ if not quick:
     dist = input('Enter distance: ')
 
 #Number of samples - ~200.
-samp = 200
+samp = 20
 
 if not quick:
     samp = input('Enter number of samples: ')
@@ -36,7 +36,7 @@ if not quick:
     thresh = input('Enter threshold: ')
 
 #delay between samples
-samp_delay= 0.25
+samp_delay= 0.1
 
 #Delay
 # delay = 1
@@ -66,6 +66,9 @@ def script(port):
     #   if file_exists is true, then it doesn't exist and we're clear to make the file.
     #   if false, then it does exist
     file_exists = True
+    missed_pings = 0
+    dist_list = []
+    missed_pings_list = []
 
     while file_exists:
         filename = raw_input("\nFile name: ")
@@ -103,17 +106,21 @@ def script(port):
     i = samp
     #start of loop
     while (True):
-    
-    	if choice=='n':	
-    	    i = samp
+    	failed = 0
+
+        if choice=='n':  
+            i = samp
 
         if i >= samp - 1 :
+            missed_pings_list.append(missed_pings)
             dist = raw_input("Distance: ")
             if dist == 'quit' or dist == 'q':
                 break
             else:
                 i=-1
                 output1.write('\n'+dist+',,,')
+                missed_pings = 0
+                dist_list.append(dist)
 
         i += 1
 
@@ -134,7 +141,7 @@ def script(port):
         while True:
 
             line = port.readline()
-            print(line[:-1])
+            #print(line[:-1])
             if b'Timed out' in line:
                 failed = 1
                 print("Timed out")
@@ -158,12 +165,23 @@ def script(port):
                 #print("Got blank")
                 break
 
+            if b'missed' in line:
+            	print("Ping missed")
+            	missed_pings += 1
+            	i -= 1
+            	break
+
         if failed:
             choice = ' '
             while choice != 'y' and choice != 'n':
                 choice = raw_input('TDoA failed, continue? (y/n) ')
             failed = 1
 
+    i = 0
+    output1.write("\nDist, Pings missed")
+    for val in missed_pings_list[1:]:
+    	output1.write ("\n"+str(dist_list[i])+","+str(val))
+    	i += 1
 
     print("Data gathered")
     output1.close()

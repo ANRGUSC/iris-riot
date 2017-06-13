@@ -184,12 +184,12 @@ int range_rx(int argc, char **argv)
             if ( RANGE_RDY_FLAG == ((uint8_t *) snip->data)[0] && 
                  TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                 puts("Got init msg. Turning on ranging mode.");
-                break;
             } else {
                 puts("Unknown packet.");
             }
 
             gnrc_pktbuf_release(pkt);
+            break;
         } 
     } /* while */
 
@@ -226,12 +226,13 @@ int range_rx(int argc, char **argv)
     }
 
     //xtimer_sleep(1);
+    
     int timeout=0;
     while(ranging_on==1){
         timeout++;
         xtimer_usleep(10000);
         if(timeout>50){
-            puts("Timed out");
+            //puts("Timed out");
             break;
         }
     }
@@ -239,7 +240,7 @@ int range_rx(int argc, char **argv)
     if( (time_diff = range_rx_stop()) > 0 ) {
         printf("TDoA = %lu\n", time_diff);
     } else {
-        puts("Ranging failed.");
+        puts("Ping missed");
     }
 
     _unregister_thread();
@@ -315,12 +316,12 @@ start:
                 if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                     puts("Got REQ. Sending 'RDY' pkt now!"); //error!
-                    break;
                 } else {
                     puts("Not a ranging request packet.");
                 }
 
                 gnrc_pktbuf_release(pkt);
+                break;
             }
         }
 
@@ -366,6 +367,7 @@ start:
                 if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                     puts("Got 'GO' pkt. Time to send RF/Ultrasound ping!");
+                    gnrc_pktbuf_release(pkt);
                     break;
                 } else if(retries > 2) {
                     /* for testing purposes */
@@ -674,3 +676,141 @@ int scan_rx_stop(int argc, char **argv)
     QUIT_RX_SCAN_FLAG = 1;
     return 0;
 }
+/******************************************************************/
+//uping_rx
+
+// int uping_rx(int argc, char**argv)
+// {
+//     if (argc < 2) {
+//         printf("usage: %s <ultrasound_thresh>\n", argv[0]);
+//         return 1;
+//     }
+
+//     if (atoi(argv[1]) <= 0)
+//     {
+//         puts("error: please input value greater than 0");
+//         return 1;
+//     }
+
+//     int ultrasound_thresh = atoi(argv[1]);
+//     unsigned long time_diff = 0;
+//     char *tx_node_addr_str = TX_NODE_IPV6_ADDR;
+//     ipv6_addr_t tx_node_ip_addr;
+//     gnrc_pktsnip_t *pkt, *snip;
+//     int16_t tx_power = TX_POWER;
+//     gnrc_pktsnip_t *payload, *udp, *ip;
+//     char buf[2] = {0x00, 0x00};
+//     int sample = 0;
+//     uint32_t last =0;
+
+//     /* register this thread to the chosen UDP port */
+//     server.next = NULL;
+//     server.demux_ctx = (uint32_t) SERVER_PORT; 
+//     server.pid = thread_getpid();
+//     gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
+
+//     msg_t msg; 
+//     msg_t msg_queue[QUEUE_SIZE];
+
+//     /* setup the message queue */
+//     msg_init_queue(msg_queue, QUEUE_SIZE);
+
+//     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+//     size_t numof = gnrc_netif_get(ifs); 
+
+//     /* there should be only one network interface on the board */
+//     if (numof == 1) {
+//         gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
+//     }
+
+//     if (ipv6_addr_from_str(&tx_node_ip_addr, tx_node_addr_str) == NULL) {
+//         puts("Error: unable to parse destination address");
+//         return 1;
+//     }
+
+//     /* send ultrasound ranging request */
+//     buf[0] = RANGE_REQ_FLAG;
+//     buf[1] = TX_NODE_ID;
+//     payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+//     if (payload == NULL) {
+//         puts("Error: unable to copy data to packet buffer");
+//         return 1;
+//     }
+
+//     udp = gnrc_udp_hdr_build(payload, CLIENT_PORT, SERVER_PORT);
+//     if (udp == NULL) {
+//         puts("Error: unable to allocate UDP header");
+//         gnrc_pktbuf_release(payload);
+//         return 1;
+//     }
+
+//     ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
+//     if (ip == NULL) {
+//         puts("Error: unable to allocate IPv6 header");
+//         gnrc_pktbuf_release(udp);
+//         return 1;
+//     }
+
+//     if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
+//         puts("Error: unable to locate UDP thread");
+//         gnrc_pktbuf_release(ip);
+//         return 1;
+//     }
+
+//     printf("REQ signal sent to %s\n",tx_node_addr_str);
+
+//     /* wait for "RDY" packet */
+//     while(1) {   
+//         puts("Waiting for GO pkt.");
+//         int response= xtimer_msg_receive_timeout(&msg,1000000);
+//         if(response < 0){
+//             puts ("Timed out");
+//              _unregister_thread();
+//             return 1;
+//         }
+//         if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
+//             pkt = msg.content.ptr;
+
+//             /* get snip containing packet data where we put the packet number */
+//             snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
+//             if ( RANGE_GO_FLAG == ((uint8_t *) snip->data)[0] && 
+//                  TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
+//                 puts("Got GO msg. Listening for ping.");
+//                 last = xtimer_now();
+//             } else {
+//                 puts("Unknown packet.");
+//             }
+
+//             gnrc_pktbuf_release(pkt);
+//             break;
+//         } 
+//     } /* while */
+
+//     adc_init(AD4_PIN);
+
+
+//     sample = adc_sample(AD4_PIN, ADC_RES_7BIT) 
+
+//     range_rx_init(TX_NODE_ID, ultrasound_thresh, AD4_PIN, ADC_RES_7BIT, 2000);
+
+//     //xtimer_sleep(1);
+//     int timeout=0;
+//     while(ranging_on==1){
+//         timeout++;
+//         xtimer_usleep(10000);
+//         if(timeout>50){
+//             puts("Timed out");
+//             break;
+//         }
+//     }
+
+//     if( (time_diff = range_rx_stop()) > 0 ) {
+//         printf("TDoA = %lu\n", time_diff);
+//     } else {
+//         puts("Ranging failed.");
+//     }
+
+//     _unregister_thread();
+
+//     return 0;
+// }
