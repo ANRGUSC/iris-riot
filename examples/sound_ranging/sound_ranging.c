@@ -544,6 +544,7 @@ void *scan_rx_thread(void *arg)
     {
         adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
         now = _xtimer_now() - start_time;
+        printf("%d, %d\n", (int)now, adcsample);
         sample_counter++; 
         xtimer_usleep(param->udelay);
     }    
