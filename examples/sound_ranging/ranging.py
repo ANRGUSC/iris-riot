@@ -108,19 +108,19 @@ def script(port):
     failed = 0
     i = samp
     #start of loop
-    while (True):
-    	failed = 0
+    while True:
+        failed = 0
 
-        if choice=='n':  
+        if choice == 'n':
             i = samp
 
-        if i >= samp - 1 :
+        if i >= samp - 1:
             missed_pings_list.append(missed_pings)
             dist = raw_input("Distance: ")
             if dist == 'quit' or dist == 'q':
                 break
             else:
-                i=-1
+                i = -1
                 output1.write('\n'+dist+',,,')
                 missed_pings = 0
                 dist_list.append(dist)
@@ -129,7 +129,6 @@ def script(port):
 
         #Wait until setup completes before entering command.
         # line = b' '
-        
         # while line is not b'':
         #     line = port.readline()
         #     print(line[:-1])

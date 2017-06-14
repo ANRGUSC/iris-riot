@@ -317,10 +317,9 @@ start:
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                     puts("Got REQ. Sending 'RDY' pkt now!"); //error!
                 } else {
-                    printf("%d, %d",RANGE_REQ_FLAG,((uint8_t *)snip->data)[0]);
+                    printf("#1 %d, %d",RANGE_REQ_FLAG,((uint8_t *)snip->data)[0]);
                     puts("Not a ranging request packet.");
                 }
-
                 gnrc_pktbuf_release(pkt);
                 break;
             }
@@ -376,6 +375,7 @@ start:
                     gnrc_pktbuf_release(pkt);
                     goto start;
                 } else {
+                    printf("#2 %d, %d",RANGE_REQ_FLAG,((uint8_t *)snip->data)[0]);
                     puts("Not a ranging request packet.");
                 }
 
