@@ -12,13 +12,13 @@ from serial import Serial
 # from subprocess import call
 
 # Default port that openmote connects to.
-port_usb = '1'
+port_usb = '0'
 
 #Boolean flag for testing quickly.
 quick = True
 
 #Number of samples - ~200.
-samp = 200
+samp = 2000
 if not quick:
     samp = input('Enter number of samples: ')
 
@@ -34,7 +34,7 @@ rx_orient = 180
 
 
 #Delay
-delay = 2000
+delay = 200
 if not quick:
     delay = input('Enter delay: ')
 
@@ -79,14 +79,12 @@ def script(port):
     output1.write('Threshold: ' + str(thresh) + '\n')
     output1.write('Delay: ' + str(delay) + '\n')
     output1.write('\n')
-    output1.write('Distance, Avg, STDev, Data \n')
+    output1.write('Time, Value \n')
 
     #port.write(b'reboot\n')
     dist = " "
     while True:
-        dist = raw_input("Distance: ")
-        if dist == "quit" or dist == "q":
-            break
+        
         
         line = b' '
         
@@ -109,30 +107,18 @@ def script(port):
         # while b'Ping' in line or line is b'':
         while not (b'stopped' in line):
             
-            print(str(i) + ":" + line[:-1])
-            if b'Ping Recieved' in line:
-                i+=1
-                # i += 1 #sloppy
-                # if i >= samp:
-                    # break
-                #set up queue?
-                datum = 0
-                words = line.split(": ")
-                datum = int(words[1])
-                data.append(datum)
+            print(line[:-1])
+            if b',' in line:
+                output1.write(line)
 
-            if b'missed' in line:
-                i += 1
-                data.append(0)
-            
             line = port.readline()
             print(line)
-        
-        output1.write('\n'+dist+',,,')
-        for datum in data:
-            output1.write(str(datum) + ',')
-            # output1.write(datum + '\n')
+
         print("Data gathered")
+        dist = raw_input("Quit? ")
+        if dist == "quit" or dist == "q":
+            break
+
     output1.close()
     print("File written")
 

@@ -10,7 +10,7 @@ from serial import Serial
 # from subprocess import call
 
 # Default port that openmote connects to.
-port_usb = '1'
+port_usb = '0'
 
 # Boolean flag for testing quickly.
 quick = True
@@ -21,7 +21,8 @@ if not quick:
     dist = input('Enter distance: ')
 
 #Number of samples - ~200.
-samp = 20
+samp = 1000
+loc = "Room"
 
 if not quick:
     samp = input('Enter number of samples: ')
@@ -31,12 +32,13 @@ tx_orient = 0
 rx_orient = 180
 
 #Threshold - ~45.
-thresh = 45
+thresh = 38
 if not quick:
     thresh = input('Enter threshold: ')
 
 #delay between samples
-samp_delay= 0.1
+samp_delay= 0.5
+
 
 #Delay
 # delay = 1
@@ -95,6 +97,7 @@ def script(port):
     output1.write('RX Orientation: ' + str(rx_orient) + '\n')
     output1.write('Samples: ' + str(samp) + '\n')
     output1.write('Threshold: ' + str(thresh) + '\n')
+    output1.write('Location: ' + loc + '\n')
     output1.write('\n')
     output1.write('Distance, Avg, STDev, Data \n')
 
@@ -155,20 +158,27 @@ def script(port):
                 break
 
             if b'TDoA' in line:
-                print(str(i) + ": " + line[:-1])
+                #print(str(i) + ": " + line[:-1])
                 failed = 0
                 words = line.split("= ")
-                output1.write(words[1][:-1] + ",")
+                val=words[1][:-1]
+                print(str(i)+":"+str((int(val)-24830)/888.06))
+                output1.write(val + ",")
                 break
 
             if line == b'':
                 #print("Got blank")
                 break
 
+            if b'unknown' in line:
+            	failed = 1
+            	print("unknown packet")
+            	i -= 1
+            	break
+
             if b'missed' in line:
             	print("Ping missed")
             	missed_pings += 1
-            	i -= 1
             	break
 
         if failed:

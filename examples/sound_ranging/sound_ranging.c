@@ -231,8 +231,8 @@ int range_rx(int argc, char **argv)
     while(ranging_on==1){
         timeout++;
         xtimer_usleep(10000);
-        if(timeout>50){
-            //puts("Timed out");
+        if(timeout>10){
+            puts("tout");
             break;
         }
     }
@@ -317,6 +317,7 @@ start:
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                     puts("Got REQ. Sending 'RDY' pkt now!"); //error!
                 } else {
+                    printf("%d, %d",RANGE_REQ_FLAG,((uint8_t *)snip->data)[0]);
                     puts("Not a ranging request packet.");
                 }
 
@@ -513,11 +514,6 @@ void *scan_rx_thread(void *arg)
     }
 
     printf("Flag value: %d\n",*(param->stop_flag));
-
-    while (adcsample < high && *(param->stop_flag) == 0){
-        adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-        xtimer_usleep(param->udelay);
-    }
 
     if(*(param->stop_flag) != 0){
          (*(param->num_threads))--;
