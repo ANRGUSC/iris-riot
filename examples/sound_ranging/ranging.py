@@ -1,13 +1,10 @@
-#pylint: disable=C0103, C0111, C0301, C0330, W0603, W0611, W0612, W0613
+#pylint: disable=C0103, C0111, C0301, C0326, C0330, W0603, W0611, W0612, W0613
 from __future__ import print_function
 import sys
 import re
-# import socket
 from time import sleep, time
 from struct import pack
 from serial import Serial
-# from subprocess import run
-# from subprocess import call
 
 # Default port that openmote connects to.
 port_usb = '0'
@@ -15,113 +12,125 @@ port_usb = '0'
 # Boolean flag for testing quickly.
 quick = True
 
-# Distance being tested - ~1-10 ft.
-dist = 2
-if not quick:
-    dist = input('Enter distance: ')
+# Checks if the line has any of the following error messages:
+# Timed out, failed, or unknown.
+# Returns True if they exist.
+def is_failing(line):
 
-#Number of samples - ~200.
-samp = 1000
-loc = "Room"
+    failed = True
 
-if not quick:
-    samp = input('Enter number of samples: ')
+    if b'Timed out' in line:
+        print("Timed out.")
+    elif b'failed' in line:
+        print("Ranging failed.")
+    elif b'unknown' in line:
+        print("Unknown packet.")
+    else:
+        failed = False
 
-# Orientation based on angle between sensor and vector pointing from tx to rx.
-tx_orient = 0
-rx_orient = 180
+    return failed
 
-#Threshold - ~45.
-thresh = 38
-if not quick:
-    thresh = input('Enter threshold: ')
-
-#delay between samples
-samp_delay= 0.5
-
-
-#Delay
-# delay = 1
-# if not quick:
-#     delay = input('Enter delay: ')
-
-
-#Need sudo to make term for ttyUSB - call the following command in terminal:
-#sudo adduser 'Your username here' dialout
-#Adds you to the dialout group - no need to call sudo to flash/access ttyUSB.
-# call(['ls'])
-# call(['sudo make term PORT=/dev/ttyUSB' + port_usb])
-# call(['sudo make term'])
-# run(["ls"])
-# run("sudo make term", shell=True)
-
-# call(['range_rx ' + thresh])
-# run('range_rx ' + thresh, shell=True)
 
 def script(port):
+#-----------------------------------------------------------------------------#
+###############################
+# Setting up the output file. #
+###############################
+    user_input = 'n'
+    is_filename_open = True
+    filename = ''
 
-    # Outputs are labeled r_out[distance].txt
-    # Example: r_out3.txt = ranging output for 3 ft.
+    while is_filename_open and user_input == 'n':
+        # Input filename.
+        # filename = input("\nFile name: ") # Python 3
+        filename = raw_input("\nFile name: ")
 
-    # Creating and naming the output file.
-    # file_exists actually means whether the file exists or not -
-    #   if file_exists is true, then it doesn't exist and we're clear to make the file.
-    #   if false, then it does exist
-    file_exists = True
+        try:
+            # Check if filename already exists.
+            filecheck = open(filename + ".txt", 'r')
+
+            user_input = ''
+            # filecheck successful, filename already exists.
+            # Check if user wants to overwrite.
+            while user_input != 'y' and user_input != 'n':
+                # user_input = input("File already exists. Overwrite? (y/n) ") # Python 3
+                user_input = raw_input("File already exists. Overwrite? (y/n) ")
+
+        except IOError as e:
+            #filecheck unsuccessful, filename does not already exist.
+            print("File name is available.")
+            is_filename_open = False
+
+    output1 = open(filename + ".txt", 'w')
+#-----------------------------------------------------------------------------#
+#####################################
+# Writing preliminary info to file. #
+#####################################
+    output1.write('Ultrasound scanning\n')
+
+    # Get settings from user.
+    if not quick:
+        # samp        = input("Enter number of samples: ") # Python 3
+        # loc         = input("Enter testing location: ") # Python 3
+        # tx_orient   = input("Enter tx orientation (0-180): ") # Python 3
+        # rx_orient   = input("Enter rx orientation (0-90): ") # Python 3
+        # thresh      = input("Enter threshold: ") # Python 3
+        # samp_delay  = input("Enter sample delay: ") # Python 3
+        samp        = raw_input("Enter number of samples: ")
+        loc         = raw_input("Enter testing location: ")
+        tx_orient   = raw_input("Enter tx orientation (0-180): ")
+        rx_orient   = raw_input("Enter rx orientation (0-90): ")
+        thresh      = raw_input("Enter threshold: ")
+        samp_delay  = raw_input("Enter sample delay: ")
+    # Quick test settings.
+    else:
+        samp        = 1000
+        loc         = "Room"
+        tx_orient   = 0
+        rx_orient   = 0
+        thresh      = 38
+        samp_delay  = 0.1
+
+    output1.write("Samples: " + str(samp) + '\n')
+    output1.write("Location: " + loc + '\n')
+    output1.write("TX Orientation: " + str(tx_orient) + '\n')
+    output1.write("RX Orientation: " + str(rx_orient) + '\n')
+    output1.write("Threshold: " + str(thresh) + '\n')
+    output1.write('\n')
+    output1.write("Distance, Avg, STDev, Data \n")
+#-----------------------------------------------------------------------------#
+############################
+# Setting up the openmote. #
+############################
     missed_pings = 0
     dist_list = []
     missed_pings_list = []
-
-    while file_exists:
-        filename = raw_input("\nFile name: ")
-        userinput = " "
-        
-        try:
-            filecheck = open(filename + ".txt", 'r')
-            
-            while userinput != "y" and userinput != "n":
-                userinput = raw_input("File already exists, would you like to override it? (y/n) ")
-            
-            file_exists = True
-
-        except IOError as e:
-            print("File name is available")
-            file_exists = False
-
-        if file_exists and userinput == "y":
-                break
-
-    output1 = open(filename + ".txt", 'w')
-    output1.write('Ultrasound scanning\n')
-    output1.write('TX Orientation: ' + str(tx_orient) + '\n')
-    output1.write('RX Orientation: ' + str(rx_orient) + '\n')
-    output1.write('Samples: ' + str(samp) + '\n')
-    output1.write('Threshold: ' + str(thresh) + '\n')
-    output1.write('Location: ' + loc + '\n')
-    output1.write('\n')
-    output1.write('Distance, Avg, STDev, Data \n')
 
     # Rebooting node for safety.
     port.write(b'reboot\n')
 
     choice = 'y'
-    failed = 0
     i = samp
-    #start of loop
+#-----------------------------------------------------------------------------#
+#######################
+# Start of main loop. #
+#######################
     while True:
-        failed = 0
+        failed = False
+        print(choice)
+        print(i)
 
-        if choice == 'n':
+        if choice == 'n': # Needs fixing
             i = samp
 
-        if i >= samp - 1:
+        if i >= samp - 1 or choice == 'n':
             missed_pings_list.append(missed_pings)
             dist = raw_input("Distance: ")
             if dist == 'quit' or dist == 'q':
                 break
             else:
                 i = -1
-                output1.write('\n'+dist+',,,')
+                output1.write('\n' + dist + ',,,')
                 missed_pings = 0
                 dist_list.append(dist)
 
@@ -135,123 +144,92 @@ def script(port):
 
         sleep(samp_delay)
 
-        # # Runs the range_rx command.
-        print("writing range_rx")
+        # Runs the range_rx command.
+        print("Writing range_rx.")
         port.write(('range_rx %d\n' % (thresh)).encode())
 
-        # Checks for errors, if none, adds the final TDoA to data[].
+        # Checks for errors. If none, adds the final TDoA to data[].
+        # Not really a fan of these break statements.
         while True:
-
             line = port.readline()
-            #print(line[:-1])
-            if b'Timed out' in line:
-                failed = 1
-                print("Timed out")
-                i -= 1
-                break
-
-            if b'failed' in line:
-                failed = 1
-                print("Ranging failed")
-                i -= 1
-                break
 
             if b'TDoA' in line:
-                #print(str(i) + ": " + line[:-1])
-                failed = 0
                 words = line.split("= ")
-                val=words[1][:-1]
-                print(str(i)+":"+str((int(val)-24830)/888.06))
+                val = words[1][:-1]
+                # Formula for calculating distance, derived through past tests.
+                print(str(i) + ":" + str((int(val)-24830)/888.06))
                 output1.write(val + ",")
                 break
 
             if line == b'':
-                #print("Got blank")
                 break
 
-            if b'unknown' in line:
-            	failed = 1
-            	print("unknown packet")
-            	i -= 1
-            	break
-
             if b'missed' in line:
-            	print("Ping missed")
-            	missed_pings += 1
-            	break
+                print("Ping missed")
+                missed_pings += 1
+                break
 
+            failed = is_failing(line)
+            if failed:
+                break
+
+        # Checking for errors.
         if failed:
-            choice = ' '
+            choice = ''
             while choice != 'y' and choice != 'n':
                 choice = raw_input('TDoA failed, continue? (y/n) ')
-            failed = 1
-
+            failed = True
+            i -= 1
+# End of main loop.
+#-----------------------------------------------------------------------------#
+#########################
+# Writing data to file. #
+#########################
     i = 0
     output1.write("\nDist, Pings missed")
     for val in missed_pings_list[1:]:
-    	output1.write ("\n"+str(dist_list[i])+","+str(val))
-    	i += 1
+        output1.write("\n" + str(dist_list[i]) + "," + str(val))
+        i += 1
 
-    print("Data gathered")
+    print("Data gathered.")
+
+    print("Writing to file...")
     output1.close()
-    print("File written")
-
-def configure_interface(port, channel):
-    line = ""
-    iface = 0
-    port.write(b'ifconfig\n')
-    while True:
-        line = port.readline()
-        if line == '':
-            print("Application has no network interface defined",
-                  file=sys.stderr)
-            sys.exit(2)
-        match = re.search(r'^Iface +(\d+)', line.decode())
-        if match is not None:
-            iface = int(match.group(1))
-            break
+    print("File written!")
+#-----------------------------------------------------------------------------#
 
 
-# def connect(argv):
 def connect():
-    # connType = argv[1]
-    connType = "serial"
-
-    conn = None
-    if connType == "serial":
-        # open serial port
-        try:
-            # conn = Serial(argv[2], argv[3], dsrdtr=0, rtscts=0,
-                        #   timeout=1)
-            conn = Serial('/dev/ttyUSB' + port_usb, '115200', dsrdtr=0, rtscts=0,
-                          timeout=1)
-        except IOError:
-            print("error opening serial port", file=sys.stderr)
-            sys.exit(2)
-    else:
-        print("error: unsupported connection type. Use \"serial\" or \"socket\"")
+    try:
+        conn = Serial('/dev/ttyUSB'+port_usb,
+                        '115200',
+                        dsrdtr=0,
+                        rtscts=0,
+                        timeout=1)
+    except IOError:
+        print("Error opening serial port.", file=sys.stderr)
         sys.exit(2)
 
     return conn
 
 
-# def main(argv):
 def main():
-    # if len(argv) < 5:
-    #     print("Usage: %s serial tty baudrate channel [outfile]\n" % (argv[0]),
-    #     file=sys.stderr)
-    #     print("       channel = 11-26", file=sys.stderr)
-    #     sys.exit(2)
-
-    # conn = connect(argv)
-    print('Connecting...')
+    print("Connecting...")
     conn = connect()
-    print('Connected!')
+    print("Connected!")
 
-    print('Running script...')
-    script(conn)
-    print('Script complete!')
-    
+    run_script = 'y'
+
+    while run_script == 'y':
+        print("Running script...")
+        script(conn)
+        print("Script complete!")
+
+        run_script = ''
+        while run_script != 'y' and run_script != 'n':
+            # run_script = input("Run script again? (y/n) ") # Python 3
+            run_script = raw_input("Run script again? (y/n) ")
+
+
 if __name__ == "__main__":
-    # main(sys.argv)
     main()

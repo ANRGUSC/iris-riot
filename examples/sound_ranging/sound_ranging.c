@@ -47,9 +47,9 @@
 #define QUEUE_SIZE          8
 #define CC2538_RSSI_OFFSET  73
 
-#define RANGE_REQ_FLAG      0x12
-#define RANGE_RDY_FLAG      0x34
-#define RANGE_GO_FLAG       0x56
+#define RANGE_REQ_FLAG      0x12 // 18
+#define RANGE_RDY_FLAG      0x34 // 52
+#define RANGE_GO_FLAG       0x56 // 86
 #define TX_NODE_ID 0x00
 
 typedef struct {
@@ -318,13 +318,13 @@ start:
                     puts("Got REQ. Sending 'RDY' pkt now!"); //error!
                 } else {
                     printf("#1 %d, %d",RANGE_REQ_FLAG,((uint8_t *)snip->data)[0]);
-                    puts("Not a ranging request packet.");
+                    puts("Not a ranging request packet. - #1");
                 }
                 gnrc_pktbuf_release(pkt);
                 break;
             }
         }
-
+L1:
         /* send "READY" message */
         buf[0] = RANGE_RDY_FLAG;
         buf[1] = TX_NODE_ID;
@@ -367,6 +367,8 @@ start:
                 if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                     puts("Got 'GO' pkt. Time to send RF/Ultrasound ping!");
+                    printf("#2 RANGE_GO_FLAG: %d, ACTUAL: %d\n", RANGE_GO_FLAG, ((uint8_t *)snip->data)[0]);
+                    printf("#2 TX_NODE_ID: %d, ACTUAL: %d\n", TX_NODE_ID, ((uint8_t *)snip->data)[1]);
                     gnrc_pktbuf_release(pkt);
                     break;
                 } else if(retries > 2) {
@@ -375,8 +377,14 @@ start:
                     gnrc_pktbuf_release(pkt);
                     goto start;
                 } else {
-                    printf("#2 %d, %d",RANGE_REQ_FLAG,((uint8_t *)snip->data)[0]);
-                    puts("Not a ranging request packet.");
+                    printf("#2 RANGE_GO_FLAG: %d, ACTUAL: %d\n", RANGE_GO_FLAG, ((uint8_t *)snip->data)[0]);
+                    printf("#2 TX_NODE_ID: %d, ACTUAL: %d\n", TX_NODE_ID, ((uint8_t *)snip->data)[1]);
+                    if(RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
+                        TX_NODE_ID == ((uint8_t *)snip->data)[1]){
+                            gnrc_pktbuf_release(pkt);
+                            goto L1;
+                        }
+                    puts("Not a ranging request packet. - #2");
                 }
 
                 gnrc_pktbuf_release(pkt);
@@ -820,3 +828,9 @@ int scan_rx_stop(int argc, char **argv)
 
 //     return 0;
 // }
+
+// check gnrc netdev, lower delay from 100 to 50 us, intersample time
+// height of the anchor nodes - check the limits, 18-20 ft. - 2 sets of data 
+// scanning, 1 ft - high anchor
+// 2 ultra sensors - on bot - anchor sends signal, one sensor listens one after the other
+// anchors have multiple sensors, all listening etc.
