@@ -55,11 +55,9 @@ int main(void)
     char line_buf[SHELL_DEFAULT_BUFSIZE];
 
     /* auto-run */
-    // char *temp[3];
-    // temp[0] = "range_rx";
-    // temp[1] = "50";          //num pkts
-    // temp[2] = "1000000";     //interval_in_us
-    // range_rx(3, temp);
+    char *temp[1];
+    temp[0] = "range_tx";
+    range_tx(1, temp);
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
