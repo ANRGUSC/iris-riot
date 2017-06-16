@@ -18,7 +18,7 @@ port_usb = '0'
 quick = True
 
 #Number of samples - ~200.
-samp = 2000
+samp = 1000
 if not quick:
     samp = input('Enter number of samples: ')
 
@@ -34,7 +34,7 @@ rx_orient = 180
 
 
 #Delay
-delay = 200
+delay = 0.1
 if not quick:
     delay = input('Enter delay: ')
 

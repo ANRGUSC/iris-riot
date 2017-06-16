@@ -37,7 +37,7 @@ if not quick:
     thresh = input('Enter threshold: ')
 
 #delay between samples
-samp_delay= 0.5
+samp_delay= 0.1
 
 
 #Delay
