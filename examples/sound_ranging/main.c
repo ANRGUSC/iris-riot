@@ -32,6 +32,7 @@ extern int range_rx(int argc, char **argv);
 extern int scan_tx(int argc, char **argv);
 extern int scan_rx_start(int argc, char **argv);
 extern int scan_rx_stop(int argc, char **argv);
+extern int orient_rx(int argc, char **argv);
 
 static const shell_command_t shell_commands[] = {
     { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
@@ -40,6 +41,7 @@ static const shell_command_t shell_commands[] = {
     { "scan_tx", "act as the receiver for sound ranging", scan_tx},
     { "scan_rx_start", "starts a continuous adc read for ultrasound", scan_rx_start},
     { "scan_rx_stop", "stops a continuous adc read for ultrasound", scan_rx_stop},
+    { "orient_rx", "starts an orientation reading", orient_rx},
     { NULL, NULL, NULL }
 };
 
@@ -55,9 +57,9 @@ int main(void)
     char line_buf[SHELL_DEFAULT_BUFSIZE];
 
     /* auto-run */
-    char *temp[1];
-    temp[0] = "range_tx";
-    range_tx(1, temp);
+    // char *temp[1];
+    // temp[0] = "range_tx";
+    // range_tx(1, temp);
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 

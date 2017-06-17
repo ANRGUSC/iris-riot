@@ -128,7 +128,7 @@ static void _sound_ranging(void)
             >> SOCADC_7_BIT_RSHIFT;
         DEBUG("%d ",sample);
         /* wait for 200us before next poll for input capacitor to settle */
-        xtimer_spin(100);
+        xtimer_spin(XTIMER_USEC_TO_TICKS(100));
 
         if (sample > ultrasound_thresh) {
             time_diff = xtimer_now() - last; 

@@ -31,6 +31,7 @@
 #include "xtimer.h"
 #include "periph/gpio.h"
 #include "periph/adc.h"
+#include "math.h"
 
 #include "thread.h"
 #include "msg.h"
@@ -547,62 +548,6 @@ void *scan_rx_thread(void *arg)
         xtimer_usleep(param->udelay);
     }    
 
-    // while(*(param->stop_flag) == 0){
-    //     //xtimer_usleep(param->udelay);
-    //     ping_rcvd=1;
-    //     pinged = 0;
-    //     for(i=0; i<(num_iter); i++){
-    //         adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-            
-    //         if(*(param->stop_flag) != 0){
-    //             (*(param->num_threads))--;
-    //             printf("Thread stopped\n");
-    //             return NULL;
-    //         }
-
-    //         // if(adcsample > med && !pinged){
-    //         if(adcsample >= low && !pinged){ // changed adcsample >= med to low -Richard
-    //             int increment = 0;
-    //             int prev_sample = adcsample;
-    //             xtimer_usleep(param->udelay);
-    //             adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-    //             while(prev_sample < adcsample){
-    //                 prev_sample = adcsample;
-    //                 xtimer_usleep(param->udelay);
-    //                 adcsample = adc_sample(param->adc_line, param->adc_res) >> param->adc_shift;
-    //                 increment++;
-    //             }
-    //             i=0;
-    //             printf("Ping Recieved: %d\n", prev_sample);
-    //             ping_rcvd=0;
-    //             pinged = 1;
-    //             avg+=prev_sample;
-    //             num_ping_rcvd++;
-    //             sample_counter++;
-    //         }
-    //         else if(adcsample < low){
-    //             pinged = 0;
-    //         }
-    //         //printf("%d: %d\n",i,adcsample);
-    //         if(sample_size>0){
-    //             if(sample_counter>=sample_size){
-    //                 avg/=sample_size;
-    //                 double percent_loss = 100-((100*num_ping_rcvd)/sample_size);
-    //                 printf("Sample size: %d; Pings recieved: %d\n", sample_size, num_ping_rcvd);
-    //                 printf("Percent loss: %d%%\n", (int)percent_loss);
-    //                 printf("Average strength: %d\n", (int)avg);
-    //                 (*(param->num_threads))--;
-    //                 printf("Thread stopped\n");
-    //                 return NULL;
-    //             }
-    //         }
-    //         xtimer_usleep(param->udelay);
-    //     }
-    //     if(ping_rcvd){
-    //         printf("Ping missed\n");   
-    //         sample_counter++;
-    //     }
-        
     (*(param->num_threads))--;
     printf("Thread stopped\n");
     return NULL;
@@ -690,144 +635,162 @@ int scan_rx_stop(int argc, char **argv)
     QUIT_RX_SCAN_FLAG = 1;
     return 0;
 }
-/******************************************************************/
-//uping_rx
 
-// int uping_rx(int argc, char**argv)
-// {
-//     if (argc < 2) {
-//         printf("usage: %s <ultrasound_thresh>\n", argv[0]);
-//         return 1;
-//     }
+/****************************************************/
+//orient_rx
+int orient_rx(int argc, char **argv)
+{
+    uint32_t then=0;
+    uint32_t now=0;
 
-//     if (atoi(argv[1]) <= 0)
-//     {
-//         puts("error: please input value greater than 0");
-//         return 1;
-//     }
+    char *tx_node_addr_str = TX_NODE_IPV6_ADDR;
+    ipv6_addr_t tx_node_ip_addr;
+    gnrc_pktsnip_t *pkt, *snip;
+    int16_t tx_power = TX_POWER;
+    gnrc_pktsnip_t *payload, *udp, *ip;
+    char buf[2] = {0x00, 0x00};
 
-//     int ultrasound_thresh = atoi(argv[1]);
-//     unsigned long time_diff = 0;
-//     char *tx_node_addr_str = TX_NODE_IPV6_ADDR;
-//     ipv6_addr_t tx_node_ip_addr;
-//     gnrc_pktsnip_t *pkt, *snip;
-//     int16_t tx_power = TX_POWER;
-//     gnrc_pktsnip_t *payload, *udp, *ip;
-//     char buf[2] = {0x00, 0x00};
-//     int sample = 0;
-//     uint32_t last =0;
+    /* register this thread to the chosen UDP port */
+    server.next = NULL;
+    server.demux_ctx = (uint32_t) SERVER_PORT; 
+    server.pid = thread_getpid();
+    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
 
-//     /* register this thread to the chosen UDP port */
-//     server.next = NULL;
-//     server.demux_ctx = (uint32_t) SERVER_PORT; 
-//     server.pid = thread_getpid();
-//     gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
+    msg_t msg; 
+    msg_t msg_queue[QUEUE_SIZE];
 
-//     msg_t msg; 
-//     msg_t msg_queue[QUEUE_SIZE];
+    /* setup the message queue */
+    msg_init_queue(msg_queue, QUEUE_SIZE);
 
-//     /* setup the message queue */
-//     msg_init_queue(msg_queue, QUEUE_SIZE);
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    size_t numof = gnrc_netif_get(ifs); 
 
-//     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-//     size_t numof = gnrc_netif_get(ifs); 
+    /* there should be only one network interface on the board */
+    if (numof == 1) {
+        gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
+    }
 
-//     /* there should be only one network interface on the board */
-//     if (numof == 1) {
-//         gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
-//     }
+    if (ipv6_addr_from_str(&tx_node_ip_addr, tx_node_addr_str) == NULL) {
+        puts("Error: unable to parse destination address");
+        return 1;
+    }
 
-//     if (ipv6_addr_from_str(&tx_node_ip_addr, tx_node_addr_str) == NULL) {
-//         puts("Error: unable to parse destination address");
-//         return 1;
-//     }
+    /* send ultrasound ranging request */
+    buf[0] = RANGE_REQ_FLAG;
+    buf[1] = TX_NODE_ID;
+    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        puts("Error: unable to copy data to packet buffer");
+        return 1;
+    }
 
-//     /* send ultrasound ranging request */
-//     buf[0] = RANGE_REQ_FLAG;
-//     buf[1] = TX_NODE_ID;
-//     payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
-//     if (payload == NULL) {
-//         puts("Error: unable to copy data to packet buffer");
-//         return 1;
-//     }
+    udp = gnrc_udp_hdr_build(payload, CLIENT_PORT, SERVER_PORT);
+    if (udp == NULL) {
+        puts("Error: unable to allocate UDP header");
+        gnrc_pktbuf_release(payload);
+        return 1;
+    }
 
-//     udp = gnrc_udp_hdr_build(payload, CLIENT_PORT, SERVER_PORT);
-//     if (udp == NULL) {
-//         puts("Error: unable to allocate UDP header");
-//         gnrc_pktbuf_release(payload);
-//         return 1;
-//     }
+    ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
+    if (ip == NULL) {
+        puts("Error: unable to allocate IPv6 header");
+        gnrc_pktbuf_release(udp);
+        return 1;
+    }
 
-//     ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
-//     if (ip == NULL) {
-//         puts("Error: unable to allocate IPv6 header");
-//         gnrc_pktbuf_release(udp);
-//         return 1;
-//     }
+    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
+        puts("Error: unable to locate UDP thread");
+        gnrc_pktbuf_release(ip);
+        return 1;
+    }
 
-//     if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
-//         puts("Error: unable to locate UDP thread");
-//         gnrc_pktbuf_release(ip);
-//         return 1;
-//     }
+    printf("REQ signal sent to %s\n",tx_node_addr_str);
 
-//     printf("REQ signal sent to %s\n",tx_node_addr_str);
+    /* wait for "RDY" packet */
+    while(1) {   
+        puts("Waiting for RDY pkt.");
+        int response= xtimer_msg_receive_timeout(&msg,1000000);
+        if(response < 0){
+            puts ("Timed out");
+             _unregister_thread();
+            return 1;
+        }
+        if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
+            pkt = msg.content.ptr;
 
-//     /* wait for "RDY" packet */
-//     while(1) {   
-//         puts("Waiting for GO pkt.");
-//         int response= xtimer_msg_receive_timeout(&msg,1000000);
-//         if(response < 0){
-//             puts ("Timed out");
-//              _unregister_thread();
-//             return 1;
-//         }
-//         if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
-//             pkt = msg.content.ptr;
+            /* get snip containing packet data where we put the packet number */
+            snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
+            if ( RANGE_RDY_FLAG == ((uint8_t *) snip->data)[0] && 
+                 TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
+                puts("Got init msg. Turning on ranging mode.");
+            } else {
+                puts("Unknown packet.");
+            }
 
-//             /* get snip containing packet data where we put the packet number */
-//             snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
-//             if ( RANGE_GO_FLAG == ((uint8_t *) snip->data)[0] && 
-//                  TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
-//                 puts("Got GO msg. Listening for ping.");
-//                 last = xtimer_now();
-//             } else {
-//                 puts("Unknown packet.");
-//             }
+            gnrc_pktbuf_release(pkt);
+            break;
+        } 
+    } /* while */
 
-//             gnrc_pktbuf_release(pkt);
-//             break;
-//         } 
-//     } /* while */
+    /* send "GO" packet */
+    buf[0] = RANGE_GO_FLAG;
+    buf[1] = TX_NODE_ID;
+    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        puts("Error: unable to copy data to packet buffer");
+        return 1;
+    }
 
-//     adc_init(AD4_PIN);
+    udp = gnrc_udp_hdr_build(payload, CLIENT_PORT, SERVER_PORT);
+    if (udp == NULL) {
+        puts("Error: unable to allocate UDP header");
+        gnrc_pktbuf_release(payload);
+        return 1;
+    }
+
+    ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
+    if (ip == NULL) {
+        puts("Error: unable to allocate IPv6 header");
+        gnrc_pktbuf_release(udp);
+        return 1;
+    }
+
+    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, 
+        ip)) {
+        puts("Error: unable to locate UDP thread");
+        gnrc_pktbuf_release(ip);
+        return 1;
+    }
+    
+    gpio_init(GPIO_PD2, GPIO_IN); //maps to DIO1
+
+    int i=0;
+    while(gpio_read(GPIO_PD2)==0){
+        //xtimer_usleep(1);
+        i++;
+        if(i>100000){
+            printf("No ping recieved");
+            _unregister_thread();
+            return 0;
+        }
+    }  
+
+    then=xtimer_now();   
+    
+    while(gpio_read(GPIO_PD2) == 1);
+        
+    now=xtimer_now();
+    int diff=now-then;
+    printf("Time delay:%d\n",diff);
 
 
-//     sample = adc_sample(AD4_PIN, ADC_RES_7BIT) 
+    _unregister_thread();
 
-//     range_rx_init(TX_NODE_ID, ultrasound_thresh, AD4_PIN, ADC_RES_7BIT, 2000);
 
-//     //xtimer_sleep(1);
-//     int timeout=0;
-//     while(ranging_on==1){
-//         timeout++;
-//         xtimer_usleep(10000);
-//         if(timeout>50){
-//             puts("Timed out");
-//             break;
-//         }
-//     }
 
-//     if( (time_diff = range_rx_stop()) > 0 ) {
-//         printf("TDoA = %lu\n", time_diff);
-//     } else {
-//         puts("Ranging failed.");
-//     }
+    return 0;
 
-//     _unregister_thread();
-
-//     return 0;
-// }
+}
 
 // check gnrc netdev, lower delay from 100 to 50 us, intersample time
 // height of the anchor nodes - check the limits, 18-20 ft. - 2 sets of data 
