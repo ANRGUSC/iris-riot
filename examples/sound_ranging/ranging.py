@@ -85,7 +85,7 @@ def script(port):
         samp_delay  = raw_input("Enter sample delay: ")
     # Quick test settings.
     else:
-        samp        = 1000
+        samp        = 100
         loc         = "Room"
         tx_orient   = 0
         rx_orient   = 0
@@ -118,8 +118,8 @@ def script(port):
 #######################
     while True:
         failed = False
-        print(choice)
-        print(i)
+        # print(choice)
+        # print(i)
 
         if choice == 'n': # Needs fixing
             i = samp
@@ -178,7 +178,10 @@ def script(port):
         if failed:
             choice = ''
             while choice != 'y' and choice != 'n':
-                choice = raw_input('TDoA failed, continue? (y/n) ')
+                # choice = raw_input('TDoA failed, continue? (y/n) ')
+                print('TDoA failed, continue? (y/n) ')
+                print('y')
+                choice = 'y'
             failed = True
             i -= 1
 # End of main loop.
