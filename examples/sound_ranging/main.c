@@ -57,9 +57,9 @@ int main(void)
     char line_buf[SHELL_DEFAULT_BUFSIZE];
 
     /* auto-run */
-    char *temp[1];
-    temp[0] = "range_tx";
-    range_tx(1, temp);
+    // char *temp[1];
+    // temp[0] = "range_tx";
+    // range_tx(1, temp);
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 

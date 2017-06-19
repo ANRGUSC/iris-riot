@@ -108,6 +108,7 @@ int range_rx(int argc, char **argv)
     unsigned long time_diff = 0;
     char *tx_node_addr_str = TX_NODE_IPV6_ADDR;
     ipv6_addr_t tx_node_ip_addr;
+    ipv6_addr_t rx_node_ip_addr;
     gnrc_pktsnip_t *pkt, *snip;
     int16_t tx_power = TX_POWER;
     gnrc_pktsnip_t *payload, *udp, *ip;
@@ -138,6 +139,20 @@ int range_rx(int argc, char **argv)
         return 1;
     }
 
+    char ipv6_addr[IPV6_ADDR_MAX_STR_LEN];
+    gnrc_ipv6_netif_t *entry = gnrc_ipv6_netif_get(ifs[0]);
+    for (int i = 0; i < GNRC_IPV6_NETIF_ADDR_NUMOF; i++) {
+        if ((ipv6_addr_is_link_local(&entry->addrs[i].addr)) && !(entry->addrs[i].flags & GNRC_IPV6_NETIF_ADDR_FLAGS_NON_UNICAST)) {
+            ipv6_addr_to_str(ipv6_addr, &entry->addrs[i].addr, IPV6_ADDR_MAX_STR_LEN);
+            printf("My address is %s\n", ipv6_addr);
+        }
+    }
+    
+     if (ipv6_addr_from_str(&rx_node_ip_addr, ipv6_addr) == NULL) {
+        puts("Error: unable to parse src address");
+        return 1;
+    }
+
     /* send ultrasound ranging request */
     buf[0] = RANGE_REQ_FLAG;
     buf[1] = TX_NODE_ID;
@@ -154,7 +169,7 @@ int range_rx(int argc, char **argv)
         return 1;
     }
 
-    ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
+    ip = gnrc_ipv6_hdr_build(udp, &rx_node_ip_addr, &tx_node_ip_addr);
     if (ip == NULL) {
         puts("Error: unable to allocate IPv6 header");
         gnrc_pktbuf_release(udp);
@@ -180,13 +195,6 @@ int range_rx(int argc, char **argv)
         }
         if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
             pkt = msg.content.ptr;
-
-            snip = gnrc_pktsnip_search_type(pkt, MODULE_GNRC_IPV6);
-            tx_node_ip_addr = *((ipv6_addr_t *)snip->data);
-            char ipv6_addr[IPV6_ADDR_MAX_STR_LEN];
-            ipv6_addr_to_str(ipv6_addr, &tx_node_ip_addr, IPV6_ADDR_MAX_STR_LEN);
-            printf("Recieved address is %s\n", ipv6_addr);
-
 
             /* get snip containing packet data where we put the packet number */
             snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
@@ -332,6 +340,13 @@ start:
             if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
                 pkt = msg.content.ptr;
 
+                snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_IPV6);
+
+                rx_node_ip_addr = ((ipv6_hdr_t *)snip->data)->src;
+                char ipv6_addr[IPV6_ADDR_MAX_STR_LEN];
+                ipv6_addr_to_str(ipv6_addr, &rx_node_ip_addr, sizeof(ipv6_addr));
+                printf("Recieved address is %s\n", ipv6_addr);
+
                 /* get snip containing packet data where we put the packet number */
                 snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
                 if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
@@ -374,6 +389,8 @@ L1:
             gnrc_pktbuf_release(ip);
             return 1;
         }
+        ipv6_addr_to_str(ipv6_addr, &rx_node_ip_addr, sizeof(ipv6_addr));
+                printf("sent to address  %s\n", ipv6_addr);
 
         /* wait for "GO" packet */
         int retries = 0;
@@ -388,8 +405,8 @@ L1:
                 if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
                         TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                     puts("Got 'GO' pkt. Time to send RF/Ultrasound ping!");
-                    printf("#2 RANGE_GO_FLAG: %d, ACTUAL: %d\n", RANGE_GO_FLAG, ((uint8_t *)snip->data)[0]);
-                    printf("#2 TX_NODE_ID: %d, ACTUAL: %d\n", TX_NODE_ID, ((uint8_t *)snip->data)[1]);
+                    printf("#21 RANGE_GO_FLAG: %d, ACTUAL: %d\n", RANGE_GO_FLAG, ((uint8_t *)snip->data)[0]);
+                    printf("#21 TX_NODE_ID: %d, ACTUAL: %d\n", TX_NODE_ID, ((uint8_t *)snip->data)[1]);
                     gnrc_pktbuf_release(pkt);
                     break;
                 } else if(retries > 2) {
@@ -403,7 +420,7 @@ L1:
                     if(RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
                         TX_NODE_ID == ((uint8_t *)snip->data)[1]){
                             gnrc_pktbuf_release(pkt);
-                            goto L1;
+                            goto start;
                         }
                     puts("Not a ranging request packet. - #2");
                 }
@@ -665,6 +682,7 @@ int orient_rx(int argc, char **argv)
 
     char *tx_node_addr_str = TX_NODE_IPV6_ADDR;
     ipv6_addr_t tx_node_ip_addr;
+    ipv6_addr_t rx_node_ip_addr;
     gnrc_pktsnip_t *pkt, *snip;
     int16_t tx_power = TX_POWER;
     gnrc_pktsnip_t *payload, *udp, *ip;
@@ -695,6 +713,20 @@ int orient_rx(int argc, char **argv)
         return 1;
     }
 
+    char ipv6_addr[IPV6_ADDR_MAX_STR_LEN];
+    gnrc_ipv6_netif_t *entry = gnrc_ipv6_netif_get(ifs[0]);
+    for (int i = 0; i < GNRC_IPV6_NETIF_ADDR_NUMOF; i++) {
+        if ((ipv6_addr_is_link_local(&entry->addrs[i].addr)) && !(entry->addrs[i].flags & GNRC_IPV6_NETIF_ADDR_FLAGS_NON_UNICAST)) {
+            ipv6_addr_to_str(ipv6_addr, &entry->addrs[i].addr, IPV6_ADDR_MAX_STR_LEN);
+            printf("My address is %s\n", ipv6_addr);
+        }
+    }
+    
+     if (ipv6_addr_from_str(&rx_node_ip_addr, ipv6_addr) == NULL) {
+        puts("Error: unable to parse src address");
+        return 1;
+    }
+
     /* send ultrasound ranging request */
     buf[0] = RANGE_REQ_FLAG;
     buf[1] = TX_NODE_ID;
@@ -711,7 +743,7 @@ int orient_rx(int argc, char **argv)
         return 1;
     }
 
-    ip = gnrc_ipv6_hdr_build(udp, NULL, &tx_node_ip_addr);
+    ip = gnrc_ipv6_hdr_build(udp, &rx_node_ip_addr, &tx_node_ip_addr);
     if (ip == NULL) {
         puts("Error: unable to allocate IPv6 header");
         gnrc_pktbuf_release(udp);
@@ -740,7 +772,7 @@ int orient_rx(int argc, char **argv)
 
             /* get snip containing packet data where we put the packet number */
             snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
-            if ( RANGE_RDY_FLAG == ((uint8_t *) snip->data)[0] && 
+        if ( RANGE_RDY_FLAG == ((uint8_t *) snip->data)[0] && 
                  TX_NODE_ID == ((uint8_t *)snip->data)[1] ) {
                 puts("Got init msg. Turning on ranging mode.");
             } else {
