@@ -275,12 +275,12 @@ int range_tx(int argc, char **argv)
     gnrc_pktsnip_t *payload, *udp, *ip;
 
     /* enable output on Port D pin 3 */
-    if(gpio_init(GPIO_PD3, GPIO_OUT) < 0) {
+    if(gpio_init(GPIO_PD2, GPIO_OUT) < 0) {
         puts("Error initializing GPIO_PIN.");
         return 1;
     }
 
-    gpio_clear(GPIO_PD3);
+    gpio_clear(GPIO_PD2);
 
     /* register this thread to the chosen UDP port */
     server.next = NULL;
@@ -414,7 +414,7 @@ L1:
             ++retries;
         }
 
-        range_tx_init(GPIO_PD3);
+        range_tx_init(GPIO_PD2);
 
         /** Send L2 Packet **/
         /* network interface */
@@ -470,19 +470,19 @@ L1:
 int scan_tx(int argc, char **argv)
 {
 
-    puts("Initializing GPIO_PD3");
+    puts("Initializing GPIO_PD2");
     /* enable output on Port D pin 3 */
-    if(gpio_init(GPIO_PD3, GPIO_OUT) < 0) {
+    if(gpio_init(GPIO_PD2, GPIO_OUT) < 0) {
         puts("Error initializing GPIO_PIN.");
         return 1;
     }
 
-    puts("Clearing GPIO_PD3");
-    gpio_clear(GPIO_PD3);
+    puts("Clearing GPIO_PD2");
+    gpio_clear(GPIO_PD2);
 
     puts("Pinging...");
     /* set pin to 1 for around 50uS */
-    gpio_set(GPIO_PD3);
+    gpio_set(GPIO_PD2);
 
     /* ultrasound ping should execute 20.5msec after gpio pin goes up */
     xtimer_spin(100);
@@ -494,7 +494,7 @@ int scan_tx(int argc, char **argv)
     if(strcmp(str, "kill") == 0)
     {
         // range_tx_off();
-        gpio_clear(GPIO_PD3);
+        gpio_clear(GPIO_PD2);
         puts("finished");
         return 0;
     }
