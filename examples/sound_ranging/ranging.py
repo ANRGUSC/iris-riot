@@ -19,13 +19,15 @@ quick = True
 def is_failing(line):
 
     failed = True
-    
-    if b'Timed out' in line:
+
+    if b'Timed out' in line or b'tout' in line:
         print("Timed out.")
     elif b'failed' in line:
         print("Ranging failed.")
     elif b'unknown' in line:
         print("Unknown packet.")
+    elif b'Error' in line:
+        print(line)
     else:
         failed = False
 
@@ -117,15 +119,10 @@ def script(port):
 # Start of main loop. #
 #######################
     while True:
-        failed = False
-        # print(choice)
-        # print(i)
-
-        if choice == 'n': # Needs fixing
-            i = samp
-
         if i >= samp - 1 or choice == 'n':
+            i = samp
             missed_pings_list.append(missed_pings)
+
             dist = raw_input("Distance: ")
             if dist == 'quit' or dist == 'q':
                 break
@@ -143,47 +140,37 @@ def script(port):
         #     line = port.readline()
         #     print(line[:-1])
 
-        sleep(samp_delay)
-
         # Runs the range_rx command.
         print("Writing range_rx.")
         port.write(('range_rx %d\n' % (thresh)).encode())
 
-        # Checks for errors. If none, adds the final TDoA to data[].
-        # Not really a fan of these break statements.
-        while True:
-            line = port.readline()
+        # Line processing.
+        line = port.readline()
 
-            if b'TDoA' in line:
-                words = line.split("= ")
-                val = words[1][:-1]
-                # Formula for calculating distance, derived through past tests.
-                print(str(i) + ":" + str((int(val)-24830)/888.06))
-                output1.write(val + ",")
-                break
+        # TDoA 
+        if b'TDoA' in line:
+            words = line.split("= ")
+            val = words[1][:-1]
+            # Formula for calculating distance, derived through past tests.
+            print(str(i) + ":" + str((int(val)-24830)/888.06))
+            output1.write(val + ",")
 
-            if line == b'':
-                break
-
-            if b'missed' in line:
-                print("Ping missed")
-                missed_pings += 1
-                break
-
-            failed = is_failing(line)
-            if failed:
-                break
+        if b'missed' in line:
+            print("Ping missed")
+            missed_pings += 1
 
         # Checking for errors.
+        failed = is_failing(line)
         if failed:
             choice = ''
             while choice != 'y' and choice != 'n':
                 # choice = raw_input('TDoA failed, continue? (y/n) ')
-                print('TDoA failed, continue? (y/n) ')
-                print('y')
+                print('TDoA failed, continuing')
                 choice = 'y'
-            failed = True
             i -= 1
+
+        # Wait.
+        sleep(samp_delay)
 # End of main loop.
 #-----------------------------------------------------------------------------#
 #########################
