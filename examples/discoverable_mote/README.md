@@ -7,7 +7,13 @@ gnrc_networking example.
 
 ## Starting Up the Discoverable Mote
 
-Flash the discoverable mote onto an openmote.  If a server instance is on and the mote fails to connect, try unplugging and replugging the mote, and if that fails, restart the server and the border router.
+Flash the discoverable mote onto an openmote.  If a server instance is on and
+the mote fails to connect, try restarting the mote, and if that fails, restart
+the server and the border router.
+
+The mote's global IPv6 address should be listed in the devices list in the
+python server.  If it is not then the IPv6 address must be placed there to
+connect.
 
 ---below is the readme preserved from the gnrc_networking example---
 

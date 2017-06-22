@@ -23,12 +23,17 @@
 #include "shell.h"
 #include "msg.h"
 #include "xtimer.h"
+#include "thread.h"
+#include "cc2538_rf.h"
 
-#define MAIN_QUEUE_SIZE     (8)
+#define MAIN_QUEUE_SIZE     (16)
+#define POWER_LEVEL -20
+
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
+static char rx_thread_stack[THREAD_STACKSIZE_MAIN];
 
 extern int udp_cmd(int argc, char **argv);
-extern int udp_rx(int port, char *message);
+extern void *udp_rx(void *arg);
 
 static const shell_command_t shell_commands[] = {
     { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
@@ -37,9 +42,14 @@ static const shell_command_t shell_commands[] = {
 
 int main(void)
 {
-    //Set status to nonzero and not error code (1)
-    int status = -1;
 
+    //Change radio broadcast power
+    cc2538_set_tx_power(POWER_LEVEL);
+
+    //Get the main thread pid to send to udp_rx thread
+    //kernel_pid_t p = thread_getpid();
+    //kernel_pid_t *arg = &p;
+    
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming networking packets */
     msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
@@ -49,22 +59,10 @@ int main(void)
     puts("All up, running the shell now");
     char line_buf[SHELL_DEFAULT_BUFSIZE];
 
-    //Variables to send to udp_cmd to register with server
-    char *temp[7];
-    temp[0] = "udp";
-    temp[1] = "send";
-    temp[2] = "fd00:dead:beef::1";
-    temp[3] = "8888";
-    temp[4] = "$$START$$";
-    temp[5] = "1";
-    temp[6] = "100";
-
-    //Periodically send start signal and look for acknowledgement
-    while(status != 0)
-    {
-        udp_cmd(7, temp);
-        status = udp_rx(8888, "$$ACK$$");
-    }
+    //Create thread to receive messages and deal with start signal
+    thread_create(rx_thread_stack, sizeof(rx_thread_stack), 
+        THREAD_PRIORITY_MAIN - 1, THREAD_CREATE_STACKTEST, udp_rx, /*arg*/NULL,
+        "udp_rx");
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
