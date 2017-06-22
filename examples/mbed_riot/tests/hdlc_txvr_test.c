@@ -74,7 +74,6 @@
 #include "xtimer.h"
 #include "periph/uart.h"
 #include "hdlc.h"
-#include "dispatcher.h"
 #include "uart_pkt.h"
 
 #define ENABLE_DEBUG (1)
@@ -102,8 +101,8 @@ static void *_thread2(void *arg)
 {
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     msg_init_queue(thread2_msg_queue, 16);
-    dispatcher_entry_t thread2 = { NULL, THREAD2_PORT, thread_getpid() };
-    dispatcher_register(&thread2);
+    hdlc_entry_t thread2 = { NULL, THREAD2_PORT, thread_getpid() };
+    hdlc_register(&thread2);
 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
@@ -195,13 +194,11 @@ void main(void)
      * receive potentially fast incoming packets */
     msg_init_queue(main_msg_queue, 16);
 
-    dispatcher_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
-    dispatcher_register(&main_thr);
+    hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
+    hdlc_register(&main_thr);
     
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(1));
-    dispacher_init(dispatcher_stack, sizeof(dispatcher_stack), HDLC_PRIO, 
-                   "dispatcher", (void *) (uint32_t) hdlc_pid);
 
     /* comment the lines below to test a single thread */
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 

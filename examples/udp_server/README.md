@@ -9,9 +9,12 @@ communicate via UDP.  Also included are two python scripts:
 
 ## Starting Up the Border Router and Server
 
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< HEAD
 Make sure the IPv6 address of the border router is listed under devices in the
 server, and set bdr_addr and bdr_key to the appropriate values from devices.
 
+====================================================================================================
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> develop
 Run the python script in a terminal and choose an open port to run on
 (ex 8888). Flash the border router onto an openmote, and push the reset button.
 
