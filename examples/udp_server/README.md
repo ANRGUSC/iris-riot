@@ -1,4 +1,4 @@
-# New Border Router and Server
+# Discoverable Border Router and Server
 
 This example includes a modified version of the gnrc_border_router that can
 communicate via UDP.  Also included are two python scripts: 
@@ -9,21 +9,24 @@ communicate via UDP.  Also included are two python scripts:
 
 ## Starting Up the Border Router and Server
 
-Run the python script in a terminal and choose an open port to run on
-(ex 8888). Flash the border router onto an openmote.
+Make sure the IPv6 address of the border router is listed under devices in the
+server, and set bdr_addr and bdr_key to the appropriate values from devices.
 
-The border router will automatically attempt to connect with the server,
+Run the python script in a terminal and choose an open port to run on
+(ex 8888). Flash the border router onto an openmote, and push the reset button.
+
+The server will automatically attempt to connect with the border router,
 sending a $$START$$ signal until it receives an $$ACK$$ signal.
 
 Messages can be sent from the router to other motes or the server with command:
   * udp send IPv6-Address Port message
 
-The $$START$$ signal registers the connecting client or mote's address in a
+The $$ACK$$ signal registers the connecting client or mote's address in a
 list in the server, as the server publishes the data it receives to all
 registered addresses except the one that sent it.
 > **Note:** Connect the border router to the server before trying to
 connect any other motes to the border router.  If connection cannot be
-established try restarting the mote (cycle power or reflash).
+established try restarting the mote.
 
 ## Using the Client Program
 
@@ -41,8 +44,7 @@ server using the udp send command and the localhost global IPv6 address.
 
 After receiving a message from any source, the server sends an $$ACK$$ reply
 acknowledging the transmission back to the source.  This is currently used by
-the client script to tell it to stop sending a message, as well as telling a 
-mote to stop sending its discovery signal.
+the client script to tell it to stop sending a message.
 
 The border router is based on the gnrc_border_router with the addition of some 
 of the modules of gnrc_networking to allow for UDP transmissions. The udp_rx
