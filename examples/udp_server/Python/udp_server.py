@@ -4,9 +4,6 @@
 import socket
 import sys
 
-<<<<<<< HEAD
-devices = []
-=======
 # Dictionary of Address 4tuples by mote
 # Can change key names later
 devices = {'A':('2001:db8::212:4b00:433:ed4c', 8888, 0, 0),
@@ -23,7 +20,6 @@ bdr_addr = devices['B']
 bdr_key = 'B'
 # Devices actually in use
 registered = {}
->>>>>>> develop
 
 port = int(input("Choose a port to use for UDP server: "))
 
@@ -45,31 +41,6 @@ except socket.error as msg :
 
 print('Socket bind complete')
 
-<<<<<<< HEAD
-while 1:
-	#receive data from client (data, addr)
-	d = s.recvfrom(1024)
-	data = d[0]
-	addr = d[1]
-	
-	#If given start up signal, add address to list of connected devices
-	if data == b'$$START$$':
-		for device in devices:
-			if addr == device:
-				break
-		else:
-			devices.append(addr)
-
-	if not data:
-		break
-
-	#Send acknowledge signal to sender
-	s.sendto(b'$$ACK$$', addr)
-	#Send data to rest of connected devices
-	for device in devices:
-		if addr != device:
-			s.sendto(data, device)
-=======
 #Sets Timeout for recvfrom function to 1s
 s.settimeout(1)
 
@@ -148,7 +119,6 @@ while 1:
 	for key in registered.keys():
 		if addr != registered[key]:
 			s.sendto(data, registered[key])
->>>>>>> develop
 	#Output message to terminal
 	print("Message[" + addr[0] + ":" + str(addr[1]) + "] - " 
 		+ str(data.strip()))

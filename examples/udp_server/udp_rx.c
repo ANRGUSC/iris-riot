@@ -14,13 +14,7 @@
 #define QUEUE_SIZE 8
 
 static gnrc_netreg_entry_t receiver = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
-<<<<<<< HEAD
 										{KERNEL_PID_UNDEF}};
-=======
-										KERNEL_PID_UNDEF};
-//use for testing purposes
-//extern int udp_cmd(int argc, char **argv);
->>>>>>> develop
 
 /* this is used to unregister the thread from receiving UDP packets sent to the 
    port in the "receiver" struct */
@@ -50,54 +44,38 @@ int udp_rx(int port, char *message)
 	gnrc_pktsnip_t *snip;
 	char *word;
 
-<<<<<<< HEAD
-	if(xtimer_msg_receive_timeout(&msg, 1000000) < 0)
-=======
-	/*if(xtimer_msg_receive_timeout(&msg, 1000000) < 0)
->>>>>>> develop
-	{
+	if(xtimer_msg_receive_timeout(&msg, 1000000) < 0) {
 		printf("System Timeout: Not connected to server\n");
 		_unregister_thread();
 		return 1;
-<<<<<<< HEAD
 	}
-=======
-	}*/
+
 	msg_receive(&msg);
->>>>>>> develop
 
 	pkt = msg.content.ptr;
 
-	if(msg.type == GNRC_NETAPI_MSG_TYPE_RCV)
-	{
+	if(msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
 		snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
 		word = snip->data;
-<<<<<<< HEAD
-=======
 		//word[strlen(word)-1] = 0;
 		printf("%s of length %d\n", word, strlen(word));
->>>>>>> develop
 	}
-	else
-	{
+	else {
 		printf("Received unexpected data\n");
 		gnrc_pktbuf_release(pkt);
 		_unregister_thread();
 		return 1;
 	}
 
-	if(strcmp(word, message))	//Two not equal because returns 0 if equal
-	{
+	if(strcmp(word, message)) {	//Two not equal because returns 0 if equal
 		printf("Data received not identical to requested data\n");
 		gnrc_pktbuf_release(pkt);
 		_unregister_thread();
 		return 1;
 	}
-	else
-	{
+	else {
 		gnrc_pktbuf_release(pkt);
 		_unregister_thread();
 		return 0;
 	}
-
 }
