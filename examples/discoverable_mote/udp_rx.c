@@ -17,7 +17,7 @@
 #define IPV6_ADDR "fd00:dead:beef::2"
 
 static gnrc_netreg_entry_t receiver = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
-										{KERNEL_PID_UNDEF}};
+										KERNEL_PID_UNDEF};
 
 extern int udp_cmd(int argc, char **argv);
 
