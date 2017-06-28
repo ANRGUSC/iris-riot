@@ -5,7 +5,7 @@ APPLICATION = new_border_router
 BOARD ?= openmote-cc2538
 
 # This has to be the absolute path to the RIOT base directory:
-RIOTBASE ?= $(CURDIR)/../../..
+RIOTBASE ?= $(CURDIR)/../..
 
 BOARD_INSUFFICIENT_MEMORY := airfy-beacon calliope-mini cc2650stk maple-mini \
                              microbit msb-430 msb-430h nrf51dongle nrf6310 \
