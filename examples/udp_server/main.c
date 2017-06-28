@@ -26,7 +26,7 @@
 
 #define MAIN_QUEUE_SIZE     (8)
 #define PORT_NUM            8888
-#define POWER_LEVEL         -20
+#define POWER_LEVEL         0
 
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
@@ -69,7 +69,7 @@ int main(void)
     char *temp[5];
     temp[0] = "udp";
     temp[1] = "send";
-    temp[2] = "fd00:dead:beef::2";
+    temp[2] = "fd00:dead:beef::1";
     temp[3] = "8888";
     temp[4] = "$$ACK$$";
 

@@ -84,7 +84,7 @@ CFLAGS += -DDEVELHELP
 
 # Change this to 0 show compiler invocation lines by default:
 QUIET ?= 1
-TAP ?= tap0
+TAP ?= tap2
 IPV6_PREFIX ?= 2001:db8::/64
 
 include $(RIOTBASE)/Makefile.include
@@ -106,7 +106,7 @@ else
     DEFAULT_CHANNEL ?= 5
     CFLAGS += -DIEEE802154_DEFAULT_SUBGHZ_CHANNEL=$(DEFAULT_CHANNEL)
   else                                          # radio is IEEE 802.15.4 2.4 GHz
-    DEFAULT_CHANNEL ?= 22
+    DEFAULT_CHANNEL ?= 25
     CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
   endif
 endif
