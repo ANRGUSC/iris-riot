@@ -67,8 +67,10 @@ while 1:
 	#print('Message received')
 	
 	#If given ack signal, add address to list of registered devices
+	#Note: make sure the right interface (tapX) and port below is the same as 
+	#the ones for setting up the border router.
 	if data == b'$$ACK$$' \
-	and addr[0:2] == ('fe80::202:f8ff:fe70:f121%tap2', 8888):
+	and addr[0:2] == ('fe80::202:f8ff:fe70:f121%tap0', 8888):
 		registered[bdr_key] = addr
 		print("Border router registered.")
 		break

@@ -1,8 +1,8 @@
 # Discoverable Mote
 
 This example takes the mote design from gnrc_networking and interfaces it with
-the udp_server. This mote tries to connect automatically with a udp_server on
-startup. Upon startup, the mote can use any of the commands of the
+the udp_server example. This mote tries to connect automatically with a 
+udp_server on startup. Upon startup, the mote can use any of the commands of the
 gnrc_networking example.
 
 ## Starting Up the Discoverable Mote
@@ -13,7 +13,8 @@ the server and the border router.
 
 The mote's global IPv6 address should be listed in the devices list in the
 python server.  If it is not then the IPv6 address must be placed there to
-connect.
+connect. Also, the ports macro in udp_rx.c should match the one chosen when
+starting up the border router.
 
 ---below is the readme preserved from the gnrc_networking example---
 

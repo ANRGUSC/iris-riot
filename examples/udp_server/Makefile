@@ -84,7 +84,7 @@ CFLAGS += -DDEVELHELP
 
 # Change this to 0 show compiler invocation lines by default:
 QUIET ?= 1
-TAP ?= tap2
+TAP ?= tap0
 IPV6_PREFIX ?= 2001:db8::/64
 
 include $(RIOTBASE)/Makefile.include

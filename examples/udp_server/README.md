@@ -2,24 +2,30 @@
 
 This example includes a modified version of the gnrc_border_router that can
 communicate via UDP.  Also included are two python scripts: 
-	udp_server - which runs a server to connect to UDP capable motes or
+
+	udp_server.py - which runs a server to connect to UDP capable motes or
 	client scripts
-	udp_client - a simple client program that can be used to send UDP data
+	udp_client.py - a simple client program that can be used to send UDP data
 	to the server
 
 ## Starting Up the Border Router and Server
 
 Make sure the IPv6 address of the border router is listed under devices in the
-server, and set bdr_addr and bdr_key to the appropriate values from devices.
+server, and set bdr_addr and bdr_key to the appropriate values from devices. Also,
+make sure the tap interface indicated in the Makefile is the same as the one in 
+the udp_server.py file (see line 70).
 
-Run the python script in a terminal and choose an open port to run on
-(ex 8888). Flash the border router onto an openmote, and push the reset button.
+Run udp_server.py and choose an open port to run on (ex 8888). Flash the border 
+router build in this example folder onto an openmote and push the reset button.
 
 The server will automatically attempt to connect with the border router,
 sending a $$START$$ signal until it receives an $$ACK$$ signal.
 
-Messages can be sent from the router to other motes or the server with command:
-  * udp send IPv6-Address Port message
+Once the server is connected, the server will scan and try to discover other 
+motes in its devices dictionary (see udp_server.py). Messages can be sent from 
+the router to other motes or the server with command:
+
+      udp send <IPv6-Address> <Port> <message>
 
 The $$ACK$$ signal registers the connecting client or mote's address in a
 list in the server, as the server publishes the data it receives to all
@@ -36,9 +42,9 @@ Any string message can be sent in the terminal.
 ## Connecting Other Motes
 
 Motes with UDP capabilities (currently tested for gnrc_networking and 
-discoverable_mote) can connect to the server via the border router.  With the
-border router running and registered in the server, motes can send to the
-server using the udp send command and the localhost global IPv6 address.
+discoverable_mote examples) can connect to the server via the border router. 
+With the border router running and registered in the server, motes can send to 
+the server using the udp send command and the localhost global IPv6 address.
 
 ## Miscellaneous
 
