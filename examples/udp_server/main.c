@@ -19,14 +19,14 @@
  */
 
 #include <stdio.h>
+#include "net/gnrc.h"
 
 #include "shell.h"
 #include "msg.h"
-#include "cc2538_rf.h"
 
 #define MAIN_QUEUE_SIZE     (8)
 #define PORT_NUM            8888
-#define POWER_LEVEL         -20
+#define POWER_LEVEL         0
 
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
@@ -44,9 +44,17 @@ int main(void)
     int status = -1;
 
     //Change radio broadcast power
-    cc2538_set_tx_power(POWER_LEVEL);
-    int power = cc2538_get_tx_power();
-    printf("Power: %d\n", power);
+    int power = POWER_LEVEL;
+
+    if (power < -24 || power > 7) {
+        return -1; /* fail */
+    }
+
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    size_t numof = gnrc_netif_get(ifs);
+    if (numof == 1) {
+        return gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &power, sizeof(uint16_t));
+    }
 
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming networking packets */
@@ -61,7 +69,7 @@ int main(void)
     char *temp[5];
     temp[0] = "udp";
     temp[1] = "send";
-    temp[2] = "fd00:dead:beef::2";
+    temp[2] = "fd00:dead:beef::1";
     temp[3] = "8888";
     temp[4] = "$$ACK$$";
 

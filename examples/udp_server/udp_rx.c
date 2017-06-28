@@ -14,7 +14,7 @@
 #define QUEUE_SIZE 8
 
 static gnrc_netreg_entry_t receiver = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
-										{KERNEL_PID_UNDEF}};
+										KERNEL_PID_UNDEF};
 
 /* this is used to unregister the thread from receiving UDP packets sent to the 
    port in the "receiver" struct */

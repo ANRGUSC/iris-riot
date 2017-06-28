@@ -13,11 +13,14 @@ devices = {'A':('2001:db8::212:4b00:433:ed4c', 8888, 0, 0),
 			'E':('2001:db8::212:4b00:433:ed02', 8888, 0, 0),
 			'F':('2001:db8::212:4b00:613:66d', 8888, 0, 0),
 			'G':('2001:db8::212:4b00:613:1556', 8888, 0, 0),
-			'H':('2001:db8::212:4b00:433:ed2a', 8888, 0, 0)}
+			'H':('2001:db8::212:4b00:433:ed2a', 8888, 0, 0),
+			'I':('2001:db8::212:4b00:433:ed5e', 8888, 0, 0),
+			'J':('2001:db8::212:4b00:433:ed4f', 8888, 0, 0)}
+
 # Address of border router
 # Change based on mote being used
-bdr_addr = devices['B']
-bdr_key = 'B'
+bdr_addr = devices['J']
+bdr_key = 'J'
 # Devices actually in use
 registered = {}
 
@@ -64,6 +67,8 @@ while 1:
 	#print('Message received')
 	
 	#If given ack signal, add address to list of registered devices
+	#Note: make sure the right interface (tapX) and port below is the same as 
+	#the ones for setting up the border router.
 	if data == b'$$ACK$$' \
 	and addr[0:2] == ('fe80::202:f8ff:fe70:f121%tap0', 8888):
 		registered[bdr_key] = addr

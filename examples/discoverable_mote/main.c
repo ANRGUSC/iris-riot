@@ -27,7 +27,7 @@
 #include "cc2538_rf.h"
 
 #define MAIN_QUEUE_SIZE     (16)
-#define POWER_LEVEL -20
+#define POWER_LEVEL 0
 
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 static char rx_thread_stack[THREAD_STACKSIZE_MAIN];
