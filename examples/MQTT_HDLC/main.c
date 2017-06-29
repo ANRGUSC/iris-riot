@@ -95,6 +95,8 @@
 #define MBED_PORT       200
 #define MQTT_PKT_TYPE   0xFF
 #define NULL_PKT_TYPE   0xFE
+#define SUB_ACK         0xFD
+#define PUB_ACK         0xFC
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 //setting the message queue with message structs
@@ -389,9 +391,9 @@ static void *_thread2(void *arg)
                 case MQTT_MBED:
                     //Data to be sent to mbed
                     DEBUG("MQTT to mbed\n");
-                    break;
-
-                    /*
+                    uart_hdr.src_port = THREAD2_PORT; //PORT 170
+                    uart_hdr.dst_port = MBED_PORT; //PORT 200
+                    uart_hdr.pkt_type = MQTT_PKT_TYPE; 
                     uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                     DEBUG("The data from the MQTT THREAD is %s \n", mqtt_data_rcv->data);   
                     DEBUG("The topic received from the MQTT thread is %s \n", mqtt_data_rcv->topic);
@@ -407,7 +409,6 @@ static void *_thread2(void *arg)
                     if(!msg_try_send(&msg_snd, hdlc_pid)) {
                         continue;
                     } 
-                    */
                     fflush(stdout);
                     break;
                 case HDLC_RESP_SND_SUCC:
@@ -433,14 +434,35 @@ static void *_thread2(void *arg)
                     switch (uart_rcv_hdr.pkt_type)
                     {
                         case MQTT_SUB:
+                            if (auto_sub(mbed_rcv_pkt->topic)==0){
+                            uart_hdr.src_port = THREAD2_PORT; //PORT 170
+                            uart_hdr.dst_port = MBED_PORT; //PORT 200
+                            uart_hdr.pkt_type = SUB_ACK; 
+                            //adds the uart hdr to the hdlc data
+                            uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                            msg_snd.type = HDLC_MSG_SND;
+                            msg_snd.content.ptr = &hdlc_snd_pkt;
+                            if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                                DEBUG("MESSAGE NOT SENT\n");
+                            } 
                             DEBUG("Topic to SUB %s\n", mbed_rcv_pkt->topic);
-                            //auto_sub(mbed_rcv_pkt->topic);
+                            }
                             break;
                         case MQTT_PUB:
-                            //I have to add the pub code
-                            //insert code
                             printf("The data received is %s \n", mbed_rcv_pkt->data);
                             printf("The topic received is %s \n", mbed_rcv_pkt->topic);
+                            if (auto_pub(mbed_rcv_pkt->topic, mbed_rcv_pkt->data)==0){
+                                uart_hdr.src_port = THREAD2_PORT; //PORT 170
+                                uart_hdr.dst_port = MBED_PORT; //PORT 200
+                                uart_hdr.pkt_type = PUB_ACK; 
+                                //adds the uart hdr to the hdlc data
+                                uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                                msg_snd.type = HDLC_MSG_SND;
+                                msg_snd.content.ptr = &hdlc_snd_pkt;
+                                if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                                    DEBUG("MESSAGE NOT SENT\n");
+                                }
+                            }
                             break;
                         default:
                             //error
