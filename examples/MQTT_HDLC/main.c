@@ -128,9 +128,6 @@ char send_data[32];
 char pub_server[32];
 char send_topic[16];
 mqtt_pkt_t mqtt_snd_pkt;
-check_mqtt_go=1;
-int mqtt_go=1;//not connected state
-int sent_hwaddr = 1;//not sent state
 
 static void *emcute_thread(void *arg)
 {
@@ -158,14 +155,7 @@ static void on_pub_mbed(const emcute_topic_t *topic, void *data, size_t data_len
 
     strncpy(mqtt_snd_pkt.topic, send_topic, topic_len);
     strncpy(mqtt_snd_pkt.data, send_data, data_len);
-    if (strcmp(send_topic, TOPIC)==0)
-    {
-        snd_thread1.type = MQTT_SN;
-    }
-    else{
-        snd_thread1.type = MQTT_MBED;
-    }
-    
+    snd_thread1.type = MQTT_MBED;    
     mqtt_snd_pkt.topic[topic_len]='\0';
     mqtt_snd_pkt.data[data_len]='\0';
     snd_thread1.content.ptr = &mqtt_snd_pkt;    
@@ -263,8 +253,9 @@ static int auto_con(char* addr, char* port)
 
 static void *_thread2(void *arg)
 {
+    int mqtt_go=1;//not connected state
+    int sent_hwaddr = 1;//not sent state
     int hdlc_pkt_length;
-    int switch_get;
     //Pointer to the data received from the MQTT thread
     mqtt_pkt_t *mqtt_data_rcv;
     //Receives the pkt from mbed 
@@ -301,7 +292,6 @@ static void *_thread2(void *arg)
     } 
     mqtt_go=1;
     //automatically connects to the topic init_info and emcute id
-    auto_sub(TOPIC);
     auto_sub(EMCUTE_ID);
 
     //creating two message structs 
@@ -331,7 +321,7 @@ static void *_thread2(void *arg)
     {        
         //if a message has been received 
         while(1)
-        {
+        { 
             if (sent_hwaddr==1)
             {
                 pub_server[0]= HW_ADDR + '0';//HWADDR
@@ -339,13 +329,13 @@ static void *_thread2(void *arg)
                     pub_server[i+1]=EMCUTE_ID[i];
                 }
                 auto_pub(TOPIC, pub_server);
-                xtimer_usleep(1000000);
             }
             if (mqtt_go==0)
             {   
                 mqtt_go=1;
                 msg_snd.type = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;
+                DEBUG("MQTT GO message has been sent\n");
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
                     DEBUG("MESSAGE NOT SENT\n");
                 } 
@@ -354,41 +344,26 @@ static void *_thread2(void *arg)
                 uart_hdr.pkt_type = MQTT_PKT_TYPE; 
                 //adds the uart hdr to the hdlc data
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-                xtimer_usleep(1000000);
             }
             //pub to init_info
-            msg_receive(&msg_rcv);
+            if (sent_hwaddr==1){
+                xtimer_msg_receive_timeout(&msg_rcv, 1000000);            
+            }
+            else{
+                msg_receive(&msg_rcv);
+            }
+            
             switch (msg_rcv.type)
             {
-                case MQTT_SN:
-                    //received from MQTT "server"
-                    DEBUG("Got from topic: %s \n", TOPIC);
-                    mqtt_data_rcv = (mqtt_pkt_t *)msg_rcv.content.ptr;
-                    //enum struct for pub to server
-                    switch(mqtt_data_rcv->data[0] - '0')
-                    {
-                        case HW_ADDR:
-                            DEBUG("case HW_ADDR\n");
-                            //sent_hwaddr=0;
-                            //mqtt_go=0;
-                            break;
-                        case HW_SENT:
-                            if (check_mqtt_go==1){
-                                DEBUG("Successfully sent hardware address\n");
-                                check_mqtt_go=0;
-                                sent_hwaddr=0;
-                                mqtt_go=0;
-                            }
-                            break;
-                        default:
-                            switch_get = mqtt_data_rcv->data[0] - '0';
-                            DEBUG("The pubbing has stopped %d \n", switch_get);
-                            break;
-                    }
-                   
-                    
-                    break;
                 case MQTT_MBED:
+                    mqtt_data_rcv = (mqtt_pkt_t *)msg_rcv.content.ptr;
+                    if (mqtt_go==1 && sent_hwaddr==1)
+                    {
+                        mqtt_go=0;
+                        sent_hwaddr=0;
+
+                        break;
+                    }
                     //Data to be sent to mbed
                     DEBUG("MQTT to mbed\n");
                     uart_hdr.src_port = THREAD2_PORT; //PORT 170
@@ -426,7 +401,7 @@ static void *_thread2(void *arg)
                     break;
                 case HDLC_PKT_RDY:
                     //Received from MBED 
-                    printf("The packet has been received rom mbed\n");
+                    printf("The packet has been received from mbed\n");
                     hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;   
                     uart_pkt_parse_hdr(&uart_rcv_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                     mbed_rcv_ptr = hdlc_rcv_pkt->data + UART_PKT_DATA_FIELD;
@@ -569,6 +544,7 @@ int main(void)
         while(1)
         {
             msg_receive(&msg_rcv);
+            DEBUG("Waiting for a message\n");
             switch (msg_rcv.type)
             {
                 case HDLC_RESP_SND_SUCC:
