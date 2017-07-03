@@ -81,6 +81,7 @@
 #include <stdlib.h>
 #include "net/emcute.h"
 #include "net/ipv6/addr.h"
+#include "uart_pkt.h"
 
 
 #define ENABLE_DEBUG (1)
@@ -93,10 +94,6 @@
 #define MAIN_THR_PORT   165
 #define THREAD2_PORT    170
 #define MBED_PORT       200
-#define MQTT_PKT_TYPE   0xFF
-#define NULL_PKT_TYPE   0xFE
-#define SUB_ACK         0xFD
-#define PUB_ACK         0xFC
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 //setting the message queue with message structs
