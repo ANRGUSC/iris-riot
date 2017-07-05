@@ -21,6 +21,9 @@ USEMODULE += gnrc_ipv6_router_default
 USEMODULE += gnrc_udp
 # This application dumps received packets to STDIO using the pktdump module
 USEMODULE += gnrc_pktdump
+USEMODULE += ps
+USEMODULE += shell
+USEMODULE += shell_commands
 # Additional networking modules that can be dropped if not needed
 # USEMODULE += netstats_l2
 # USEMODULE += netstats_ipv6

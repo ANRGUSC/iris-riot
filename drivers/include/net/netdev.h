@@ -239,6 +239,10 @@ typedef struct netdev_driver {
 #define RANGE_FLAG_BYTE1 0x67 /* == 'g' */
 #define RANGE_RX_COMPLETE   1
 
+#define ONE_SENSOR_MODE       0x60 // 96
+#define TWO_SENSOR_MODE       0x61 // 97
+#define XOR_SENSOR_MODE       0x62 // 98
+
 /**
  * Not thread safe.
  * @param tx_node_id    [description]
@@ -247,8 +251,7 @@ typedef struct netdev_driver {
  * @param res           [description]
  * @param max_adc_samps [description]
  */
-void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
-                   unsigned int res, unsigned int max_adc_samps);
+void range_rx_init(char tx_node_id, int pid, unsigned int* lines, unsigned int max_gpio_samps, int flag);
 
 /**
  * Always call this function after you attempt to complete a sound ranging 

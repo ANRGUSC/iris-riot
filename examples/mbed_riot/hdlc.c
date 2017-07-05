@@ -67,7 +67,7 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
-#define UART_BUFSIZE            (1024U)
+#define UART_BUFSIZE            (512U)
 
 static msg_t _hdlc_msg_queue[16];
 
@@ -110,16 +110,16 @@ static void rx_cb(void *arg, uint8_t data)
     }
 }
 
-static hdlc_entry_t *hdlc_reg;
+static hdlc_entry_t *hdlc_registry;
 
 void hdlc_register(hdlc_entry_t *entry)
 {
-    LL_PREPEND(hdlc_reg, entry);
+    LL_PREPEND(hdlc_registry, entry);
 }
 
 void hdlc_unregister(hdlc_entry_t *entry)
 {
-    LL_DELETE(hdlc_reg, entry);
+    LL_DELETE(hdlc_registry, entry);
 }
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
@@ -130,8 +130,9 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     char c;
     uart_pkt_hdr_t hdr;
     hdlc_entry_t *entry;
-
-
+    
+    int i=0;
+        
     while(1) {
         retval = ringbuffer_get_one(&(ctx.rx_buf));
 
@@ -160,6 +161,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         if (recv_buf.length > 0 && 
             (recv_buf.control.seq_no == *recv_seq_no % 8 ||
             recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
+            
             /* valid data frame received */
             DEBUG("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 
@@ -175,7 +177,8 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 memcpy(recv_pkt.data, recv_buf.data, recv_buf.length);
                 recv_pkt.length = recv_buf.length;
                 uart_pkt_parse_hdr(&hdr, recv_pkt.data, recv_pkt.length);
-                LL_SEARCH_SCALAR(hdlc_reg, entry, port, hdr.dst_port);
+
+                LL_SEARCH_SCALAR(hdlc_registry, entry, port, hdr.dst_port);
                 DEBUG("hdlc: received packet for port %d\n", hdr.dst_port);
                 (*recv_seq_no)++;
                 if(entry) {
