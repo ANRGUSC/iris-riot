@@ -46,17 +46,21 @@ static void _sound_ranging(void);
 #include "periph/adc.h"
 #include "xtimer.h"
 #define MAX_SAMPLES 2000 /* for timeout of ranging */
-static int ultrasound_thresh;
-static int sample;
+static int sample1;
+static int sample2;
 static uint8_t _tx_node_id      = 0;
-static unsigned int adc_line;
-static int socadc_rshift        = 0;
+static unsigned int* gpio_lines;
 static int max_samps            = 0;
-static int ranging_on           = 0;
-static int adc_res              = 0; /* default resolution */
+static int range_sys_flag       = 0;
+int ranging_on           = 0;
+msg_t ranging_complete;
+static int ranging_pid;
+
 static uint32_t last            = 0;
-static uint32_t time_diff       = 0;
-static kernel_pid_t pid_of_request = -1;
+static uint32_t last2           = 0;
+static uint32_t time_diffs[3];
+static int ref                  = -1;
+int ranging                     = 0;
 
 /**
  * @brief   Function called by the device driver on device events
@@ -85,14 +89,17 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                     gnrc_pktsnip_t *pkt = gnrc_netdev->recv(gnrc_netdev);
 
                     /* first, check if it's a ranging packet */
-                    if(ranging_on)
+                    if(ranging_on && !ranging)
                     {
                         if(RANGE_FLAG_BYTE0 == ((uint8_t *) pkt->data)[0] && 
                             RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1] &&
                             _tx_node_id == ((uint8_t *) pkt->data)[2])
                         {
+                            // printf("ranging");
+                            ranging_complete.type=143;
+                            ranging_complete.content.value=0;
+                            msg_send(&ranging_complete,ranging_pid);
                             _sound_ranging();
-                            ranging_on = 0;
                         }
                     }
 
@@ -118,42 +125,81 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 
 static void _sound_ranging(void)
 {
-    int cnt = 0;
-    last = xtimer_now().ticks32;
-    msg_t msg;
-
     unsigned old_state = irq_disable();
 
+    int cnt = 0;
+    int first = 2;
+    int second = 2;
+    ranging = 1;
+    last = xtimer_now_usec();
+    //printf("first: %lu\n", last);
+    time_diffs[0] = 0;
+    time_diffs[1] = 0;
+    time_diffs[2] = 0;
+
+    
+    //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
     while(cnt < max_samps)
     {
-        sample = adc_sample(adc_line, adc_res) 
-            >> socadc_rshift;
+        if(range_sys_flag == ONE_SENSOR_MODE){
+            if(gpio_read(gpio_lines[0]) != 0){
+                last2 = xtimer_now_usec();
+                // printf("second: %lu\n", last2);
 
-        /* wait for 200us before next poll for input capacitor to settle */
-        xtimer_spin(xtimer_ticks_from_usec(300));
+                time_diffs[0] = last2 - last;
+                
+                range_rx_stop();
+                break;
+            }
+        }
+        else if(range_sys_flag == TWO_SENSOR_MODE){
+            //printf("%d\n",cnt);
+            sample1 = gpio_read(gpio_lines[0]);
+            DEBUG("%d ",sample1);
+            sample2 = gpio_read(gpio_lines[1]);
+            DEBUG("%d ",sample2);
+            /* wait for 200us before next poll for input capacitor to settle */
+            if(sample1 != 0){ first = 0; second = 1; }
+            else if(sample2 != 0){ first = 1; second = 0; }
 
-        if (sample > ultrasound_thresh) {
-            time_diff = xtimer_now().ticks32 - last; 
-            DEBUG("Ranging Successful - sample: %d, time_diff: %lu\n", sample, time_diff);
-            break;
+            //xtimer_spin(XTIMER_USEC_TO_TICKS(1));
+            if (first != 2) {
+                last2 = xtimer_now_usec();
+                do {
+                    sample1 = gpio_read(gpio_lines[first]);
+                    sample2 = gpio_read(gpio_lines[second]);
+                } while((sample1 != 0) && (sample2 == 0));
+                
+                time_diffs[1] = xtimer_now_usec() - last2;
+                time_diffs[0] = last2 - last;
+                
+                if(sample1 == 0){
+                    time_diffs[2] = second + 1; //returns 0 if no error, otherwise returns which gpio missed the ping
+                }
+                range_rx_stop();
+                break;
+            } 
+        }
+        else if(range_sys_flag == XOR_SENSOR_MODE){
+            if(gpio_read(gpio_lines[2]) != 0){
+                last2 = xtimer_now_usec();
+                while(gpio_read(gpio_lines[2]) != 0);
+                time_diffs[1] = xtimer_now_usec() - last2;
+                time_diffs[0] = last2 - last;
+                range_rx_stop();
+                break;
+            }
         }
 
         ++cnt;
     }
-
-    if (pid_of_request != -1) {
-        msg.type = RANGE_RX_COMPLETE;
-        msg.content.value = (uint32_t) time_diff;
-        time_diff = 0;
-        DEBUG("Sending TDoA to pid %d\n", pid_of_request);
-        msg_send(&msg, pid_of_request);
+    if(cnt >= max_samps){
+        printf("cnt>max_samps\n");
+        range_rx_stop();
     }
-
-
-    range_rx_stop();
-
     irq_restore(old_state);
 }
+
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
 {
@@ -268,44 +314,34 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
     return res;
 }
 
-void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
-                   unsigned int res, unsigned int max_adc_samps)
+/* Successful ranging will immediately turn off ranging mode. */
+void range_rx_init(char tx_node_id, int pid, unsigned int* lines, unsigned int max_gpio_samps, int flag)
 {
+    //puts("started");
+    range_sys_flag = flag;
+    ranging_on = 1;
     _tx_node_id = tx_node_id;
-    ultrasound_thresh = thresh;
-    adc_line = line;
-    max_samps = max_adc_samps;
-    adc_res = res; 
-    time_diff = 0;
-    pid_of_request = thread_getpid();
-
-    switch(res)
-    {
-        case ADC_RES_7BIT:
-            socadc_rshift = SOCADC_7_BIT_RSHIFT;
-            break;
-        case ADC_RES_9BIT:
-            socadc_rshift = SOCADC_9_BIT_RSHIFT;
-            break;
-        case ADC_RES_10BIT:
-            socadc_rshift = SOCADC_10_BIT_RSHIFT;
-            break;
-        case ADC_RES_12BIT:
-            socadc_rshift = SOCADC_12_BIT_RSHIFT;
-            break;
-        default:
-            DEBUG("range_rx_init failed!");
-            return;
-    }
+    ranging_pid = pid;
+    gpio_lines = lines;
+    gpio_init(gpio_lines[0],GPIO_IN);
+    gpio_init(gpio_lines[1],GPIO_IN);
+    gpio_init(gpio_lines[2],GPIO_IN);
+    max_samps = max_gpio_samps;
+    ref = 2;
+    time_diffs[0] = 0;
+    time_diffs[1] = 0;
+    time_diffs[2] = 0;
 
     DEBUG("ranging initialized!\n");
-
-    /* need to place this at end because the ISR will trigger real fast? */
-    ranging_on = 1;
 }
 
 void range_rx_stop(void)
 {
+    //puts("stopped");
+    ranging = 0;
     ranging_on = 0;
-    pid_of_request = -1;
+    ref--;
+    ranging_complete.type=144;
+    ranging_complete.content.ptr=time_diffs;
+    msg_send(&ranging_complete,ranging_pid);
 }
