@@ -110,25 +110,16 @@ static void rx_cb(void *arg, uint8_t data)
     }
 }
 
-static hdlc_entry_t *hdlc_reg;
-static hdlc_entry_t *curr = NULL;
+static hdlc_entry_t *hdlc_registry;
 
 void hdlc_register(hdlc_entry_t *entry)
 {
-    if(curr!=NULL){
-        hdlc_reg = curr;
-    }
-    LL_PREPEND(hdlc_reg, entry);
-    curr = hdlc_reg;
+    LL_PREPEND(hdlc_registry, entry);
 }
 
 void hdlc_unregister(hdlc_entry_t *entry)
 {
-    if(curr!=NULL){
-        hdlc_reg = curr;
-    }
-    LL_DELETE(hdlc_reg, entry);
-    curr = hdlc_reg;
+    LL_DELETE(hdlc_registry, entry);
 }
 
 static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
@@ -139,14 +130,10 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     char c;
     uart_pkt_hdr_t hdr;
     hdlc_entry_t *entry;
-
     
     int i=0;
-    //printf("a%d: %lu_%lu\n",i, curr->port,curr->pid);
         
     while(1) {
-        //curr = hdlc_reg;
-        //printf("b%d: %lu_%lu\n",i, curr->port,curr->pid);
         retval = ringbuffer_get_one(&(ctx.rx_buf));
 
         if (retval == -1) {
@@ -164,23 +151,16 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         if (ret == -ENOMSG) {
             continue;
         }
-        //curr = hdlc_reg;
-        //printf("c%d: %lu_%lu\n",i, curr->port,curr->pid);
 
         if (ret == -EIO) {
             DEBUG("hdlc: FCS ERROR OR INVALID FRAME!\n");
             recv_buf.control.frame = recv_buf.control.seq_no = 0;
             return;
         }
-        //curr = hdlc_reg;
-        //printf("d%d: %lu_%lu\n",i, curr->port,curr->pid);
 
         if (recv_buf.length > 0 && 
             (recv_buf.control.seq_no == *recv_seq_no % 8 ||
             recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
-            
-            //curr = hdlc_reg;
-            //printf("e%d: %lu_%lu\n",i, curr->port,curr->pid);
             
             /* valid data frame received */
             DEBUG("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
@@ -198,7 +178,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 recv_pkt.length = recv_buf.length;
                 uart_pkt_parse_hdr(&hdr, recv_pkt.data, recv_pkt.length);
 
-                LL_SEARCH_SCALAR(curr, entry, port, hdr.dst_port);
+                LL_SEARCH_SCALAR(hdlc_registry, entry, port, hdr.dst_port);
                 DEBUG("hdlc: received packet for port %d\n", hdr.dst_port);
                 (*recv_seq_no)++;
                 if(entry) {

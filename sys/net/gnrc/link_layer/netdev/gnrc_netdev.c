@@ -49,7 +49,7 @@ static void _sound_ranging(void);
 static int sample1;
 static int sample2;
 static uint8_t _tx_node_id      = 0;
-static unsigned int* gpio_lines;
+static unsigned int gpio_lines[3];
 static int max_samps            = 0;
 static int range_sys_flag       = 0;
 int ranging_on           = 0;
@@ -125,26 +125,28 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 
 static void _sound_ranging(void)
 {
-    unsigned old_state = irq_disable();
+    //unsigned old_state = irq_disable();
 
     int cnt = 0;
     int first = 2;
     int second = 2;
+    uint32_t test;
     ranging = 1;
     last = xtimer_now_usec();
-    //printf("first: %lu\n", last);
     time_diffs[0] = 0;
     time_diffs[1] = 0;
     time_diffs[2] = 0;
-
     
     //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
     while(cnt < max_samps)
     {
+        test = xtimer_now_usec();
+        if(test < last){
+            printf("failed on iteration: %d\n",cnt);
+        }
         if(range_sys_flag == ONE_SENSOR_MODE){
             if(gpio_read(gpio_lines[0]) != 0){
                 last2 = xtimer_now_usec();
-                // printf("second: %lu\n", last2);
 
                 time_diffs[0] = last2 - last;
                 
@@ -193,11 +195,14 @@ static void _sound_ranging(void)
 
         ++cnt;
     }
+
+    last = xtimer_now_usec();
+
     if(cnt >= max_samps){
         printf("cnt>max_samps\n");
         range_rx_stop();
     }
-    irq_restore(old_state);
+    //irq_restore(old_state);
 }
 
 
@@ -322,7 +327,7 @@ void range_rx_init(char tx_node_id, int pid, unsigned int* lines, unsigned int m
     ranging_on = 1;
     _tx_node_id = tx_node_id;
     ranging_pid = pid;
-    gpio_lines = lines;
+    memcpy(gpio_lines, lines, sizeof(unsigned int)*3);
     gpio_init(gpio_lines[0],GPIO_IN);
     gpio_init(gpio_lines[1],GPIO_IN);
     gpio_init(gpio_lines[2],GPIO_IN);

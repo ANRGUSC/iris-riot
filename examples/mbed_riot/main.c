@@ -166,12 +166,13 @@ static void *_range_thread(void *arg)
     range_entry.port = (int16_t)RANGE_PORT;
     range_entry.pid = thread_getpid();
     hdlc_register(&range_entry);
+    int pkt_size = sizeof(uint32_t)*3 + sizeof(uart_pkt_hdr_t);
 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
     /* create packets with max size */
-    char send_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    char send_data[pkt_size];
+    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
     hdlc_pkt_t *hdlc_rcv_pkt, *hdlc_rcv_pkt2;
     uart_pkt_hdr_t uart_hdr;
     uint32_t* time_diffs;
@@ -228,6 +229,7 @@ static void *_range_thread(void *arg)
                             }
                             
                             //sending the data back down the hdlc
+
                             DEBUG("Sending data back down hdlc\n");
                             uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(uint32_t)*3);
                             msg_snd.type = HDLC_MSG_SND;
@@ -235,6 +237,7 @@ static void *_range_thread(void *arg)
                             if(!msg_try_send(&msg_snd, hdlc_pid)) {
                                 /* TODO: use xtimer_msg_receive_timeout() instead */
                                 /* this is where applications can decide on a timeout */
+                                DEBUG("HDLC busy retrying...\n");
                                 msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
                                 msg_rcv.content.value = RTRY_TIMEO_USEC;
                                 msg_send_to_self(&msg_rcv);
@@ -280,7 +283,7 @@ static void *_range_thread(void *arg)
                         DEBUG("Recieved a msg type other than RANGE_REQ\n");
                         break;
                 }
-                hdlc_pkt_release(hdlc_rcv_pkt);
+                 hdlc_pkt_release(hdlc_rcv_pkt);
                 _set_channel(old_channel);
                 break;
             default:
@@ -292,7 +295,7 @@ static void *_range_thread(void *arg)
         
 
         /* control transmission rate via interpacket intervals */
-        //xtimer_usleep(100000);
+        xtimer_usleep(50000);
     }
 
     /* should be never reached */

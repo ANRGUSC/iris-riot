@@ -23,10 +23,10 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-static uint32_t* time_diffs;
+static uint32_t time_diffs[3];
 
 /*----------------------------------------------------------------------------*/
-uint32_t* range_rx(uint32_t utimeout, uint32_t sys_flag){
+uint32_t* range_rx(uint32_t utimeout, char sys_flag){
     // Check correct argument usage.
     uint32_t flag = sys_flag;
     
@@ -72,7 +72,7 @@ block:
             return NULL;
         }
         if(msg.type == 144){
-            time_diffs = (uint32_t*) msg.content.ptr;
+            memcpy(time_diffs, msg.content.ptr, sizeof(uint32_t)*3);
         } else{
             goto block;
         }

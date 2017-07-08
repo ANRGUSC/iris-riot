@@ -58,8 +58,8 @@
 #include "board.h"
 #include "periph/uart.h"
 
-#define RTRY_TIMEO_USEC         200000
-#define RETRANSMIT_TIMEO_USEC   50000
+#define RTRY_TIMEO_USEC         100000
+#define RETRANSMIT_TIMEO_USEC   100000
 
 #ifndef HDLC_MAX_PKT_SIZE
 #define HDLC_MAX_PKT_SIZE       64
