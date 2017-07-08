@@ -22,8 +22,16 @@ client_ID=[]
 
 # The callback for when the client receives a CONNACK response from the server.
 # The callback function when client is connected to the broker.
+	
+def usr_input(client):
+	usr_in = str(input("Enter the message in the form of (topic message(first character should be the message type)"))
+	usrtopic,usrmessage=usr_in.split(' ')
+	client.publish(usrtopic,usrmessage)
+
+
+
 def on_connect(client, userdata, rc):
-	print ("Connected to topic", topic_sub)
+	print ("Connected to broker")
 
 # Subscribing in on_connect() ensures that if we lose the connection and
 # reconnect then subscriptions will be renewed.
@@ -60,6 +68,7 @@ def on_publish(client,userdata,result):
 	print("The number of clients connected is",connected_clients)
 	print("The total number of clients that have connected to broker", total_num_clients_con_broker)
 	print("The clients are", client_ID) 
+	usr_input(client)
  
 #Creating an instance and setting up the callbacks 
 
