@@ -198,12 +198,13 @@ static void *_range_thread(void *arg)
         {
             case HDLC_PKT_RDY:
                 
-                old_channel = _get_channel();
-                _set_channel(RSSI_LOCALIZATION_CHAN);
+                
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
                     case RANGE_REQ:
+                        old_channel = _get_channel();
+                        _set_channel(RSSI_LOCALIZATION_CHAN);
                         ranging_type = hdlc_rcv_pkt->data[UART_PKT_DATA_FIELD];
                         if(ranging_type!= ONE_SENSOR_MODE && 
                             ranging_type!= TWO_SENSOR_MODE && 
@@ -278,13 +279,15 @@ static void *_range_thread(void *arg)
                                 }
                             }
                         }
+                        _set_channel(old_channel);
+                        
                         break;
                     default:
                         DEBUG("Recieved a msg type other than RANGE_REQ\n");
                         break;
                 }
                  hdlc_pkt_release(hdlc_rcv_pkt);
-                _set_channel(old_channel);
+                
                 break;
             default:
                 /* error */

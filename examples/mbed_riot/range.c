@@ -26,7 +26,7 @@
 static uint32_t time_diffs[3];
 
 /*----------------------------------------------------------------------------*/
-uint32_t* range_rx(uint32_t utimeout, char sys_flag){
+uint32_t* range_rx(uint32_t utimeout, uint32_t sys_flag){
     // Check correct argument usage.
     uint32_t flag = sys_flag;
     
