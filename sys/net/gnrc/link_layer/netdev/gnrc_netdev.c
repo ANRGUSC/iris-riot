@@ -70,7 +70,6 @@ int ranging                     = 0;
 static void _event_cb(netdev_t *dev, netdev_event_t event)
 {
     gnrc_netdev_t *gnrc_netdev = (gnrc_netdev_t*) dev->context;
-
     if (event == NETDEV_EVENT_ISR) {
         msg_t msg;
 
@@ -199,7 +198,7 @@ static void _sound_ranging(void)
     last = xtimer_now_usec();
 
     if(cnt >= max_samps){
-        printf("cnt>max_samps\n");
+        DEBUG("cnt>max_samps\n");
         range_rx_stop();
     }
     //irq_restore(old_state);
