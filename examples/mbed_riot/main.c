@@ -155,6 +155,21 @@ static uint16_t _get_channel(void)
     return -1; /* fail */
 }
 
+/**
+ * Checks if params_ranging_mode is valid.
+ * @param ranging_mode_char From params->ranging_mode.
+ */
+// bool isInvalidRangingMode(char ranging_mode_char)
+// {
+//     return ranging_mode_char != ONE_SENSOR_MODE && 
+//             ranging_mode_char != TWO_SENSOR_MODE && 
+//             ranging_mode_char != XOR_SENSOR_MODE;
+// }                          
+
+/**
+ * Main ranging code.
+ * @param *arg Pointer to the HDLC pid.
+ */
 static void *_range_thread(void *arg)
 {   
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
@@ -197,20 +212,25 @@ static void *_range_thread(void *arg)
         switch (msg_rcv.type)
         {
             case HDLC_PKT_RDY:
-                
-                
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
-                switch (uart_hdr.pkt_type){
+
+                switch (uart_hdr.pkt_type)
+                {
                     case RANGE_REQ:
                         old_channel = _get_channel();
                         _set_channel(RSSI_LOCALIZATION_CHAN);
 
                         params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
 
-                        if(params->ranging_mode!= ONE_SENSOR_MODE && 
-                            params->ranging_mode!= TWO_SENSOR_MODE && 
-                            params->ranging_mode!= XOR_SENSOR_MODE){
+                        if( params->ranging_mode != ONE_SENSOR_MODE && 
+                            params->ranging_mode != TWO_SENSOR_MODE && 
+                            params->ranging_mode != XOR_SENSOR_MODE ){
+                            DEBUG("Recieved an invalid ranging mode\n");
+                            break;
+                        }
+                        /*if( isInvalidRangingMode(params->ranging_mode)
+                        {
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
@@ -297,7 +317,6 @@ static void *_range_thread(void *arg)
                 LED3_ON;
                 break;
         }
-        
 
         /* control transmission rate via interpacket intervals */
         xtimer_usleep(50000);
@@ -309,8 +328,10 @@ static void *_range_thread(void *arg)
 
 void main(void)
 {
-   /* we need a message queue for the thread running the shell in order to
-     * receive potentially fast incoming networking packets */
+    /** 
+     * We need a message queue for the thread running the shell in order to
+     * receive potentially fast incoming networking packets.
+     */
     msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
     puts("RIOT network stack example application");
     xtimer_init();
