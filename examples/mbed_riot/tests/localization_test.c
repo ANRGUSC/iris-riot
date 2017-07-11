@@ -159,7 +159,7 @@ static void *_range_thread(void *arg)
 {   
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
-    uint32_t ranging_type;
+    range_params_t params;
     msg_init_queue(range_msg_queue, 16);
     hdlc_entry_t range_entry;
     range_entry.next = NULL;
@@ -205,16 +205,18 @@ static void *_range_thread(void *arg)
                     case RANGE_REQ:
                         old_channel = _get_channel();
                         _set_channel(RSSI_LOCALIZATION_CHAN);
-                        ranging_type = hdlc_rcv_pkt->data[UART_PKT_DATA_FIELD];
-                        if(ranging_type!= ONE_SENSOR_MODE && 
-                            ranging_type!= TWO_SENSOR_MODE && 
-                            ranging_type!= XOR_SENSOR_MODE){
+
+                        params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
+
+                        if(params->ranging_mode!= ONE_SENSOR_MODE && 
+                            params->ranging_mode!= TWO_SENSOR_MODE && 
+                            params->ranging_mode!= XOR_SENSOR_MODE){
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
                             UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
 
-                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, ranging_type);
+                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode);
                             
                             UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
                             UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
