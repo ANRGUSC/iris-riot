@@ -106,15 +106,11 @@
 #define FEN   BIT( 4) /**< Enable FIFOs */
 #define UART_CTL_HSE_VALUE    0
 
-static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
-
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
 static msg_t range_msg_queue[16];
-static msg_t main_msg_queue[16];
 
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
-static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
 static char range_stack[THREAD_STACKSIZE_MAIN];
 
 static const shell_command_t shell_commands[] = {
@@ -184,7 +180,6 @@ static void *_range_thread(void *arg)
     int pkt_size = sizeof(range_data_t) + sizeof(uart_pkt_hdr_t);
 
     msg_t msg_snd, msg_rcv;
-    char frame_no = 0;
     /* create packets with max size */
     char send_data[pkt_size];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
@@ -326,7 +321,7 @@ static void *_range_thread(void *arg)
     return 0;
 }
 
-void main(void)
+int main(void)
 {
     /** 
      * We need a message queue for the thread running the shell in order to
