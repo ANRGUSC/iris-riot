@@ -23,10 +23,10 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-static uint32_t time_diffs[3];
+static range_data_t* time_diffs;
 
 /*----------------------------------------------------------------------------*/
-uint32_t* range_rx(uint32_t utimeout, uint32_t sys_flag){
+range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag){
     // Check correct argument usage.
     uint32_t flag = sys_flag;
     
@@ -72,7 +72,7 @@ block:
             return NULL;
         }
         if(msg.type == 144){
-            memcpy(time_diffs, msg.content.ptr, sizeof(uint32_t)*3);
+            time_diffs= (range_data_t*) msg.content.ptr;
         } else{
             goto block;
         }
@@ -80,21 +80,21 @@ block:
     }
     _unregister_thread();
 
-    printf("range: TDoA = %lu\n", time_diffs[0]);
+    printf("range: TDoA = %lu\n", time_diffs->TDoA);
     switch (sys_flag){
         case ONE_SENSOR_MODE:
             break;
 
         case TWO_SENSOR_MODE:
-            if(time_diffs[2]!=0){
-                printf("range: Missed pin %lu\n", time_diffs[2]);
+            if(time_diffs->error!=0){
+                printf("range: Missed pin %lu\n", time_diffs->error);
             } else{
-                printf("range: OD = %lu\n", time_diffs[1]);
+                printf("range: OD = %lu\n", time_diffs->OD);
             }
             break;
 
         case XOR_SENSOR_MODE:
-            printf("range: OD = %lu\n", time_diffs[1]);
+            printf("range: OD = %lu\n", time_diffs->OD);
             break;
     }
 

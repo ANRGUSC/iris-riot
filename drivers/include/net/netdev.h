@@ -243,6 +243,21 @@ typedef struct netdev_driver {
 #define TWO_SENSOR_MODE       0x61 // 97
 #define XOR_SENSOR_MODE       0x62 // 98
 
+typedef struct range_data
+{
+    uint32_t TDoA;
+    uint16_t OD;
+    uint8_t error;
+    // add more options in the future?
+} range_data_t;
+
+typedef struct range_params
+{
+    uint16_t num_samples;
+    uint8_t ranging_mode;
+    // add more options in the future?
+} range_params_t;
+
 /**
  * Not thread safe.
  * @param tx_node_id    [description]
@@ -276,3 +291,6 @@ void range_tx_off(void);
 #endif
 /** @} */
 #endif /* NET_NETDEV_H */
+
+
+

@@ -159,14 +159,14 @@ static void *_range_thread(void *arg)
 {   
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
-    uint32_t ranging_type;
+    range_params_t* params;
     msg_init_queue(range_msg_queue, 16);
     hdlc_entry_t range_entry;
     range_entry.next = NULL;
     range_entry.port = (int16_t)RANGE_PORT;
     range_entry.pid = thread_getpid();
     hdlc_register(&range_entry);
-    int pkt_size = sizeof(uint32_t)*3 + sizeof(uart_pkt_hdr_t);
+    int pkt_size = sizeof(range_data_t) + sizeof(uart_pkt_hdr_t);
 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
@@ -175,7 +175,7 @@ static void *_range_thread(void *arg)
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
     hdlc_pkt_t *hdlc_rcv_pkt, *hdlc_rcv_pkt2;
     uart_pkt_hdr_t uart_hdr;
-    uint32_t* time_diffs;
+    range_data_t* time_diffs;
 
     /* hdr for each pkt is the same for this test */
     uart_hdr.src_port = RANGE_PORT;
@@ -205,16 +205,18 @@ static void *_range_thread(void *arg)
                     case RANGE_REQ:
                         old_channel = _get_channel();
                         _set_channel(RSSI_LOCALIZATION_CHAN);
-                        ranging_type = hdlc_rcv_pkt->data[UART_PKT_DATA_FIELD];
-                        if(ranging_type!= ONE_SENSOR_MODE && 
-                            ranging_type!= TWO_SENSOR_MODE && 
-                            ranging_type!= XOR_SENSOR_MODE){
+
+                        params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
+
+                        if(params->ranging_mode!= ONE_SENSOR_MODE && 
+                            params->ranging_mode!= TWO_SENSOR_MODE && 
+                            params->ranging_mode!= XOR_SENSOR_MODE){
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
                             UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
 
-                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, ranging_type);
+                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode);
                             
                             UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
                             UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
@@ -232,7 +234,7 @@ static void *_range_thread(void *arg)
                             //sending the data back down the hdlc
 
                             DEBUG("Sending data back down hdlc\n");
-                            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(uint32_t)*3);
+                            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t));
                             msg_snd.type = HDLC_MSG_SND;
                             msg_snd.content.ptr = &hdlc_snd_pkt;
                             if(!msg_try_send(&msg_snd, hdlc_pid)) {
