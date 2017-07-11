@@ -243,11 +243,14 @@ typedef struct netdev_driver {
 #define TWO_SENSOR_MODE       0x61 // 97
 #define XOR_SENSOR_MODE       0x62 // 98
 
+#define RF_RCVD           143
+#define ULTRSND_RCVD      144
+
 typedef struct range_data
 {
-    uint16_t TDoA;
-    uint16_t OD;
-    uint8_t error;
+    uint16_t tdoa; //time difference of arrival
+    uint16_t odelay; //orientation differential
+    uint8_t error; //error message for if one sensor misses pings
     // add more options in the future?
 } range_data_t;
 
@@ -258,6 +261,13 @@ typedef struct range_params
     // add more options in the future?
 } range_params_t;
 
+typedef struct gpio_rx_lines {
+    unsigned int one_pin;
+    unsigned int two_pin;
+    unsigned int xor_pin;
+
+} gpio_rx_lines_t;
+
 /**
  * Not thread safe.
  * @param tx_node_id    [description]
@@ -266,7 +276,7 @@ typedef struct range_params
  * @param res           [description]
  * @param max_adc_samps [description]
  */
-void range_rx_init(char tx_node_id, int pid, unsigned int* lines, unsigned int max_gpio_samps, int flag);
+void range_rx_init(char tx_node_id, int pid, gpio_rx_lines_t lines, unsigned int max_gpio_samps, int flag);
 
 /**
  * Always call this function after you attempt to complete a sound ranging 

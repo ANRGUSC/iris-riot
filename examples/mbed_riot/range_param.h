@@ -23,12 +23,5 @@
 static gnrc_netreg_entry_t server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
                                         {KERNEL_PID_UNDEF}};
 
-/* this is used to unregister the thread from receiving UDP packets sent to the 
-   port in the "server" struct */
-static void _unregister_thread(void)
-{
-    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &server);
-    server.target.pid = KERNEL_PID_UNDEF;
-}
 
 #endif

@@ -94,9 +94,7 @@
 #define RANGE_PORT          5678
 
 #define PKT_FROM_MAIN_THR   0
-#define RANGE_PKT           1
-#define RANGE_PKT_DONE      10
-#define RANGE_REQ           100
+#define RANGE_PKT_DONE      10 //TODO: get rid of this.
 
 #define RANGE_TIMEO_USEC    250000
 #define MAIN_QUEUE_SIZE     (8)
@@ -161,7 +159,7 @@ static void *_range_thread(void *arg)
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
     range_params_t* params;
-    msg_init_queue(range_msg_queue, 16);
+    msg_init_queue(range_msg_queue, sizeof(range_msg_queue));
     hdlc_entry_t range_entry;
     range_entry.next = NULL;
     range_entry.port = (int16_t)RANGE_PORT;
@@ -190,7 +188,7 @@ static void *_range_thread(void *arg)
         hdlc_snd_pkt.length = pkt_size;
         uart_hdr.src_port = RANGE_PORT;
         uart_hdr.dst_port = RANGE_PORT;
-        uart_hdr.pkt_type = RANGE_PKT;
+        uart_hdr.pkt_type = SOUND_RANGE_DONE;
         uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
 
         DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
@@ -208,7 +206,7 @@ static void *_range_thread(void *arg)
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
-                    case RANGE_REQ:
+                    case SOUND_RANGE_REQ:
                         old_channel = _get_channel();
                         _set_channel(RSSI_LOCALIZATION_CHAN);
 
@@ -344,7 +342,7 @@ static void *_range_thread(void *arg)
                         
                         break;
                     default:
-                        DEBUG("Recieved a msg type other than RANGE_REQ\n");
+                        DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
                         break;
                 }
                  hdlc_pkt_release(hdlc_rcv_pkt);
