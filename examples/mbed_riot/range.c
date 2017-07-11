@@ -26,10 +26,11 @@
 static range_data_t* time_diffs;
 
 /*----------------------------------------------------------------------------*/
-range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag){
+range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag, uint32_t num_samples){
     // Check correct argument usage.
     uint32_t flag = sys_flag;
     
+    time_diffs = malloc(sizeof(range_data_t)*num_samples);
     uint32_t maxsamps = 0;
 
     uint32_t timeout = utimeout;
@@ -56,46 +57,55 @@ range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag){
     } else {
         maxsamps = 100000;
     }
+    int i;
+    for(i = 0; i < num_samples; i++){
 
-    range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, flag);
+
+        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, flag);
 
 block:
-    if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-        DEBUG("Ping missed");
-         _unregister_thread();
-        return NULL;
-    }
-
-    if(msg.type == 143){
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("Ping missed #1");
+            DEBUG("Ping missed");
+             _unregister_thread();
             return NULL;
         }
-        if(msg.type == 144){
-            time_diffs= (range_data_t*) msg.content.ptr;
-        } else{
-            goto block;
+
+        if(msg.type == 143){
+            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+                DEBUG("Ping missed #1");
+                return NULL;
+            }
+            if(msg.type == 144){
+                time_diffs[i] = *(range_data_t*) msg.content.ptr;
+            } else{
+                goto block;
+            }
+
+        }
+        _unregister_thread();
+
+        printf("range: TDoA = %lu\n", time_diffs[i].TDoA);
+        switch (sys_flag){
+            case ONE_SENSOR_MODE:
+                break;
+
+            case TWO_SENSOR_MODE:
+                if(time_diffs[i].error!=0){
+                    printf("range: Missed pin %lu\n", time_diffs[i].error);
+                } else{
+                    printf("range: OD = %lu\n", time_diffs[i].OD);
+                }
+                break;
+
+            case XOR_SENSOR_MODE:
+                printf("range: OD = %lu\n", time_diffs[i].OD);
+                break;
+        }
+        if(i == num_samples-1){
+            time_diffs[i].error += 10;
         }
 
-    }
-    _unregister_thread();
 
-    printf("range: TDoA = %lu\n", time_diffs->TDoA);
-    switch (sys_flag){
-        case ONE_SENSOR_MODE:
-            break;
-
-        case TWO_SENSOR_MODE:
-            if(time_diffs->error!=0){
-                printf("range: Missed pin %lu\n", time_diffs->error);
-            } else{
-                printf("range: OD = %lu\n", time_diffs->OD);
-            }
-            break;
-
-        case XOR_SENSOR_MODE:
-            printf("range: OD = %lu\n", time_diffs->OD);
-            break;
     }
 
     return time_diffs;

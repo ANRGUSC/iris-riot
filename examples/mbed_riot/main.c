@@ -95,6 +95,7 @@
 
 #define PKT_FROM_MAIN_THR   0
 #define RANGE_PKT           1
+#define RANGE_PKT_DONE      10
 #define RANGE_REQ           100
 
 #define RANGE_TIMEO_USEC    250000
@@ -166,7 +167,11 @@ static void *_range_thread(void *arg)
     range_entry.port = (int16_t)RANGE_PORT;
     range_entry.pid = thread_getpid();
     hdlc_register(&range_entry);
-    int pkt_size = sizeof(range_data_t) + sizeof(uart_pkt_hdr_t);
+    int pkt_size = sizeof(range_data_t)*8 + sizeof(uart_pkt_hdr_t);
+    int i = 0;
+    int num_iter = 0;
+    int remainder = 0;
+    int end_of_series = 0;
 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
@@ -177,19 +182,20 @@ static void *_range_thread(void *arg)
     uart_pkt_hdr_t uart_hdr;
     range_data_t* time_diffs;
 
-    /* hdr for each pkt is the same for this test */
-    uart_hdr.src_port = RANGE_PORT;
-    uart_hdr.dst_port = RANGE_PORT;
-    uart_hdr.pkt_type = RANGE_PKT;
-    uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-
-    DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
-    DEBUG("PORT is %lu\n",(uint32_t)RANGE_PORT);
 
     int exit = 0;
 
     while(1)
     {
+        hdlc_snd_pkt.length = pkt_size;
+        uart_hdr.src_port = RANGE_PORT;
+        uart_hdr.dst_port = RANGE_PORT;
+        uart_hdr.pkt_type = RANGE_PKT;
+        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+
+        DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
+        DEBUG("PORT is %lu\n",(uint32_t)RANGE_PORT);
+
         DEBUG("Waiting for message...\n");
         msg_receive(&msg_rcv);
 
@@ -214,71 +220,114 @@ static void *_range_thread(void *arg)
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
-                            UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
+                            num_iter = params->num_samples / 8;
+                            remainder = params->num_samples % 8;
+                            DEBUG("num_iter = %d\n",num_iter);
+                            DEBUG("remainder = %d\n",remainder);
 
-                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode);
-                            
-                            UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                            UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                            UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                            UART1->cc2538_uart_dr.ECR = 0xFF;
-                            UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                            UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                            UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-                            if(time_diffs == NULL){
-                                DEBUG("An error occured while ranging\n");
-                                break;
-                            }
-                            
-                            //sending the data back down the hdlc
-
-                            DEBUG("Sending data back down hdlc\n");
-                            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t));
-                            msg_snd.type = HDLC_MSG_SND;
-                            msg_snd.content.ptr = &hdlc_snd_pkt;
-                            if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                /* TODO: use xtimer_msg_receive_timeout() instead */
-                                /* this is where applications can decide on a timeout */
-                                DEBUG("HDLC busy retrying...\n");
-                                msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-                                msg_rcv.content.value = RTRY_TIMEO_USEC;
-                                msg_send_to_self(&msg_rcv);
+                            if(remainder==0){
+                                num_iter++;
                             }
 
-                            while(1)
-                            {
-                                msg_receive(&msg_rcv);
+                            for(i = 0; i < num_iter+1; i++){
+                                DEBUG("i= %d\n",i);
+                                if(!end_of_series){
+                                    // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
 
-                                switch (msg_rcv.type)
-                                {
-                                    case HDLC_RESP_SND_SUCC:
-                                        DEBUG("Successfully sent ranging data\n");
-                                        exit = 1;
-                                        break;
-                                    case HDLC_RESP_RETRY_W_TIMEO:
-                                        xtimer_usleep(msg_rcv.content.value);
-                                        DEBUG("Range thread: retrying\n");
-                                        if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                            DEBUG("Range thread: HDLC msg queue full!\n");
-                                            msg_send_to_self(&msg_rcv);
+                                    if(i != num_iter-1){
+                                        time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, 8);
+                                        DEBUG("sampling 8\n");
+                                    } else{
+                                        end_of_series = 1;
+                                        if(remainder != 0){   
+                                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
+                                            DEBUG("sampling %d\n",remainder);
+                                        } else{
+                                            // UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+                                            // UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+                                            // UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+                                            // UART1->cc2538_uart_dr.ECR = 0xFF;
+                                            // UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+                                            // UART1->cc2538_uart_lcrh.LCRH |= FEN;
+                                            // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+                                            continue;
                                         }
+                                    }
+
+                                    // UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+                                    // UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+                                    // UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+                                    // UART1->cc2538_uart_dr.ECR = 0xFF;
+                                    // UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+                                    // UART1->cc2538_uart_lcrh.LCRH |= FEN;
+                                    // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+
+                                    if(time_diffs == NULL){
+                                        DEBUG("An error occured while ranging\n");
                                         break;
-                                    case HDLC_PKT_RDY:
-                                        hdlc_rcv_pkt2 = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                                        DEBUG("Range thread: received pkt while trying to send\n");
-                                        hdlc_pkt_release(hdlc_rcv_pkt2);
-                                        break;
-                                    default:
-                                        /* error */
-                                        LED3_ON;
-                                        break;
+                                    }
+                                    
+                                    //sending the data back down the hdlc
+
+                                    DEBUG("Sending data back down hdlc\n");
+                                    uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t)*8);
+                                } else{
+                                    DEBUG("End of series reached\n");
+                                    end_of_series = 0;
+                                    hdlc_snd_pkt.length = sizeof(uart_pkt_hdr_t)+sizeof(uint8_t);
+                                    uart_hdr.src_port = RANGE_PORT;
+                                    uart_hdr.dst_port = RANGE_PORT;
+                                    uart_hdr.pkt_type = RANGE_PKT_DONE;
+                                    uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                                    uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, 0, sizeof(uint8_t));
                                 }
 
-                                if(exit) {
-                                    exit = 0;
-                                    break;
+                                msg_snd.type = HDLC_MSG_SND;
+                                msg_snd.content.ptr = &hdlc_snd_pkt;
+                                if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                                    /* TODO: use xtimer_msg_receive_timeout() instead */
+                                    /* this is where applications can decide on a timeout */
+                                    DEBUG("HDLC busy retrying...\n");
+                                    msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
+                                    msg_rcv.content.value = RTRY_TIMEO_USEC;
+                                    msg_send_to_self(&msg_rcv);
                                 }
+
+                                while(1)
+                                {
+                                    msg_receive(&msg_rcv);
+
+                                    switch (msg_rcv.type)
+                                    {
+                                        case HDLC_RESP_SND_SUCC:
+                                            DEBUG("Successfully sent ranging data\n");
+                                            exit = 1;
+                                            break;
+                                        case HDLC_RESP_RETRY_W_TIMEO:
+                                            xtimer_usleep(msg_rcv.content.value);
+                                            DEBUG("Range thread: retrying\n");
+                                            if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                                                DEBUG("Range thread: HDLC msg queue full!\n");
+                                                msg_send_to_self(&msg_rcv);
+                                            }
+                                            break;
+                                        case HDLC_PKT_RDY:
+                                            hdlc_rcv_pkt2 = (hdlc_pkt_t *) msg_rcv.content.ptr;
+                                            DEBUG("Range thread: received pkt while trying to send\n");
+                                            hdlc_pkt_release(hdlc_rcv_pkt2);
+                                            break;
+                                        default:
+                                            /* error */
+                                            LED3_ON;
+                                            break;
+                                    }
+
+                                    if(exit) {
+                                        exit = 0;
+                                        break;
+                                    }
+                                }
+                                free(time_diffs);
                             }
                         }
                         _set_channel(old_channel);

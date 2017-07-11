@@ -20,7 +20,7 @@
 static unsigned int gpio_lines[]={GPIO_PIN(3, 3), GPIO_PIN(3, 2), GPIO_PIN(3, 1)};
 
 
-range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag);
+range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag, uint32_t num_samples);
 
 //BY DEFAULT USES GPIO_PD2 **will need to fix
 int range_tx(uint32_t udelay);
