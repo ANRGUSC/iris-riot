@@ -94,9 +94,7 @@
 #define RANGE_PORT          5678
 
 #define PKT_FROM_MAIN_THR   0
-#define RANGE_PKT           1
-#define RANGE_PKT_DONE      10
-#define RANGE_REQ           100
+#define RANGE_PKT_DONE      10 //TODO: get rid of this.
 
 #define RANGE_TIMEO_USEC    250000
 #define MAIN_QUEUE_SIZE     (8)
@@ -107,15 +105,11 @@
 #define FEN   BIT( 4) /**< Enable FIFOs */
 #define UART_CTL_HSE_VALUE    0
 
-static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
-
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
 static msg_t range_msg_queue[16];
-static msg_t main_msg_queue[16];
 
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
-static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
 static char range_stack[THREAD_STACKSIZE_MAIN];
 
 static const shell_command_t shell_commands[] = {
@@ -161,7 +155,7 @@ static void *_range_thread(void *arg)
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
     range_params_t* params;
-    msg_init_queue(range_msg_queue, 16);
+    msg_init_queue(range_msg_queue, sizeof(range_msg_queue));
     hdlc_entry_t range_entry;
     range_entry.next = NULL;
     range_entry.port = (int16_t)RANGE_PORT;
@@ -174,7 +168,6 @@ static void *_range_thread(void *arg)
     int end_of_series = 0;
 
     msg_t msg_snd, msg_rcv;
-    char frame_no = 0;
     /* create packets with max size */
     char send_data[pkt_size];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
@@ -190,7 +183,7 @@ static void *_range_thread(void *arg)
         hdlc_snd_pkt.length = pkt_size;
         uart_hdr.src_port = RANGE_PORT;
         uart_hdr.dst_port = RANGE_PORT;
-        uart_hdr.pkt_type = RANGE_PKT;
+        uart_hdr.pkt_type = SOUND_RANGE_DONE;
         uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
 
         DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
@@ -208,7 +201,7 @@ static void *_range_thread(void *arg)
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
-                    case RANGE_REQ:
+                    case SOUND_RANGE_REQ:
                         old_channel = _get_channel();
                         _set_channel(RSSI_LOCALIZATION_CHAN);
 
@@ -225,11 +218,20 @@ static void *_range_thread(void *arg)
                             DEBUG("num_iter = %d\n",num_iter);
                             DEBUG("remainder = %d\n",remainder);
 
-                            if(remainder==0){
+                            if(remainder == 0){
+                                num_iter++;
+                            }
+                            if(num_iter == 0){
                                 num_iter++;
                             }
 
-                            for(i = 0; i < num_iter+1; i++){
+                            if(params->num_samples > 8 && remainder != 0){
+                                i = -1;
+                            } else {
+                                i = 0;
+                            }
+
+                            for(i; i < num_iter+1; i++){
                                 DEBUG("i= %d\n",i);
                                 if(!end_of_series){
                                     UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
@@ -250,6 +252,7 @@ static void *_range_thread(void *arg)
                                             UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
                                             UART1->cc2538_uart_lcrh.LCRH |= FEN;
                                             UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+                                            DEBUG("SKIPPING\n");
                                             continue;
                                         }
                                     }
@@ -300,7 +303,7 @@ static void *_range_thread(void *arg)
                                     switch (msg_rcv.type)
                                     {
                                         case HDLC_RESP_SND_SUCC:
-                                            DEBUG("Successfully sent ranging data\n");
+                                            DEBUG("Successfully sent pkt\n");
                                             exit = 1;
                                             break;
                                         case HDLC_RESP_RETRY_W_TIMEO:
@@ -334,7 +337,7 @@ static void *_range_thread(void *arg)
                         
                         break;
                     default:
-                        DEBUG("Recieved a msg type other than RANGE_REQ\n");
+                        DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
                         break;
                 }
                  hdlc_pkt_release(hdlc_rcv_pkt);
@@ -356,14 +359,8 @@ static void *_range_thread(void *arg)
     return 0;
 }
 
-void main(void)
+int main(void)
 {
-   /* we need a message queue for the thread running the shell in order to
-     * receive potentially fast incoming networking packets */
-    msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
-    puts("RIOT network stack example application");
-    xtimer_init();
-
     /* start shell */
     puts("All up, running the shell now");
     char line_buf[SHELL_DEFAULT_BUFSIZE];

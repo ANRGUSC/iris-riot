@@ -23,27 +23,42 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
+#define MAXSAMPLES_ONE_PIN            100000
+#define MAXSAMPLES_TWO_PIN            30000
+
+#define RX_ONE_PIN                    GPIO_PIN(3, 3)
+#define RX_TWO_PIN                    GPIO_PIN(3, 2)
+#define RX_XOR_PIN                    GPIO_PIN(3, 1)
+#define TX_PIN                        GPIO_PIN(3, 0)
+
+
+
+//static unsigned int gpio_lines[]={GPIO_PIN(3, 3), GPIO_PIN(3, 2), GPIO_PIN(3, 1)};
+
+
 static range_data_t* time_diffs;
 
-/*----------------------------------------------------------------------------*/
-range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag, uint32_t num_samples){
-    // Check correct argument usage.
-    uint32_t flag = sys_flag;
-    
-    time_diffs = malloc(sizeof(range_data_t)*num_samples);
-    uint32_t maxsamps = 0;
 
-    uint32_t timeout = utimeout;
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
+    // Check correct argument usage.
+    uint8_t mode = range_mode;
+    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
+                       //
+    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+    
+    if(mode == TWO_SENSOR_MODE){
+        maxsamps = MAXSAMPLES_TWO_PIN;
+    } else {
+        maxsamps = MAXSAMPLES_ONE_PIN;
+    }
+
+    time_diffs = malloc(sizeof(range_data_t)*num_samples);
+    
+    uint32_t timeout = timeout_usec;
     if(timeout <= 0){
         DEBUG("timeout must be greater than 0");
         return NULL;
     }
-
-    // Message setup.
-    server.next = NULL;
-    server.demux_ctx = (uint32_t) SERVER_PORT; 
-    server.target.pid = thread_getpid();
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
 
     msg_t msg; 
     msg_t msg_queue[QUEUE_SIZE];
@@ -52,53 +67,45 @@ range_data_t* range_rx(uint32_t utimeout, uint32_t sys_flag, uint32_t num_sample
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
    
-    if(flag == TWO_SENSOR_MODE){
-        maxsamps = 30000;
-    } else {
-        maxsamps = 100000;
-    }
     int i;
     for(i = 0; i < num_samples; i++){
 
 
-        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, flag);
+        range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
 
 block:
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("Ping missed");
-             _unregister_thread();
+            DEBUG("RF ping missed\n");
             return NULL;
         }
 
-        if(msg.type == 143){
+        if(msg.type == RF_RCVD){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-                DEBUG("Ping missed #1");
+                DEBUG("Ultrsnd ping missed\n");
                 return NULL;
             }
-            if(msg.type == 144){
+            if(msg.type == ULTRSND_RCVD){
                 time_diffs[i] = *(range_data_t*) msg.content.ptr;
             } else{
                 goto block;
             }
 
         }
-        _unregister_thread();
-
-        printf("range: TDoA = %lu\n", time_diffs[i].TDoA);
-        switch (sys_flag){
+        printf("range: tdoa = %d\n", time_diffs[i].tdoa);
+        switch (range_mode){
             case ONE_SENSOR_MODE:
                 break;
 
             case TWO_SENSOR_MODE:
                 if(time_diffs[i].error!=0){
-                    printf("range: Missed pin %lu\n", time_diffs[i].error);
+                    printf("range: Missed pin %d\n", time_diffs[i].error);
                 } else{
-                    printf("range: OD = %lu\n", time_diffs[i].OD);
+                    printf("range: odelay = %d\n", time_diffs[i].odelay);
                 }
                 break;
 
             case XOR_SENSOR_MODE:
-                printf("range: OD = %lu\n", time_diffs[i].OD);
+                printf("range: odelay = %d\n", time_diffs[i].odelay);
                 break;
         }
         if(i == num_samples-1){
@@ -112,7 +119,7 @@ block:
 }
 
 /*----------------------------------------------------------------------------*/
-int range_tx(uint32_t udelay)
+int range_tx(uint32_t delay_usec)
 {
 /*
     Overall structure:
@@ -141,7 +148,6 @@ int range_tx(uint32_t udelay)
     // Check correct argument usage.
 
     // Broadcasting setup
-    uint32_t TX_DELAY_TIME = udelay;
 
     /* for sending L2 pkt */
     kernel_pid_t dev;
@@ -153,12 +159,6 @@ int range_tx(uint32_t udelay)
     char buf[3] = {0x00, 0x00, 0x00};
 
     int16_t tx_power = TX_POWER;
-
-    /* register this thread to the chosen UDP port */
-    server.next = NULL;
-    server.demux_ctx = (uint32_t) SERVER_PORT; 
-    server.target.pid = thread_getpid();
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
 
     msg_t msg_queue[QUEUE_SIZE];
 
@@ -188,7 +188,7 @@ int range_tx(uint32_t udelay)
         rstx_start_time = xtimer_now();
         current_time = 0;
         
-        while(no_signal && current_time < TX_DELAY_TIME){
+        while(no_signal && current_time < delay_usec){
             current_time = xtimer_now() - rstx_start_time;
             msg_receive(&msg);
             
@@ -231,7 +231,7 @@ int range_tx(uint32_t udelay)
                 break;
             }
         }
-        if(current_time > TX_DELAY_TIME){
+        if(current_time > delay_usec){
             //broadcasting
             //how to broadcast???
             flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
@@ -270,7 +270,7 @@ int range_tx(uint32_t udelay)
         // printf("%d: ", i);
         // i++;
 
-        xtimer_usleep(TX_DELAY_TIME);
+        xtimer_usleep(delay_usec);
 
         range_tx_init(GPIO_PD2);
         // Broadcasting flag setup.
@@ -322,6 +322,5 @@ int range_tx(uint32_t udelay)
         DEBUG("RF and ultrasound pings sent");  
     }
 
-    _unregister_thread();
     return 0;
 }

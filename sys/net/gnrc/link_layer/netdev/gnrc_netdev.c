@@ -49,7 +49,7 @@ static void _sound_ranging(void);
 static int sample1;
 static int sample2;
 static uint8_t _tx_node_id      = 0;
-static unsigned int gpio_lines[3];
+static gpio_rx_line_t rx_line;
 static int max_samps            = 0;
 static int range_sys_flag       = 0;
 int ranging_on           = 0;
@@ -95,7 +95,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                             _tx_node_id == ((uint8_t *) pkt->data)[2])
                         {
                             // printf("ranging");
-                            ranging_complete.type=143;
+                            ranging_complete.type=RF_RCVD;
                             ranging_complete.content.value=0;
                             msg_send(&ranging_complete,ranging_pid);
                             _sound_ranging();
@@ -132,9 +132,11 @@ static void _sound_ranging(void)
     uint32_t test;
     ranging = 1;
     last = xtimer_now_usec();
-    time_diffs.TDoA = 0;
-    time_diffs.OD = 0;
+    time_diffs.tdoa = 0;
+    time_diffs.odelay = 0;
     time_diffs.error = 0;
+    unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.xor_pin};
+
     
     //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
     while(cnt < max_samps)
@@ -144,10 +146,10 @@ static void _sound_ranging(void)
             printf("failed on iteration: %d\n",cnt);
         }
         if(range_sys_flag == ONE_SENSOR_MODE){
-            if(gpio_read(gpio_lines[0]) != 0){
+            if(gpio_read(rx_line_array[0]) != 0){
                 last2 = xtimer_now_usec();
 
-                time_diffs.TDoA = last2 - last;
+                time_diffs.tdoa = last2 - last;
                 
                 range_rx_stop();
                 break;
@@ -155,9 +157,9 @@ static void _sound_ranging(void)
         }
         else if(range_sys_flag == TWO_SENSOR_MODE){
             //printf("%d\n",cnt);
-            sample1 = gpio_read(gpio_lines[0]);
+            sample1 = gpio_read(rx_line_array[0]);
+            sample2 = gpio_read(rx_line_array[1]);
             DEBUG("%d ",sample1);
-            sample2 = gpio_read(gpio_lines[1]);
             DEBUG("%d ",sample2);
             /* wait for 200us before next poll for input capacitor to settle */
             if(sample1 != 0){ first = 0; second = 1; }
@@ -167,12 +169,12 @@ static void _sound_ranging(void)
             if (first != 2) {
                 last2 = xtimer_now_usec();
                 do {
-                    sample1 = gpio_read(gpio_lines[first]);
-                    sample2 = gpio_read(gpio_lines[second]);
+                    sample1 = gpio_read(rx_line_array[first]);
+                    sample2 = gpio_read(rx_line_array[second]);
                 } while((sample1 != 0) && (sample2 == 0));
                 
-                time_diffs.OD = xtimer_now_usec() - last2;
-                time_diffs.TDoA = last2 - last;
+                time_diffs.odelay = xtimer_now_usec() - last2;
+                time_diffs.tdoa = last2 - last;
                 
                 if(sample1 == 0){
                     time_diffs.error = second + 1; //returns 0 if no error, otherwise returns which gpio missed the ping
@@ -182,11 +184,11 @@ static void _sound_ranging(void)
             } 
         }
         else if(range_sys_flag == XOR_SENSOR_MODE){
-            if(gpio_read(gpio_lines[2]) != 0){
+            if(gpio_read(rx_line_array[2]) != 0){
                 last2 = xtimer_now_usec();
-                while(gpio_read(gpio_lines[2]) != 0);
-                time_diffs.OD = xtimer_now_usec() - last2;
-                time_diffs.TDoA = last2 - last;
+                while(gpio_read(rx_line_array[2]) != 0);
+                time_diffs.odelay = xtimer_now_usec() - last2;
+                time_diffs.tdoa = last2 - last;
                 range_rx_stop();
                 break;
             }
@@ -319,21 +321,21 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char tx_node_id, int pid, unsigned int* lines, unsigned int max_gpio_samps, int flag)
+void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int flag)
 {
     //puts("started");
     range_sys_flag = flag;
     ranging_on = 1;
     _tx_node_id = tx_node_id;
     ranging_pid = pid;
-    memcpy(gpio_lines, lines, sizeof(unsigned int)*3);
-    gpio_init(gpio_lines[0],GPIO_IN);
-    gpio_init(gpio_lines[1],GPIO_IN);
-    gpio_init(gpio_lines[2],GPIO_IN);
+    rx_line = lines;
+    gpio_init(rx_line.one_pin,GPIO_IN);
+    gpio_init(rx_line.two_pin,GPIO_IN);
+    gpio_init(rx_line.xor_pin,GPIO_IN);
     max_samps = max_gpio_samps;
     ref = 2;
-    time_diffs.TDoA = 0;
-    time_diffs.OD = 0;
+    time_diffs.tdoa = 0;
+    time_diffs.odelay = 0;
     time_diffs.error = 0;
 
     DEBUG("ranging initialized!\n");
@@ -345,7 +347,7 @@ void range_rx_stop(void)
     ranging = 0;
     ranging_on = 0;
     ref--;
-    ranging_complete.type=144;
+    ranging_complete.type=ULTRSND_RCVD;
     ranging_complete.content.ptr=&time_diffs;
     msg_send(&ranging_complete,ranging_pid);
 }
