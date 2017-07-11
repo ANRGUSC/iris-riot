@@ -175,7 +175,7 @@ static void *_range_thread(void *arg)
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
     range_params_t* params;
-    msg_init_queue(range_msg_queue, 16);
+    msg_init_queue(range_msg_queue, sizeof(range_msg_queue));
     hdlc_entry_t range_entry;
     range_entry.next = NULL;
     range_entry.port = (int16_t)RANGE_PORT;
@@ -305,7 +305,7 @@ static void *_range_thread(void *arg)
                         
                         break;
                     default:
-                        DEBUG("Recieved a msg type other than RANGE_REQ\n");
+                        DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
                         break;
                 }
                  hdlc_pkt_release(hdlc_rcv_pkt);

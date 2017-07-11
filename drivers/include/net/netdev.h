@@ -277,6 +277,13 @@ typedef struct __attribute__((packed)) {
     // add more options in the future?
 } range_params_t;
 
+typedef struct gpio_rx_lines {
+    unsigned int one_pin;
+    unsigned int two_pin;
+    unsigned int xor_pin;
+
+} gpio_rx_lines_t;
+
 /**
  * @brief Structure holding info on which pin are connected for ranging
  *

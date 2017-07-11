@@ -201,7 +201,7 @@ static void *_range_rx_thread(void *arg)
         {
             case HDLC_PKT_RDY:
                 
-                
+                    
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
