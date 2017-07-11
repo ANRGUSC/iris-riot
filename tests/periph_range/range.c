@@ -23,7 +23,7 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-static uint32_t time_diffs[3];
+static range_data_t* time_diffs;
 
 /*----------------------------------------------------------------------------*/
 int range_rx(int argc, char **argv){
@@ -35,13 +35,12 @@ int range_rx(int argc, char **argv){
     
     uint32_t maxsamps = 0;
     uint32_t timeout = 500000;
-    uint32_t num_samps = atoi(argv[1])
+    uint32_t num_samps = atoi(argv[1]);
     uint32_t delay = atoi(argv[2]);
     uint8_t flag = atoi(argv[3]);
-    uint32_t 
 
-    if(delay <= 0){
-        printf("Error: delay_usecs must be greater than 0");
+    if(delay < 0){
+        printf("Error: delay_usecs must be greater than or equal to 0");
         return 1;
     }
     if(num_samps <= 0){
@@ -81,8 +80,8 @@ int range_rx(int argc, char **argv){
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
    int i = 0;
-   for(i = 0; i < num_samples; i++){
-        printf("Trial %d of %d:\n", i, num_samples);
+   for(i = 0; i < num_samps; i++){
+        printf("Trial %d of %lu:\n", i, num_samps);
         if(flag == TWO_SENSOR_MODE){
             maxsamps = 30000;
         } else {
@@ -93,17 +92,17 @@ int range_rx(int argc, char **argv){
 
 block:
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            printf("RF Ping missed");
+            printf("RF Ping missed\n");
             continue;
         }
 
         if(msg.type == 143){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
                 printf("Ultrsnd Ping missed #1\n");
-                continue
+                continue;
             }
             if(msg.type == 144){
-                memcpy(time_diffs, msg.content.ptr, sizeof(uint32_t)*3);
+                time_diffs = (range_data_t*) msg.content.ptr;
             } else{
                 goto block;
             }
@@ -111,23 +110,24 @@ block:
         }
         _unregister_thread();
 
-        printf("range: TDoA = %lu\n", time_diffs[0]);
+        printf("range: TDoA = %d\n", time_diffs->TDoA);
         switch (flag){
             case ONE_SENSOR_MODE:
                 break;
 
             case TWO_SENSOR_MODE:
-                if(time_diffs[2]!=0){
-                    printf("range: Missed pin %lu\n", time_diffs[2]);
+                if(time_diffs->error!=0){
+                    printf("range: Missed pin %d\n", time_diffs->error);
                 } else{
-                    printf("range: OD = %lu\n", time_diffs[1]);
+                    printf("range: OD = %d\n", time_diffs->OD);
                 }
                 break;
 
             case XOR_SENSOR_MODE:
-                printf("range: OD = %lu\n", time_diffs[1]);
+                printf("range: OD = %d\n", time_diffs->OD);
                 break;
         }
+        xtimer_usleep(delay);
     }
     
 
