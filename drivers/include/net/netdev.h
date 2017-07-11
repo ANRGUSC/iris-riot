@@ -245,7 +245,7 @@ typedef struct netdev_driver {
 
 typedef struct range_data
 {
-    uint32_t TDoA;
+    uint16_t TDoA;
     uint16_t OD;
     uint8_t error;
     // add more options in the future?
