@@ -159,7 +159,7 @@ static void *_range_thread(void *arg)
 {   
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
-    range_params_t params;
+    range_params_t* params;
     msg_init_queue(range_msg_queue, 16);
     hdlc_entry_t range_entry;
     range_entry.next = NULL;

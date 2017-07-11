@@ -256,7 +256,7 @@ typedef struct range_params
     uint16_t num_samples;
     uint8_t ranging_mode;
     // add more options in the future?
-};
+} range_params_t;
 
 /**
  * Not thread safe.
