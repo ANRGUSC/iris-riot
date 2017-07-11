@@ -225,11 +225,20 @@ static void *_range_thread(void *arg)
                             DEBUG("num_iter = %d\n",num_iter);
                             DEBUG("remainder = %d\n",remainder);
 
-                            if(remainder==0){
+                            if(remainder == 0){
+                                num_iter++;
+                            }
+                            if(num_iter == 0){
                                 num_iter++;
                             }
 
-                            for(i = 0; i < num_iter+1; i++){
+                            if(params->num_samples > 8 && remainder != 0){
+                                i = -1;
+                            } else {
+                                i = 0;
+                            }
+
+                            for(i; i < num_iter+1; i++){
                                 DEBUG("i= %d\n",i);
                                 if(!end_of_series){
                                     UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
@@ -250,6 +259,7 @@ static void *_range_thread(void *arg)
                                             UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
                                             UART1->cc2538_uart_lcrh.LCRH |= FEN;
                                             UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+                                            DEBUG("SKIPPING\n");
                                             continue;
                                         }
                                     }
@@ -300,7 +310,7 @@ static void *_range_thread(void *arg)
                                     switch (msg_rcv.type)
                                     {
                                         case HDLC_RESP_SND_SUCC:
-                                            DEBUG("Successfully sent ranging data\n");
+                                            DEBUG("Successfully sent pkt\n");
                                             exit = 1;
                                             break;
                                         case HDLC_RESP_RETRY_W_TIMEO:

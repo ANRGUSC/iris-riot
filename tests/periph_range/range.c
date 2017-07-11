@@ -28,19 +28,27 @@ static uint32_t time_diffs[3];
 /*----------------------------------------------------------------------------*/
 int range_rx(int argc, char **argv){
     // Check correct argument usage.
-    if(argc != 3){
-        printf("usage: %s <timeout_usecs> <ranging_mode>\n", argv[0]);
+    if(argc != 4){
+        printf("usage: %s <num_samples> <delay_usecs> <ranging_mode>\n", argv[0]);
         return 1;
     }
     
     uint32_t maxsamps = 0;
-    uint32_t timeout = atoi(argv[1]);
-    uint32_t flag = atoi(argv[2]);
+    uint32_t timeout = 500000;
+    uint32_t num_samps = atoi(argv[1])
+    uint32_t delay = atoi(argv[2]);
+    uint8_t flag = atoi(argv[3]);
+    uint32_t 
 
-    if(timeout <= 0){
-        printf("Error: timeout must be greater than 0");
+    if(delay <= 0){
+        printf("Error: delay_usecs must be greater than 0");
         return 1;
     }
+    if(num_samps <= 0){
+        printf("Error: num_samples must be greater than 0");
+        return 1;
+    }
+
 
     switch (flag){
         case 0:
@@ -72,53 +80,56 @@ int range_rx(int argc, char **argv){
     /* setup the message queue */
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
-   
-    if(flag == TWO_SENSOR_MODE){
-        maxsamps = 30000;
-    } else {
-        maxsamps = 100000;
-    }
+   int i = 0;
+   for(i = 0; i < num_samples; i++){
+        printf("Trial %d of %d:\n", i, num_samples);
+        if(flag == TWO_SENSOR_MODE){
+            maxsamps = 30000;
+        } else {
+            maxsamps = 100000;
+        }
 
-    range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, flag);
+        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, flag);
 
 block:
-    if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-        DEBUG("Ping missed\n");
-         _unregister_thread();
-        return 1;
-    }
-
-    if(msg.type == 143){
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("Ping missed #1\n");
-            return 1;
-        }
-        if(msg.type == 144){
-            memcpy(time_diffs, msg.content.ptr, sizeof(uint32_t)*3);
-        } else{
-            goto block;
+            printf("RF Ping missed");
+            continue;
         }
 
-    }
-    _unregister_thread();
-
-    printf("range: TDoA = %lu\n", time_diffs[0]);
-    switch (flag){
-        case ONE_SENSOR_MODE:
-            break;
-
-        case TWO_SENSOR_MODE:
-            if(time_diffs[2]!=0){
-                printf("range: Missed pin %lu\n", time_diffs[2]);
-            } else{
-                printf("range: OD = %lu\n", time_diffs[1]);
+        if(msg.type == 143){
+            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+                printf("Ultrsnd Ping missed #1\n");
+                continue
             }
-            break;
+            if(msg.type == 144){
+                memcpy(time_diffs, msg.content.ptr, sizeof(uint32_t)*3);
+            } else{
+                goto block;
+            }
 
-        case XOR_SENSOR_MODE:
-            printf("range: OD = %lu\n", time_diffs[1]);
-            break;
+        }
+        _unregister_thread();
+
+        printf("range: TDoA = %lu\n", time_diffs[0]);
+        switch (flag){
+            case ONE_SENSOR_MODE:
+                break;
+
+            case TWO_SENSOR_MODE:
+                if(time_diffs[2]!=0){
+                    printf("range: Missed pin %lu\n", time_diffs[2]);
+                } else{
+                    printf("range: OD = %lu\n", time_diffs[1]);
+                }
+                break;
+
+            case XOR_SENSOR_MODE:
+                printf("range: OD = %lu\n", time_diffs[1]);
+                break;
+        }
     }
+    
 
     return 0;
 }

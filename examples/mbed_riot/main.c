@@ -225,14 +225,23 @@ static void *_range_thread(void *arg)
                             DEBUG("num_iter = %d\n",num_iter);
                             DEBUG("remainder = %d\n",remainder);
 
-                            if(remainder==0){
+                            if(remainder == 0){
+                                num_iter++;
+                            }
+                            if(num_iter == 0){
                                 num_iter++;
                             }
 
-                            for(i = 0; i < num_iter+1; i++){
+                            if(params->num_samples > 8 && remainder != 0){
+                                i = -1;
+                            } else {
+                                i = 0;
+                            }
+
+                            for(i; i < num_iter+1; i++){
                                 DEBUG("i= %d\n",i);
                                 if(!end_of_series){
-                                    // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
+                                    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
 
                                     if(i != num_iter-1){
                                         time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, 8);
@@ -243,24 +252,25 @@ static void *_range_thread(void *arg)
                                             time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
                                             DEBUG("sampling %d\n",remainder);
                                         } else{
-                                            // UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                                            // UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                                            // UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                                            // UART1->cc2538_uart_dr.ECR = 0xFF;
-                                            // UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                                            // UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                                            // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+                                            UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+                                            UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+                                            UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+                                            UART1->cc2538_uart_dr.ECR = 0xFF;
+                                            UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+                                            UART1->cc2538_uart_lcrh.LCRH |= FEN;
+                                            UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+                                            DEBUG("SKIPPING\n");
                                             continue;
                                         }
                                     }
 
-                                    // UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                                    // UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                                    // UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                                    // UART1->cc2538_uart_dr.ECR = 0xFF;
-                                    // UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                                    // UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                                    // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+                                    UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+                                    UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+                                    UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+                                    UART1->cc2538_uart_dr.ECR = 0xFF;
+                                    UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+                                    UART1->cc2538_uart_lcrh.LCRH |= FEN;
+                                    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
 
                                     if(time_diffs == NULL){
                                         DEBUG("An error occured while ranging\n");
@@ -300,7 +310,7 @@ static void *_range_thread(void *arg)
                                     switch (msg_rcv.type)
                                     {
                                         case HDLC_RESP_SND_SUCC:
-                                            DEBUG("Successfully sent ranging data\n");
+                                            DEBUG("Successfully sent pkt\n");
                                             exit = 1;
                                             break;
                                         case HDLC_RESP_RETRY_W_TIMEO:
