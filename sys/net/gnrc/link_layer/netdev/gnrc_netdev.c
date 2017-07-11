@@ -58,7 +58,7 @@ static int ranging_pid;
 
 static uint32_t last            = 0;
 static uint32_t last2           = 0;
-static uint32_t time_diffs[3];
+static range_data_t time_diffs;
 static int ref                  = -1;
 int ranging                     = 0;
 
@@ -132,9 +132,9 @@ static void _sound_ranging(void)
     uint32_t test;
     ranging = 1;
     last = xtimer_now_usec();
-    time_diffs[0] = 0;
-    time_diffs[1] = 0;
-    time_diffs[2] = 0;
+    time_diffs.TDoA = 0;
+    time_diffs.OD = 0;
+    time_diffs.error = 0;
     
     //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
     while(cnt < max_samps)
@@ -147,7 +147,7 @@ static void _sound_ranging(void)
             if(gpio_read(gpio_lines[0]) != 0){
                 last2 = xtimer_now_usec();
 
-                time_diffs[0] = last2 - last;
+                time_diffs.TDoA = last2 - last;
                 
                 range_rx_stop();
                 break;
@@ -171,11 +171,11 @@ static void _sound_ranging(void)
                     sample2 = gpio_read(gpio_lines[second]);
                 } while((sample1 != 0) && (sample2 == 0));
                 
-                time_diffs[1] = xtimer_now_usec() - last2;
-                time_diffs[0] = last2 - last;
+                time_diffs.OD = xtimer_now_usec() - last2;
+                time_diffs.TDoA = last2 - last;
                 
                 if(sample1 == 0){
-                    time_diffs[2] = second + 1; //returns 0 if no error, otherwise returns which gpio missed the ping
+                    time_diffs.error = second + 1; //returns 0 if no error, otherwise returns which gpio missed the ping
                 }
                 range_rx_stop();
                 break;
@@ -185,8 +185,8 @@ static void _sound_ranging(void)
             if(gpio_read(gpio_lines[2]) != 0){
                 last2 = xtimer_now_usec();
                 while(gpio_read(gpio_lines[2]) != 0);
-                time_diffs[1] = xtimer_now_usec() - last2;
-                time_diffs[0] = last2 - last;
+                time_diffs.OD = xtimer_now_usec() - last2;
+                time_diffs.TDoA = last2 - last;
                 range_rx_stop();
                 break;
             }
@@ -332,9 +332,9 @@ void range_rx_init(char tx_node_id, int pid, unsigned int* lines, unsigned int m
     gpio_init(gpio_lines[2],GPIO_IN);
     max_samps = max_gpio_samps;
     ref = 2;
-    time_diffs[0] = 0;
-    time_diffs[1] = 0;
-    time_diffs[2] = 0;
+    time_diffs.TDoA = 0;
+    time_diffs.OD = 0;
+    time_diffs.error = 0;
 
     DEBUG("ranging initialized!\n");
 }
@@ -346,6 +346,6 @@ void range_rx_stop(void)
     ranging_on = 0;
     ref--;
     ranging_complete.type=144;
-    ranging_complete.content.ptr=time_diffs;
+    ranging_complete.content.ptr=&time_diffs;
     msg_send(&ranging_complete,ranging_pid);
 }
