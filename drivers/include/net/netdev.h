@@ -261,12 +261,12 @@ typedef struct range_params
     // add more options in the future?
 } range_params_t;
 
-typedef struct gpio_rx_lines {
+typedef struct gpio_rx_line {
     unsigned int one_pin;
     unsigned int two_pin;
     unsigned int xor_pin;
 
-} gpio_rx_lines_t;
+} gpio_rx_line_t;
 
 /**
  * Not thread safe.
@@ -276,7 +276,7 @@ typedef struct gpio_rx_lines {
  * @param res           [description]
  * @param max_adc_samps [description]
  */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_lines_t lines, unsigned int max_gpio_samps, int flag);
+void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int flag);
 
 /**
  * Always call this function after you attempt to complete a sound ranging 

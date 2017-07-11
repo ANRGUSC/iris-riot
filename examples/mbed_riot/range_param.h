@@ -18,10 +18,4 @@
 
 #define TX_NODE_ID 0x00
 
-/* this is used to unregister the thread from receiving UDP packets sent to the 
-   port in the "server" struct */
-static gnrc_netreg_entry_t server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, 
-                                        {KERNEL_PID_UNDEF}};
-
-
 #endif

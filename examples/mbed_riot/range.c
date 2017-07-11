@@ -44,7 +44,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     uint8_t mode = range_mode;
     uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
                        //
-    gpio_rx_lines_t lines = (gpio_rx_lines_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
     
     if(mode == TWO_SENSOR_MODE){
         maxsamps = MAXSAMPLES_TWO_PIN;
@@ -91,21 +91,21 @@ block:
             }
 
         }
-        printf("range: tdoa = %lu\n", time_diffs[i].tdoa);
+        printf("range: tdoa = %d\n", time_diffs[i].tdoa);
         switch (range_mode){
             case ONE_SENSOR_MODE:
                 break;
 
             case TWO_SENSOR_MODE:
                 if(time_diffs[i].error!=0){
-                    printf("range: Missed pin %lu\n", time_diffs[i].error);
+                    printf("range: Missed pin %d\n", time_diffs[i].error);
                 } else{
-                    printf("range: odelay = %lu\n", time_diffs[i].odelay);
+                    printf("range: odelay = %d\n", time_diffs[i].odelay);
                 }
                 break;
 
             case XOR_SENSOR_MODE:
-                printf("range: odelay = %lu\n", time_diffs[i].odelay);
+                printf("range: odelay = %d\n", time_diffs[i].odelay);
                 break;
         }
         if(i == num_samples-1){

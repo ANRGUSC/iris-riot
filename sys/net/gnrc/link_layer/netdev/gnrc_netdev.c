@@ -49,7 +49,7 @@ static void _sound_ranging(void);
 static int sample1;
 static int sample2;
 static uint8_t _tx_node_id      = 0;
-static gpio_rx_lines_t rx_lines;
+static gpio_rx_line_t rx_line;
 static int max_samps            = 0;
 static int range_sys_flag       = 0;
 int ranging_on           = 0;
@@ -135,7 +135,7 @@ static void _sound_ranging(void)
     time_diffs.tdoa = 0;
     time_diffs.odelay = 0;
     time_diffs.error = 0;
-    unsigned int rx_lines_array[] = {rx_lines.one_pin, rx_lines.two_pin, rx_lines.xor_pin};
+    unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.xor_pin};
 
     
     //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
@@ -146,7 +146,7 @@ static void _sound_ranging(void)
             printf("failed on iteration: %d\n",cnt);
         }
         if(range_sys_flag == ONE_SENSOR_MODE){
-            if(gpio_read(rx_lines_array[0]) != 0){
+            if(gpio_read(rx_line_array[0]) != 0){
                 last2 = xtimer_now_usec();
 
                 time_diffs.tdoa = last2 - last;
@@ -157,8 +157,8 @@ static void _sound_ranging(void)
         }
         else if(range_sys_flag == TWO_SENSOR_MODE){
             //printf("%d\n",cnt);
-            sample1 = gpio_read(rx_lines_array[0]);
-            sample2 = gpio_read(rx_lines_array[1]);
+            sample1 = gpio_read(rx_line_array[0]);
+            sample2 = gpio_read(rx_line_array[1]);
             DEBUG("%d ",sample1);
             DEBUG("%d ",sample2);
             /* wait for 200us before next poll for input capacitor to settle */
@@ -169,8 +169,8 @@ static void _sound_ranging(void)
             if (first != 2) {
                 last2 = xtimer_now_usec();
                 do {
-                    sample1 = gpio_read(rx_lines_array[first]);
-                    sample2 = gpio_read(rx_lines_array[second]);
+                    sample1 = gpio_read(rx_line_array[first]);
+                    sample2 = gpio_read(rx_line_array[second]);
                 } while((sample1 != 0) && (sample2 == 0));
                 
                 time_diffs.odelay = xtimer_now_usec() - last2;
@@ -184,9 +184,9 @@ static void _sound_ranging(void)
             } 
         }
         else if(range_sys_flag == XOR_SENSOR_MODE){
-            if(gpio_read(rx_lines_array[2]) != 0){
+            if(gpio_read(rx_line_array[2]) != 0){
                 last2 = xtimer_now_usec();
-                while(gpio_read(rx_lines_array[2]) != 0);
+                while(gpio_read(rx_line_array[2]) != 0);
                 time_diffs.odelay = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
                 range_rx_stop();
@@ -321,17 +321,17 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_lines_t lines, unsigned int max_gpio_samps, int flag)
+void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int flag)
 {
     //puts("started");
     range_sys_flag = flag;
     ranging_on = 1;
     _tx_node_id = tx_node_id;
     ranging_pid = pid;
-    rx_lines = lines;
-    gpio_init(rx_lines.one_pin,GPIO_IN);
-    gpio_init(rx_lines.two_pin,GPIO_IN);
-    gpio_init(rx_lines.xor_pin,GPIO_IN);
+    rx_line = lines;
+    gpio_init(rx_line.one_pin,GPIO_IN);
+    gpio_init(rx_line.two_pin,GPIO_IN);
+    gpio_init(rx_line.xor_pin,GPIO_IN);
     max_samps = max_gpio_samps;
     ref = 2;
     time_diffs.tdoa = 0;
