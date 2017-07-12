@@ -249,7 +249,7 @@ typedef struct netdev_driver {
 typedef struct range_data
 {
     uint16_t tdoa; //time difference of arrival
-    uint16_t odelay; //orientation differential
+    uint16_t orient_diff; //orientation differential
     uint8_t error; //error message for if one sensor misses pings
     // add more options in the future?
 } range_data_t;

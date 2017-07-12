@@ -99,6 +99,7 @@
 #define RANGE_TIMEO_USEC    250000
 #define MAIN_QUEUE_SIZE     (8)
 
+
 #undef BIT
 #define BIT(n) ( 1 << (n) )
 /* Bit field definitions for the UART Line Control Register: */
@@ -161,7 +162,8 @@ static void *_range_thread(void *arg)
     range_entry.port = (int16_t)RANGE_PORT;
     range_entry.pid = thread_getpid();
     hdlc_register(&range_entry);
-    int pkt_size = sizeof(range_data_t)*8 + sizeof(uart_pkt_hdr_t);
+    int data_per_pkt = (HDLC_MAX_PKT_SIZE-sizeof(uart_pkt_hdr_t))/sizeof(range_data_t);
+    int pkt_size = sizeof(range_data_t)*data_per_pkt + sizeof(uart_pkt_hdr_t);
     int i = 0;
     int num_iter = 0;
     int remainder = 0;
@@ -184,6 +186,7 @@ static void *_range_thread(void *arg)
         uart_hdr.src_port = RANGE_PORT;
         uart_hdr.dst_port = RANGE_PORT;
         uart_hdr.pkt_type = SOUND_RANGE_DONE;
+        uart_hdr.msg_complete = 0;
         uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
 
         DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
@@ -202,6 +205,19 @@ static void *_range_thread(void *arg)
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
                     case SOUND_RANGE_REQ:
+
+                        switch(params->ranging_mode){
+                            case ONE_SENSOR_MODE:
+                                printf("******************ONE SENSOR MODE*******************\n");
+                                break;
+                            case TWO_SENSOR_MODE:
+                                printf("******************TWO SENSOR MODE*******************\n");
+                                break;
+                            case XOR_SENSOR_MODE:
+                                printf("******************XOR SENSOR MODE*******************\n");
+                                break;
+                        }
+
                         old_channel = _get_channel();
                         _set_channel(RSSI_LOCALIZATION_CHAN);
 
@@ -213,77 +229,70 @@ static void *_range_thread(void *arg)
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
-                            num_iter = params->num_samples / 8;
-                            remainder = params->num_samples % 8;
+                            num_iter = params->num_samples / data_per_pkt;
+                            remainder = params->num_samples % data_per_pkt;
+                            DEBUG("num_samples = %d\n",params->num_samples);
                             DEBUG("num_iter = %d\n",num_iter);
                             DEBUG("remainder = %d\n",remainder);
 
-                            if(remainder == 0){
-                                num_iter++;
-                            }
-                            if(num_iter == 0){
-                                num_iter++;
-                            }
-
-                            if(params->num_samples > 8 && remainder != 0){
-                                i = -1;
-                            } else {
-                                i = 0;
-                            }
-
-                            for(i; i < num_iter+1; i++){
+                            for(i = 0; i <= num_iter; i++){
                                 DEBUG("i= %d\n",i);
-                                if(!end_of_series){
-                                    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
+                                
+                                UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
 
-                                    if(i != num_iter-1){
-                                        time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, 8);
-                                        DEBUG("sampling 8\n");
-                                    } else{
-                                        end_of_series = 1;
-                                        if(remainder != 0){   
-                                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
-                                            DEBUG("sampling %d\n",remainder);
-                                        } else{
-                                            UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                                            UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                                            UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                                            UART1->cc2538_uart_dr.ECR = 0xFF;
-                                            UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                                            UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                                            UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-                                            DEBUG("SKIPPING\n");
-                                            continue;
-                                        }
+                                if(i <= num_iter-1){
+                                    if(i == num_iter-1 && remainder == 0){
+                                        DEBUG("message complete\n");
+                                        uart_hdr.src_port = RANGE_PORT;
+                                        uart_hdr.dst_port = RANGE_PORT;
+                                        uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                                        uart_hdr.msg_complete = 1;
+                                        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                                        i++; 
                                     }
-
-                                    UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                                    UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                                    UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                                    UART1->cc2538_uart_dr.ECR = 0xFF;
-                                    UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                                    UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                                    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-                                    if(time_diffs == NULL){
-                                        DEBUG("An error occured while ranging\n");
+                                    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, data_per_pkt);
+                                    DEBUG("sampling %d\n",data_per_pkt);
+                                } else{
+                                    if(remainder != 0){ 
+                                        uart_hdr.src_port = RANGE_PORT;
+                                        uart_hdr.dst_port = RANGE_PORT;
+                                        uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                                        uart_hdr.msg_complete = 1;
+                                        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                                        time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
+                                        DEBUG("sampling %d\n",remainder);
+                                        DEBUG("message complete\n");
+                                    } else{
+                                        DEBUG("breaking from loop %d\n",remainder);
+                                        UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+                                        UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+                                        UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+                                        UART1->cc2538_uart_dr.ECR = 0xFF;
+                                        UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+                                        UART1->cc2538_uart_lcrh.LCRH |= FEN;
+                                        UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
                                         break;
                                     }
+                                }
+
+                                UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+                                UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+                                UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+                                UART1->cc2538_uart_dr.ECR = 0xFF;
+                                UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+                                UART1->cc2538_uart_lcrh.LCRH |= FEN;
+                                UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+
+                                if(time_diffs == NULL){
+                                    DEBUG("An error occured while ranging\n");
+                                    break;
+                                }
                                     
                                     //sending the data back down the hdlc
 
-                                    DEBUG("Sending data back down hdlc\n");
-                                    uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t)*8);
-                                } else{
-                                    DEBUG("End of series reached\n");
-                                    end_of_series = 0;
-                                    hdlc_snd_pkt.length = sizeof(uart_pkt_hdr_t)+sizeof(uint8_t);
-                                    uart_hdr.src_port = RANGE_PORT;
-                                    uart_hdr.dst_port = RANGE_PORT;
-                                    uart_hdr.pkt_type = RANGE_PKT_DONE;
-                                    uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-                                    uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, 0, sizeof(uint8_t));
-                                }
+                                DEBUG("Sending data back down hdlc\n");
+                                uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t)*data_per_pkt);
+                                
 
                                 msg_snd.type = HDLC_MSG_SND;
                                 msg_snd.content.ptr = &hdlc_snd_pkt;
@@ -340,14 +349,14 @@ static void *_range_thread(void *arg)
                         DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
                         break;
                 }
-                 hdlc_pkt_release(hdlc_rcv_pkt);
-                
+                hdlc_pkt_release(hdlc_rcv_pkt);
                 break;
             default:
                 /* error */
                 DEBUG("Recieved something else");
                 LED3_ON;
                 break;
+
         }
         
 
