@@ -62,7 +62,7 @@
 #define RETRANSMIT_TIMEO_USEC   100000
 
 #ifndef HDLC_MAX_PKT_SIZE
-#define HDLC_MAX_PKT_SIZE       64
+#define HDLC_MAX_PKT_SIZE       128
 #endif
 
 typedef struct {

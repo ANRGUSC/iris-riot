@@ -100,6 +100,7 @@
 #define RANGE_TIMEO_USEC    250000
 #define MAIN_QUEUE_SIZE     (8)
 
+
 #undef BIT
 #define BIT(n) ( 1 << (n) )
 /* Bit field definitions for the UART Line Control Register: */
@@ -303,14 +304,14 @@ static void *_range_thread(void *arg)
                         DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
                         break;
                 }
-                 hdlc_pkt_release(hdlc_rcv_pkt);
-                
+                hdlc_pkt_release(hdlc_rcv_pkt);
                 break;
             default:
                 /* error */
                 DEBUG("Recieved something else");
                 LED3_ON;
                 break;
+
         }
 
         /* control transmission rate via interpacket intervals */

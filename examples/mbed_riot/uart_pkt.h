@@ -47,7 +47,7 @@
 #ifndef UART_PKT_H_
 #define UART_PKT_H_
 
-#define UART_PKT_HDR_LEN            5
+#define UART_PKT_HDR_LEN            6
 #define UART_PKT_TYPE_FIELD         4
 #define UART_PKT_DATA_FIELD         5
 
@@ -55,6 +55,10 @@ typedef struct __attribute__((packed)) {
     uint16_t    src_port;      
     uint16_t    dst_port;      
     uint8_t     pkt_type;
+<<<<<<< a4390e61a40bac40f4998859c4eb224aae70ede4
+=======
+    uint8_t     msg_complete;                   
+>>>>>>> upgraded ranging data transfer to cluster data into packets according to max packet size and added msg_complete member in uart_hdr
 } uart_pkt_hdr_t;
 
 /**

@@ -94,6 +94,7 @@
 
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
 
+
 #undef BIT
 #define BIT(n) ( 1 << (n) )
 /* Bit field definitions for the UART Line Control Register: */
@@ -364,6 +365,7 @@ static void *_range_rx_thread(void *arg)
                 DEBUG("Recieved something else");
                 LED3_ON;
                 break;
+
         }
         
 
