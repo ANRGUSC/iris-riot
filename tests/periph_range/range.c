@@ -232,5 +232,9 @@ int range_tx(int argc, char **argv)
         range_tx_off(); //turn off just in case
         DEBUG("RF and ultrasound pings sent\n");  
     }
+<<<<<<< 61582a63084e4f226c43285358f7efd0cc71993b
+=======
+
+>>>>>>> fixed periph_range test to work with changes in last commit
     return 0;
 }
