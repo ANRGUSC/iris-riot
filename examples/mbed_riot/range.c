@@ -91,7 +91,7 @@ block:
             }
 
         }
-        printf("range: tdoa = %d\n", time_diffs[i].tdoa);
+        printf("range: TDoA = %d\n", time_diffs[i].tdoa);
         switch (range_mode){
             case ONE_SENSOR_MODE:
                 break;
@@ -100,12 +100,12 @@ block:
                 if(time_diffs[i].error!=0){
                     printf("range: Missed pin %d\n", time_diffs[i].error);
                 } else{
-                    printf("range: odelay = %d\n", time_diffs[i].odelay);
+                    printf("range: OD = %d\n", time_diffs[i].orient_diff);
                 }
                 break;
 
             case XOR_SENSOR_MODE:
-                printf("range: odelay = %d\n", time_diffs[i].odelay);
+                printf("range: OD = %d\n", time_diffs[i].orient_diff);
                 break;
         }
         if(i == num_samples-1){
