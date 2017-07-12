@@ -23,8 +23,8 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-#define MAXSAMPLES_ONE_PIN            100000
-#define MAXSAMPLES_TWO_PIN            30000
+#define MAXSAMPLES_ONE_PIN            18000
+#define MAXSAMPLES_TWO_PIN            18000
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3)
 #define RX_TWO_PIN                    GPIO_PIN(3, 2)
@@ -91,25 +91,29 @@ block:
             }
 
         }
-        printf("range: TDoA = %d\n", time_diffs[i].tdoa);
-        switch (range_mode){
-            case ONE_SENSOR_MODE:
-                break;
+        if(time_diffs[i]->tdoa > 0){
+            printf("range: TDoA = %d\n", time_diffs[i].tdoa);
+            switch (range_mode){
+                case ONE_SENSOR_MODE:
+                    break;
 
-            case TWO_SENSOR_MODE:
-                if(time_diffs[i].error!=0){
-                    printf("range: Missed pin %d\n", time_diffs[i].error);
-                } else{
+                case TWO_SENSOR_MODE:
+                    if(time_diffs[i].error!=0){
+                        printf("range: Missed pin %d\n", time_diffs[i].error);
+                    } else{
+                        printf("range: OD = %d\n", time_diffs[i].orient_diff);
+                    }
+                    break;
+
+                case XOR_SENSOR_MODE:
                     printf("range: OD = %d\n", time_diffs[i].orient_diff);
-                }
-                break;
-
-            case XOR_SENSOR_MODE:
-                printf("range: OD = %d\n", time_diffs[i].orient_diff);
-                break;
-        }
-        if(i == num_samples-1){
-            time_diffs[i].error += 10;
+                    break;
+            }
+            if(i == num_samples-1){
+                time_diffs[i].error += 10;
+            }
+        else{
+            printf("Ultrsnd ping missed\n");
         }
 
 
