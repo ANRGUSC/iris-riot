@@ -125,7 +125,7 @@ block:
 
                 case TWO_SENSOR_MODE:
                     if(time_diffs->error!=0){
-                        printf("range: Missed pin %d\n", time_diffs->error);
+                        printf("range: OD failed - missed pin %d\n", time_diffs->error);
                     } else{
                         printf("range: OD = %d\n", time_diffs->orient_diff);
                     }
