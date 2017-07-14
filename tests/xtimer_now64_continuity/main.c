@@ -24,14 +24,12 @@
 
 #include "xtimer.h"
 #include "fmt.h"
-#include "irq.h"
 
 #define ITERATIONS  (100000LU)
 #define MAXDIFF     (1000U)
 
 int main(void)
 {
-    //unsigned old_state = irq_disable();
     uint32_t n = ITERATIONS;
     uint64_t diff_min = UINT64_MAX;
     uint64_t diff_max = 0;
@@ -62,6 +60,5 @@ int main(void)
         return 1;
     }
     print_str("[SUCCESS]\n");
-    //irq_restore(old_state);
     return 0;
 }

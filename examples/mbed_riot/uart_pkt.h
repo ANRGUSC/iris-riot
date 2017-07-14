@@ -47,7 +47,7 @@
 #ifndef UART_PKT_H_
 #define UART_PKT_H_
 
-#define UART_PKT_HDR_LEN            6
+#define UART_PKT_HDR_LEN            5
 #define UART_PKT_TYPE_FIELD         4
 #define UART_PKT_DATA_FIELD         5
 
@@ -55,7 +55,6 @@ typedef struct __attribute__((packed)) {
     uint16_t    src_port;      
     uint16_t    dst_port;      
     uint8_t     pkt_type;
-    uint8_t     msg_complete;                   
 } uart_pkt_hdr_t;
 
 /**

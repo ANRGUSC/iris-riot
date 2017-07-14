@@ -342,7 +342,7 @@ do {                                                                            
 
 /** @brief LL prepend to list with alternative next ptr name 'next' */
 #define LL_PREPEND2(head,add,next)                                                             \
-do {                                                                             \
+do {                                                                                           \
   (add)->next = head;                                                                          \
   head = add;                                                                                  \
 } while (0)
@@ -491,7 +491,7 @@ do {                                                                            
 /** @brief LL scalar search with alternative next ptr name 'next' */
 #define LL_SEARCH_SCALAR2(head,out,field,val,next)                                             \
 do {                                                                                           \
-    LL_FOREACH2(head,out,next) {                                          \
+    LL_FOREACH2(head,out,next) {                                                               \
       if ((out)->field == (val)) break;                                                        \
     }                                                                                          \
 } while(0)

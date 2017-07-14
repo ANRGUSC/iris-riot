@@ -188,11 +188,9 @@ static void _sound_ranging(void)
         else if(range_sys_flag == XOR_SENSOR_MODE){
             sample1 = gpio_read(rx_line_array[2]);
             DEBUG("%d ",sample1);
-            if(gpio_read(sample1) != 0){
+            if(sample1 != 0){
                 last2 = xtimer_now_usec();
-                sample1 = gpio_read(rx_line_array[2]);
-                DEBUG("%d ",sample1);
-                while(sample1 != 0);
+                while(gpio_read(rx_line_array[2]) != 0);
                 time_diffs.orient_diff = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
                 range_rx_stop();
@@ -327,10 +325,10 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int flag)
+void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int mode)
 {
     //puts("started");
-    range_sys_flag = flag;
+    range_sys_flag = mode;
     ranging_on = 1;
     _tx_node_id = tx_node_id;
     ranging_pid = pid;

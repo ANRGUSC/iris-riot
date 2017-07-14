@@ -75,7 +75,7 @@ void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
 size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
     size_t data_len)
 {
-    if (data_len + UART_PKT_HDR_LEN > buf_len) {
+    if (data_len + 5 > buf_len) {
         DEBUG("Not enough space in destination buffer\n");
         return 0;
     }
@@ -86,7 +86,7 @@ size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data,
 
 int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
 {
-    if(src_len < UART_PKT_HDR_LEN) {
+    if(src_len < 5) {
         DEBUG("Invalid source buffer size.\n");
         return -1;
     }

@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
+ * Yutong Gu
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,10 +38,8 @@
  * @ingroup     examples
  * @{
  *
- * 
- * @file        localization_test.c
- *
- * @author      Yutong Gu <yutonggu@usc.edu>
+ * @file        
+ * @brief       Ultrasound ranging test using packets passed over hdlc
  * 
  * In this test, the mbed will repeated send packets to a dedicated thread for 
  * ranging on the openmote requesting range data. The packets sent will contain 
@@ -51,7 +49,7 @@
  * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
  * to the hardware limitations of the ultrasound sensors.
  * 
- *
+ * @author      Yutong Gu <yutonggu@usc.edu>
  *
  */
 
@@ -88,12 +86,12 @@
 #define RANGE_PORT          5678
 
 #define PKT_FROM_MAIN_THR   0
-#define RANGE_PKT_DONE      10 //TODO: get rid of this.
 
 #define RANGE_TIMEO_USEC    250000
 #define MAIN_QUEUE_SIZE     (8)
 #define TRANSMIT_DELAY      100000 //this is 100ms which is the minimum delay between pings
 
+#define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
 
 #undef BIT
 #define BIT(n) ( 1 << (n) )
@@ -111,6 +109,11 @@ static char range_stack[THREAD_STACKSIZE_MAIN];
 static const shell_command_t shell_commands[] = {
     { NULL, NULL, NULL }
 };
+
+typedef struct __attribute__((packed)) {
+    uint8_t         last_pkt;      
+    range_data_t    data[DATA_PER_PKT];                  
+} range_hdr_t;
 
 /**
  * Set channel of radio. Works only if one netif exists.
@@ -165,8 +168,7 @@ static void *_range_rx_thread(void *arg)
     range_entry.port = (int16_t)RANGE_PORT;
     range_entry.pid = thread_getpid();
     hdlc_register(&range_entry);
-    int data_per_pkt = (HDLC_MAX_PKT_SIZE-sizeof(uart_pkt_hdr_t))/sizeof(range_data_t);
-    int pkt_size = sizeof(range_data_t)*data_per_pkt + sizeof(uart_pkt_hdr_t);
+    int pkt_size = RANGE_DATA_LEN * DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
     int i = 0;
     int num_iter = 0;
     int remainder = 0;
@@ -178,6 +180,7 @@ static void *_range_rx_thread(void *arg)
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
     hdlc_pkt_t *hdlc_rcv_pkt, *hdlc_rcv_pkt2;
     uart_pkt_hdr_t uart_hdr;
+    range_hdr_t range_hdr;
     range_data_t* time_diffs;
 
 
@@ -185,12 +188,6 @@ static void *_range_rx_thread(void *arg)
 
     while(1)
     {
-        hdlc_snd_pkt.length = pkt_size;
-        uart_hdr.src_port = RANGE_PORT;
-        uart_hdr.dst_port = RANGE_PORT;
-        uart_hdr.pkt_type = SOUND_RANGE_DONE;
-        uart_hdr.msg_complete = 0;
-        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
 
         DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
         DEBUG("PORT is %lu\n",(uint32_t)RANGE_PORT);
@@ -232,50 +229,57 @@ static void *_range_rx_thread(void *arg)
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
-                            num_iter = params->num_samples / data_per_pkt;
-                            remainder = params->num_samples % data_per_pkt;
+
+                            num_iter = params->num_samples / DATA_PER_PKT;
+                            remainder = params->num_samples % DATA_PER_PKT;
                             DEBUG("num_samples = %d\n",params->num_samples);
                             DEBUG("num_iter = %d\n",num_iter);
                             DEBUG("remainder = %d\n",remainder);
+                            DEBUG("data_per_pkt = %d\n", DATA_PER_PKT);
+
+                            range_hdr.last_pkt = 0;
 
                             for(i = 0; i <= num_iter; i++){
                                 DEBUG("i= %d\n",i);
                                 
+                                uart_hdr.src_port = RANGE_PORT;
+                                uart_hdr.dst_port = RANGE_PORT;
+                                uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                                uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+
                                 UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
 
                                 if(i <= num_iter-1){
+
+                                    hdlc_snd_pkt.length = RANGE_DATA_LEN*DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
+
+                                    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, DATA_PER_PKT);
+                                    DEBUG("sampling %d\n",DATA_PER_PKT);
+
                                     if(i == num_iter-1 && remainder == 0){
                                         DEBUG("message complete\n");
-                                        uart_hdr.src_port = RANGE_PORT;
-                                        uart_hdr.dst_port = RANGE_PORT;
-                                        uart_hdr.pkt_type = SOUND_RANGE_DONE;
-                                        uart_hdr.msg_complete = 1;
-                                        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                                        range_hdr.last_pkt = 1;
                                         i++; 
                                     }
-                                    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, data_per_pkt);
-                                    DEBUG("sampling %d\n",data_per_pkt);
+                                    memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * DATA_PER_PKT);
+
+                                    uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*DATA_PER_PKT);
+                                    
                                 } else{
                                     if(remainder != 0){ 
-                                        uart_hdr.src_port = RANGE_PORT;
-                                        uart_hdr.dst_port = RANGE_PORT;
-                                        uart_hdr.pkt_type = SOUND_RANGE_DONE;
-                                        uart_hdr.msg_complete = 1;
-                                        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                                        hdlc_snd_pkt.length = RANGE_DATA_LEN * remainder + sizeof(uint8_t) + UART_PKT_HDR_LEN;
+
                                         time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
+
                                         DEBUG("sampling %d\n",remainder);
                                         DEBUG("message complete\n");
-                                    } else{
-                                        DEBUG("breaking from loop %d\n",remainder);
-                                        UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                                        UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                                        UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                                        UART1->cc2538_uart_dr.ECR = 0xFF;
-                                        UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                                        UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                                        UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-                                        break;
-                                    }
+                            
+                                        range_hdr.last_pkt = 1;
+                                        memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * remainder);
+
+                                        uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*remainder);
+                                        
+                                    } 
                                 }
 
                                 UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
@@ -294,7 +298,7 @@ static void *_range_rx_thread(void *arg)
                                     //sending the data back down the hdlc
 
                                 DEBUG("Sending data back down hdlc\n");
-                                uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t)*data_per_pkt);
+                                
                                 
 
                                 msg_snd.type = HDLC_MSG_SND;
