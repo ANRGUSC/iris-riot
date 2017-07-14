@@ -38,29 +38,21 @@
  * @ingroup     examples
  * @{
  *
- * @file
- * @brief       Full-duplex hdlc test using a single thread (run on both sides).
+ * 
+ * @file        localization_test.c
  *
- * In this test, the main thread and thread2 thread will contend for the same
- * UART line to communicate to another MCU also running a main and thread2 
- * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
- * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
+ * @author      Yutong Gu <yutonggu@usc.edu>
+ * 
+ * In this test, the mbed will repeated send packets to a dedicated thread for 
+ * ranging on the openmote requesting range data. The packets sent will contain 
+ * information on the mode to range with. Available options are ONE_SENSOR_MODE, 
+ * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The loop will alternate through all 
+ * three options, taking a specified sample number, SAMPS_PER_MODE, at a delay 
+ * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
+ * to the hardware limitations of the ultrasound sensors.
+ * 
  *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 200000
- * -RETRANSMIT_TIMEO_USEC 50000
  *
- * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
  */
 
 #include <stdio.h>
@@ -85,6 +77,8 @@
 #include "shell.h"
 
 #define ENABLE_DEBUG (0)
+#define TX_MODE      (0) //TOGGLE THIS TO SET UP OPENMOTE AS RECEIVER OR TRANSMITTER
+
 #include "debug.h"
 
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
@@ -98,6 +92,7 @@
 
 #define RANGE_TIMEO_USEC    250000
 #define MAIN_QUEUE_SIZE     (8)
+#define TRANSMIT_DELAY      100000 //this is 100ms which is the minimum delay between pings
 
 
 #undef BIT
@@ -151,7 +146,15 @@ static uint16_t _get_channel(void)
     return -1; /* fail */
 }
 
-static void *_range_thread(void *arg)
+static void *_range_tx_thread(void *arg){
+    while(1){
+        range_tx();
+        xtimer_usleep(TRANSMIT_DELAY);
+    }
+    return 0;
+}
+
+static void *_range_rx_thread(void *arg)
 {   
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
     uint16_t old_channel;
@@ -384,9 +387,16 @@ int main(void)
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(1));
 
-    /* comment the lines below to test a single thread */
-    thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
-                  THREAD_CREATE_STACKTEST, _range_thread, hdlc_pid, "range thread");
+    if(TX_MODE){
+        printf("Starting transmitter thread\n");
+        thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
+                  THREAD_CREATE_STACKTEST, _range_tx_thread, hdlc_pid, "range_tx thread");
+    } else {
+        printf("Starting reciever thread\n");
+        thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
+                  THREAD_CREATE_STACKTEST, _range_rx_thread, hdlc_pid, "range_rx thread");
+    }
+
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 

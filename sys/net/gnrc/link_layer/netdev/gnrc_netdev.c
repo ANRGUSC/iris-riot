@@ -146,7 +146,9 @@ static void _sound_ranging(void)
             printf("failed on iteration: %d\n",cnt);
         }
         if(range_sys_flag == ONE_SENSOR_MODE){
-            if(gpio_read(rx_line_array[0]) != 0){
+            sample1 = gpio_read(rx_line_array[0]);
+            DEBUG("%d ",sample1);
+            if(sample1 != 0){
                 last2 = xtimer_now_usec();
 
                 time_diffs.tdoa = last2 - last;
@@ -184,9 +186,13 @@ static void _sound_ranging(void)
             } 
         }
         else if(range_sys_flag == XOR_SENSOR_MODE){
-            if(gpio_read(rx_line_array[2]) != 0){
+            sample1 = gpio_read(rx_line_array[2]);
+            DEBUG("%d ",sample1);
+            if(gpio_read(sample1) != 0){
                 last2 = xtimer_now_usec();
-                while(gpio_read(rx_line_array[2]) != 0);
+                sample1 = gpio_read(rx_line_array[2]);
+                DEBUG("%d ",sample1);
+                while(sample1 != 0);
                 time_diffs.orient_diff = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
                 range_rx_stop();

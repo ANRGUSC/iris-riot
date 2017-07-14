@@ -92,6 +92,8 @@ def script(port):
             except:
                 print("Input must be a valid integer")
             
+        if(quit):
+            break;
 
         while(samp <= 0):
             samp_input = raw_input("\nNumber of samples: ")
@@ -164,10 +166,10 @@ def script(port):
                     b = a + int(val)
                     a = tdoa_to_dist(a)
                     b = tdoa_to_dist(b)
-                    print("\n****************************\n")
+                    print("\n****************************")
                     print("Dist = "+ str(calc_x(a,b)))
                     print("Angle = "+ str(od_to_angle(a,b)))
-                    print("****************************\n\n")
+                    print("****************************\n")
                     break
 
                 if b'All up' in line:
