@@ -26,10 +26,10 @@
 #define MAXSAMPLES_ONE_PIN            18000
 #define MAXSAMPLES_TWO_PIN            18000
 
-#define RX_ONE_PIN                    GPIO_PIN(3, 3)
-#define RX_TWO_PIN                    GPIO_PIN(3, 2)
-#define RX_XOR_PIN                    GPIO_PIN(3, 1)
-#define TX_PIN                        GPIO_PIN(3, 0)
+#define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
+#define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
+#define RX_XOR_PIN                    GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
+#define TX_PIN                        GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3
 
 
 
@@ -91,7 +91,7 @@ block:
             }
 
         }
-        if(time_diffs[i]->tdoa > 0){
+        if(time_diffs[i].tdoa > 0){
             printf("range: TDoA = %d\n", time_diffs[i].tdoa);
             switch (range_mode){
                 case ONE_SENSOR_MODE:
@@ -112,6 +112,7 @@ block:
             if(i == num_samples-1){
                 time_diffs[i].error += 10;
             }
+        }
         else{
             printf("Ultrsnd ping missed\n");
         }
