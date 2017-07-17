@@ -155,11 +155,11 @@ block:
 /*----------------------------------------------------------------------------*/
 int range_tx( void )
 {
-
     /* for sending L2 pkt */
     kernel_pid_t dev;
     uint8_t hw_addr[MAX_ADDR_LEN];
     size_t hw_addr_len;
+
     gnrc_pktsnip_t *pkt, *hdr;
     gnrc_netif_hdr_t *nethdr;
     uint8_t flags = 0x00;    
@@ -169,12 +169,14 @@ int range_tx( void )
 
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     size_t numof = gnrc_netif_get(ifs); 
-
     /* there should be only one network interface on the board */
     if (numof == 1) {
         gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
     }
+    // ------------------------------------------------------------------------
 
+    // Ultrasonic sensor setup
+    // ------------------------------------------------------------------------
     /* enable output on Port D pin 3 */
     if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
         DEBUG("Error initializing GPIO_PIN.\n");
@@ -224,4 +226,84 @@ int range_tx( void )
     DEBUG("RF and ultrasound pings sent\n");  
 
     return 0;
+}
+/*----------------------------------------------------------------------------*/
+static range_data_t* time_diffs;
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
+    // Check correct argument usage.
+    uint8_t mode = range_mode;
+    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
+                       //
+    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+    
+    if(mode == TWO_SENSOR_MODE){
+        maxsamps = MAXSAMPLES_TWO_PIN;
+    } else {
+        maxsamps = MAXSAMPLES_ONE_PIN;
+    }
+
+    time_diffs = malloc(sizeof(range_data_t)*num_samples);
+    
+    uint32_t timeout = timeout_usec;
+    if(timeout <= 0){
+        DEBUG("timeout must be greater than 0");
+        return NULL;
+    }
+
+    msg_t msg; 
+    msg_t msg_queue[QUEUE_SIZE];
+
+    /* setup the message queue */
+    msg_init_queue(msg_queue, QUEUE_SIZE);
+
+   
+    int i;
+    for(i = 0; i < num_samples; i++){
+
+
+        range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
+
+block:
+        if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+            DEBUG("RF ping missed\n");
+            return NULL;
+        }
+
+        if(msg.type == RF_RCVD){
+            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+                DEBUG("Ultrsnd ping missed\n");
+                return NULL;
+            }
+            if(msg.type == ULTRSND_RCVD){
+                time_diffs[i] = *(range_data_t*) msg.content.ptr;
+            } else{
+                goto block;
+            }
+
+        }
+        printf("range: tdoa = %d\n", time_diffs[i].tdoa);
+        switch (range_mode){
+            case ONE_SENSOR_MODE:
+                break;
+
+            case TWO_SENSOR_MODE:
+                if(time_diffs[i].error!=0){
+                    printf("range: Missed pin %d\n", time_diffs[i].error);
+                } else{
+                    printf("range: odelay = %d\n", time_diffs[i].odelay);
+                }
+                break;
+
+            case XOR_SENSOR_MODE:
+                printf("range: odelay = %d\n", time_diffs[i].odelay);
+                break;
+        }
+        if(i == num_samples-1){
+            time_diffs[i].error += 10;
+        }
+
+
+    }
+
+    return time_diffs;
 }
