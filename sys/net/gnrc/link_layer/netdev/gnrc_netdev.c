@@ -133,7 +133,7 @@ static void _sound_ranging(void)
     ranging = 1;
     last = xtimer_now_usec();
     time_diffs.tdoa = 0;
-    time_diffs.odelay = 0;
+    time_diffs.orient_diff = 0;
     time_diffs.error = 0;
     unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.xor_pin};
 
@@ -173,7 +173,7 @@ static void _sound_ranging(void)
                     sample2 = gpio_read(rx_line_array[second]);
                 } while((sample1 != 0) && (sample2 == 0));
                 
-                time_diffs.odelay = xtimer_now_usec() - last2;
+                time_diffs.orient_diff = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
                 
                 if(sample1 == 0){
@@ -187,7 +187,7 @@ static void _sound_ranging(void)
             if(gpio_read(rx_line_array[2]) != 0){
                 last2 = xtimer_now_usec();
                 while(gpio_read(rx_line_array[2]) != 0);
-                time_diffs.odelay = xtimer_now_usec() - last2;
+                time_diffs.orient_diff = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
                 range_rx_stop();
                 break;
@@ -335,7 +335,7 @@ void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int 
     max_samps = max_gpio_samps;
     ref = 2;
     time_diffs.tdoa = 0;
-    time_diffs.odelay = 0;
+    time_diffs.orient_diff = 0;
     time_diffs.error = 0;
 
     DEBUG("ranging initialized!\n");

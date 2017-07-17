@@ -23,21 +23,36 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
+#define MAXSAMPLES_ONE_PIN            100000
+#define MAXSAMPLES_TWO_PIN            30000
+
+#define RX_ONE_PIN                    GPIO_PIN(3, 3)
+#define RX_TWO_PIN                    GPIO_PIN(3, 2)
+#define RX_XOR_PIN                    GPIO_PIN(3, 1)
+#define TX_PIN                        GPIO_PIN(3, 0)
+
+
+
+//static unsigned int gpio_lines[]={GPIO_PIN(3, 3), GPIO_PIN(3, 2), GPIO_PIN(3, 1)};
 static range_data_t* time_diffs;
 
 /*----------------------------------------------------------------------------*/
-int range_rx(int argc, char **argv){
+int range_rx(int argc, char **argv)
+{
     // Check correct argument usage.
     if(argc != 4){
         printf("usage: %s <num_samples> <delay_usecs> <ranging_mode>\n", argv[0]);
         return 1;
     }
     
+    gpio_rx_line_t line = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+
     uint32_t maxsamps = 0;
     uint32_t timeout = 500000;
     uint32_t num_samps = atoi(argv[1]);
     uint32_t delay = atoi(argv[2]);
     uint8_t flag = atoi(argv[3]);
+    
 
     if(delay < 0){
         printf("Error: delay_usecs must be greater than or equal to 0");
@@ -67,12 +82,6 @@ int range_rx(int argc, char **argv){
             return 1;
     }
 
-    // Message setup.
-    server.next = NULL;
-    server.demux_ctx = (uint32_t) SERVER_PORT; 
-    server.target.pid = thread_getpid();
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
-
     msg_t msg; 
     msg_t msg_queue[QUEUE_SIZE];
 
@@ -83,22 +92,22 @@ int range_rx(int argc, char **argv){
    for(i = 0; i < num_samps; i++){
         printf("Trial %d of %lu:\n", i, num_samps);
         if(flag == TWO_SENSOR_MODE){
-            maxsamps = 30000;
+            maxsamps = 18000;
         } else {
-            maxsamps = 100000;
+            maxsamps = 18000;
         }
 
-        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, flag);
+        range_rx_init(TX_NODE_ID, thread_getpid(), line, maxsamps, flag);
 
 block:
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            printf("RF Ping missed\n");
+            printf("RF ping missed\n");
             continue;
         }
 
         if(msg.type == 143){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-                printf("Ultrsnd Ping missed #1\n");
+                printf("Ultrsnd ping missed\n");
                 continue;
             }
             if(msg.type == 144){
@@ -108,24 +117,26 @@ block:
             }
 
         }
-        _unregister_thread();
+        if(time_diffs->tdoa > 0){
+            printf("range: TDoA = %d\n", time_diffs->tdoa);
+            switch (flag){
+                case ONE_SENSOR_MODE:
+                    break;
 
-        printf("range: TDoA = %d\n", time_diffs->TDoA);
-        switch (flag){
-            case ONE_SENSOR_MODE:
-                break;
+                case TWO_SENSOR_MODE:
+                    if(time_diffs->error!=0){
+                        printf("range: OD failed - missed pin %d\n", time_diffs->error);
+                    } else{
+                        printf("range: OD = %d\n", time_diffs->orient_diff);
+                    }
+                    break;
 
-            case TWO_SENSOR_MODE:
-                if(time_diffs->error!=0){
-                    printf("range: Missed pin %d\n", time_diffs->error);
-                } else{
-                    printf("range: OD = %d\n", time_diffs->OD);
-                }
-                break;
-
-            case XOR_SENSOR_MODE:
-                printf("range: OD = %d\n", time_diffs->OD);
-                break;
+                case XOR_SENSOR_MODE:
+                    printf("range: OD = %d\n", time_diffs->orient_diff);
+                    break;
+            }
+        } else{
+            printf("Ultrsnd ping missed\n");
         }
         xtimer_usleep(delay);
     }
@@ -180,12 +191,6 @@ int range_tx(int argc, char **argv)
     char buf[3] = {0x00, 0x00, 0x00};
 
     int16_t tx_power = TX_POWER;
-
-    /* register this thread to the chosen UDP port */
-    server.next = NULL;
-    server.demux_ctx = (uint32_t) SERVER_PORT; 
-    server.target.pid = thread_getpid();
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
 
     msg_t msg_queue[QUEUE_SIZE];
 
@@ -357,6 +362,5 @@ int range_tx(int argc, char **argv)
         puts("RF and ultrasound pings sent");  
     }
 
-    _unregister_thread();
     return 0;
 }

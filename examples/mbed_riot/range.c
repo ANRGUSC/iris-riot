@@ -23,16 +23,13 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-#include <time.h>
-#include <stdlib.h>
+#define MAXSAMPLES_ONE_PIN            18000
+#define MAXSAMPLES_TWO_PIN            18000
 
-#define MAXSAMPLES_ONE_PIN            100000
-#define MAXSAMPLES_TWO_PIN            30000
-
-#define RX_ONE_PIN                    GPIO_PIN(3, 3)
-#define RX_TWO_PIN                    GPIO_PIN(3, 2)
-#define RX_XOR_PIN                    GPIO_PIN(3, 1)
-#define TX_PIN                        GPIO_PIN(3, 0)
+#define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
+#define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
+#define RX_XOR_PIN                    GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
+#define TX_PIN                        GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3
 
 // TODO: Comb code for memory leaks, figure out why openmote is freezing. Change for to while.
 #define MAX_TX_RUNS                   2000 // Tested number of runs before the openmote freezes.
@@ -40,6 +37,94 @@
 #define NUM_OF_NODES                  3    // Number of nodes
 #define LEADER_HW_ADDR                1    // TODO: Replace with the correct MAC address of the leader.
 //static unsigned int gpio_lines[]={GPIO_PIN(3, 3), GPIO_PIN(3, 2), GPIO_PIN(3, 1)};
+
+
+static range_data_t* time_diffs;
+
+
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
+    // Check correct argument usage.
+    uint8_t mode = range_mode;
+    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
+                       //
+    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+    
+    if(mode == TWO_SENSOR_MODE){
+        maxsamps = MAXSAMPLES_TWO_PIN;
+    } else {
+        maxsamps = MAXSAMPLES_ONE_PIN;
+    }
+
+    time_diffs = malloc(sizeof(range_data_t)*num_samples);
+    
+    uint32_t timeout = timeout_usec;
+    if(timeout <= 0){
+        DEBUG("timeout must be greater than 0");
+        return NULL;
+    }
+
+    msg_t msg; 
+    msg_t msg_queue[QUEUE_SIZE];
+
+    /* setup the message queue */
+    msg_init_queue(msg_queue, QUEUE_SIZE);
+
+   
+    int i;
+    for(i = 0; i < num_samples; i++){
+
+
+        range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
+
+block:
+        if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+            DEBUG("RF ping missed\n");
+            return NULL;
+        }
+
+        if(msg.type == RF_RCVD){
+            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+                DEBUG("Ultrsnd ping missed\n");
+                return NULL;
+            }
+            if(msg.type == ULTRSND_RCVD){
+                time_diffs[i] = *(range_data_t*) msg.content.ptr;
+            } else{
+                goto block;
+            }
+
+        }
+        if(time_diffs[i].tdoa > 0){
+            printf("range: TDoA = %d\n", time_diffs[i].tdoa);
+            switch (range_mode){
+                case ONE_SENSOR_MODE:
+                    break;
+
+                case TWO_SENSOR_MODE:
+                    if(time_diffs[i].error!=0){
+                        printf("range: Missed pin %d\n", time_diffs[i].error);
+                    } else{
+                        printf("range: OD = %d\n", time_diffs[i].orient_diff);
+                    }
+                    break;
+
+                case XOR_SENSOR_MODE:
+                    printf("range: OD = %d\n", time_diffs[i].orient_diff);
+                    break;
+            }
+            if(i == num_samples-1){
+                time_diffs[i].error += 10;
+            }
+        }
+        else{
+            printf("Ultrsnd ping missed\n");
+        }
+
+
+    }
+
+    return time_diffs;
+}
 
 /*----------------------------------------------------------------------------*/
 int range_tx(uint32_t delay_usec)
