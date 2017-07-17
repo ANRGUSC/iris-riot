@@ -23,6 +23,9 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
+#include <time.h>
+#include <stdlib.h>
+
 #define MAXSAMPLES_ONE_PIN            100000
 #define MAXSAMPLES_TWO_PIN            30000
 
@@ -31,14 +34,282 @@
 #define RX_XOR_PIN                    GPIO_PIN(3, 1)
 #define TX_PIN                        GPIO_PIN(3, 0)
 
-
-
+// TODO: Comb code for memory leaks, figure out why openmote is freezing. Change for to while.
+#define MAX_TX_RUNS                   2000 // Tested number of runs before the openmote freezes.
+#define TIME_WINDOW                   1000 // Time window of one run, should be uint32_t.
+#define NUM_OF_NODES                  3    // Number of nodes
+#define LEADER_HW_ADDR                1    // TODO: Replace with the correct MAC address of the leader.
 //static unsigned int gpio_lines[]={GPIO_PIN(3, 3), GPIO_PIN(3, 2), GPIO_PIN(3, 1)};
 
+/*----------------------------------------------------------------------------*/
+int range_tx(uint32_t delay_usec)
+{
+    // TODO: Check correct argument usage.
 
+    // Broadcasting setup
+    // ------------------------------------------------------------------------
+    /* for sending L2 pkt */
+    kernel_pid_t dev;
+    uint8_t hw_addr[MAX_ADDR_LEN];
+    size_t hw_addr_len;
+
+    gnrc_pktsnip_t *pkt, *hdr;
+    gnrc_netif_hdr_t *nethdr;
+    uint8_t flags = 0x00;    
+    char buf[3] = {0x00, 0x00, 0x00};
+
+    int16_t tx_power = TX_POWER;
+
+    /* setup the message queue */
+    msg_t msg; 
+    msg_t msg_queue[QUEUE_SIZE];
+    msg_init_queue(msg_queue, QUEUE_SIZE);
+
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    size_t numof = gnrc_netif_get(ifs); 
+    /* there should be only one network interface on the board */
+    if (numof == 1) {
+        gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
+    }
+    // ------------------------------------------------------------------------
+
+    // Ultrasonic sensor setup
+    // ------------------------------------------------------------------------
+    /* enable output on Port D pin 3 */
+    if(gpio_init(GPIO_PD2, GPIO_OUT) < 0) {
+        DEBUG("Error initializing GPIO_PIN.");
+        return 1;
+    }
+    // clearing output for the ultrasonic sensor
+    DEBUG("Clearing GPIO_PD2");
+    gpio_clear(GPIO_PD2);
+    // ------------------------------------------------------------------------
+
+    // Miscellaneous setup
+    // ------------------------------------------------------------------------
+    bool no_signal;
+    xtimer_ticks32_t rstx_start_time;
+    uint8_t *hw_addr_nodes[NUM_OF_NODES]; // array of hw_addr of the nodes
+    // NETOPT_ADDRESS // this device's hw_addr 
+    int place_on_list = 0;
+
+    srand(time(NULL));   // should only be called once
+    int r = rand() % NUM_OF_NODES;// returns a pseudo-random integer between 0 and NUM_OF_NODES-1
+                         
+    // ------------------------------------------------------------------------
+
+    // check for leader
+    if(LEADER_HW_ADDR == NETOPT_ADDRESS)
+    {
+        int current_list_size = 1;
+        xtimer_ticks32_t cutoff_timer = 0
+        xtimer_ticks32_t current_time = xtimer_now();
+        // prepare sync packet
+        // wait for a little bit for everyone to settle down
+        // send SYNC
+        // prepare time (time = NUM_OF_NODES)        
+        while(current_list_size < NUM_OF_NODES && cutoff_timer < (NUM_OF_NODES * TIME_WINDOW))
+        {
+            // set timer for 1 time window
+            msg_receive(&msg);
+            if (msg.type == INFO) // ensure that they send an INFO signal or something
+            {
+                // unpack and get the hw_addr
+                // add to the list: hw_addr_nodes
+                current_list_size++; // increment current_list_size
+                cutoff_timer = 0; // reset the timer
+            }
+            // TODO: figure out how to get it to stop if nothing received.
+            if(msg.type == NULL) // no message received or something
+            {
+                cutoff_timer = xtimer_now() - current_time;
+            }
+        }// done with getting the list
+         // now need to send out the list
+        for(int x = 0; x < current_list_size; x++)
+        {
+            // prepare and send packets with x and *(x + hw_addr_nodes) and ASSIGN flags.
+        }
+        while(true)
+        {
+            // send GO signal with timestamp
+            // wait current_list_size * TIME_WINDOW + 1
+        }
+    }
+
+    // syncing:
+    // xtimer_ticks32_t current_time, current_lead_time, sync_offset;
+
+    // current_time = xtimer_now();
+    // if(xtimer_less(current_time, current_lead_time))
+    // {
+    //     sync_offset = xtimer_diff(current_lead_time, current_time);
+    // }
+    // else
+    // {
+    //     sync_offset = xtimer_diff(current_time, current_lead_time);
+    // }
+    
+    while(true)
+    {
+        msg_receive(&msg);
+        switch (msg.type)
+        {
+            case FOLLOW_SYNC:
+            // - All nodes sync to timestamp.
+            // syncing...
+            // - All nodes randomly send hw_addr.
+                // - If successful, node will listen for ASSIGN signal.
+                // - If failed (collision), node will wait (# of nodes) * time_window
+                xtimer_usleep(r * TIME_WINDOW);
+
+                // TODO: Double check this.
+                // Broadcasting flag setup.
+                //flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+                
+                /** Send L2 Packet **/
+                /* network interface */
+                dev = ifs[0];
+                hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
+                
+                /* put packet together */
+                // add in hw_addr, appropriate flags
+                // collision checking
+                buf[0] = RANGE_FLAG_BYTE0;
+                buf[1] = RANGE_FLAG_BYTE1;
+                buf[2] = TX_NODE_ID;
+                pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
+                if (pkt == NULL) {
+                    DEBUG("error: packet buffer full");
+                    return 1;
+                }
+               
+                hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+                if (hdr == NULL) {
+                    DEBUG("error: packet buffer full");
+                    gnrc_pktbuf_release(pkt);
+                    return 1;
+                }
+                LL_PREPEND(pkt, hdr);
+                nethdr = (gnrc_netif_hdr_t *)hdr->data;
+                nethdr->flags = flags;
+                /* ready to send */
+
+                // make sure no packets are to be sent!!
+                if (gnrc_netapi_send(dev, pkt) < 1) {
+                    DEBUG("error: unable to send");
+                    gnrc_pktbuf_release(pkt);
+                    return 1;
+                }   
+                break;
+            case FOLLOW_ASSIGN:
+            // - Nodes remember place_on_list variable.
+            // place_on_list = pkt_unpack();
+                break;
+            case FOLLOW_GO:
+                // resync timer
+                // syncing...
+                // TODO: Modify to not block the interrupts
+                xtimer_usleep(place_on_list * TIME_WINDOW);
+
+                // broadcast
+                range_tx_init(GPIO_PD2);
+
+                // Broadcasting flag setup.
+                flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+                
+                /** Send L2 Packet **/
+                /* network interface */
+                dev = ifs[0];
+                hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
+                
+                /* put packet together */
+                buf[0] = RANGE_FLAG_BYTE0;
+                buf[1] = RANGE_FLAG_BYTE1;
+                buf[2] = TX_NODE_ID;
+                pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
+                if (pkt == NULL) {
+                    DEBUG("error: packet buffer full");
+                    return 1;
+                }
+               
+                hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+                if (hdr == NULL) {
+                    DEBUG("error: packet buffer full");
+                    gnrc_pktbuf_release(pkt);
+                    return 1;
+                }
+                LL_PREPEND(pkt, hdr);
+                nethdr = (gnrc_netif_hdr_t *)hdr->data;
+                nethdr->flags = flags;
+                /* ready to send */
+
+                // make sure no packets are to be sent!!
+                if (gnrc_netapi_send(dev, pkt) < 1) {
+                    DEBUG("error: unable to send");
+                    gnrc_pktbuf_release(pkt);
+                    return 1;
+                }   
+                range_tx_off(); //turn off just in case
+                DEBUG("RF and ultrasound pings sent");  
+                // should go back to waiting for a signal.
+                break;
+            default:
+                DEBUG("Packet does not match SYNC, ASSIGN, or GO.\n");
+                break;
+    }
+
+    // main loop
+    // while(true){
+    for(int x = 0; x < MAX_TX_RUNS; x++){
+
+        xtimer_usleep(delay_usec);
+
+        range_tx_init(GPIO_PD2);
+
+        // Broadcasting flag setup.
+        flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+        
+        /** Send L2 Packet **/
+        /* network interface */
+        dev = ifs[0];
+        hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
+        
+        /* put packet together */
+        buf[0] = RANGE_FLAG_BYTE0;
+        buf[1] = RANGE_FLAG_BYTE1;
+        buf[2] = TX_NODE_ID;
+        pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
+        if (pkt == NULL) {
+            DEBUG("error: packet buffer full");
+            return 1;
+        }
+       
+        hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+        if (hdr == NULL) {
+            DEBUG("error: packet buffer full");
+            gnrc_pktbuf_release(pkt);
+            return 1;
+        }
+        LL_PREPEND(pkt, hdr);
+        nethdr = (gnrc_netif_hdr_t *)hdr->data;
+        nethdr->flags = flags;
+        /* ready to send */
+
+        // make sure no packets are to be sent!!
+        if (gnrc_netapi_send(dev, pkt) < 1) {
+            DEBUG("error: unable to send");
+            gnrc_pktbuf_release(pkt);
+            return 1;
+        }   
+        range_tx_off(); //turn off just in case
+        DEBUG("RF and ultrasound pings sent");  
+    }
+
+    return 0;
+}
+/*----------------------------------------------------------------------------*/
 static range_data_t* time_diffs;
-
-
 range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
     // Check correct argument usage.
     uint8_t mode = range_mode;
@@ -116,211 +387,4 @@ block:
     }
 
     return time_diffs;
-}
-
-/*----------------------------------------------------------------------------*/
-int range_tx(uint32_t delay_usec)
-{
-/*
-    Overall structure:
-    // main loop
-    while(true){
-        // setup variables before each run
-        boolean no_signal = true
-        time = 0
-        // listen for any fellow broadcasting signals
-        while (no_signal && not_time_yet (time < delay_time))
-            check for signal
-                if signal, no_signal = false
-            time++
-            if no_signal == false //signal received
-                check if valid signal - if valid, 
-                    calculate time to broadcast off of id of that signal
-                    wait time
-                    time = delay_time (effectively a break)
-                else ignore invalid signals
-                    error msg
-                    no_signal = true
-        if none detected within TIME_DELAY??? (time >= delay time)
-            broadcast signal id + ping for however long
-    }
-*/
-    // Check correct argument usage.
-
-    // Broadcasting setup
-
-    /* for sending L2 pkt */
-    kernel_pid_t dev;
-    uint8_t hw_addr[MAX_ADDR_LEN];
-    size_t hw_addr_len;
-    gnrc_pktsnip_t *pkt, *hdr;
-    gnrc_netif_hdr_t *nethdr;
-    uint8_t flags = 0x00;    
-    char buf[3] = {0x00, 0x00, 0x00};
-
-    int16_t tx_power = TX_POWER;
-
-    msg_t msg_queue[QUEUE_SIZE];
-
-    /* setup the message queue */
-    msg_init_queue(msg_queue, QUEUE_SIZE);
-
-    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    size_t numof = gnrc_netif_get(ifs); 
-
-    /* there should be only one network interface on the board */
-    if (numof == 1) {
-        gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
-    }
-
-    /* enable output on Port D pin 3 */
-    if(gpio_init(GPIO_PD2, GPIO_OUT) < 0) {
-        DEBUG("Error initializing GPIO_PIN.");
-        return 1;
-    }
-    // clearing output for the ultrasonic sensor
-    DEBUG("Clearing GPIO_PD2");
-    gpio_clear(GPIO_PD2);
-
-    // Richard's code, mod the ipv6 into mac address checking, add to main loop.
-    /*while(true){
-        no_signal = true;
-        rstx_start_time = xtimer_now();
-        current_time = 0;
-        
-        while(no_signal && current_time < delay_usec){
-            current_time = xtimer_now() - rstx_start_time;
-            msg_receive(&msg);
-            
-                do processing to check ipv6 address, i.e., where it should
-                belong on the chart/node list, etc.
-
-                if(is_valid_addr(ipv6)){
-                    no_signal = false;
-
-                    uint32_t waiting_time = processing(ipv6_addr);
-                    xtimer_sleep(waiting_time);
-                }
-                else{
-                    DEBUG("Invalid ipv6 address.");
-                    no_signal = true;
-                }
-            
-            // how to check signal???
-            // use mac address instead of ipv6
-            
-            if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
-                pakt = msg.content.ptr;
-
-                snip = gnrc_pktsnip_search_type(pakt, GNRC_NETTYPE_IPV6);
-
-                tx_node_ip_addr = ((ipv6_hdr_t *)snip->data)->src;
-                char ipv6_addr[IPV6_ADDR_MAX_STR_LEN];
-                ipv6_addr_to_str(ipv6_addr, &tx_node_ip_addr, sizeof(ipv6_addr));
-                for(int x = 0; x < IPV6_ADDRESS_TABLE_LENGTH; x++)
-                {
-                    if(strcmp(*IPV6_ADDRESS_TABLE[x], ipv6_addr) == 0)
-                    {
-                        no_signal = false;
-                        
-                        uint32_t waiting_time = processing(ipv6_addr);
-                        xtimer_sleep(waiting_time);
-                    }
-                }
-                gnrc_pktbuf_release(pakt);
-                break;
-            }
-        }
-        if(current_time > delay_usec){
-            //broadcasting
-            //how to broadcast???
-            flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
-            */
-            /** Send L2 Packet **/
-            /* network interface */
-            /*dev = ifs[0];
-            hw_addr = 0;
-            hw_addr_len = 0;
-
-            hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-            if (hdr == NULL) {
-                DEBUG("error: packet buffer full");
-                gnrc_pktbuf_release(pkt);
-                return 1;
-            }
-            LL_PREPEND(pkt, hdr);
-            nethdr = (gnrc_netif_hdr_t *)hdr->data;
-            nethdr->flags = flags;
-            */
-            /* ready to send */
-
-            //make sure no packets are to be sent!!
-            /*if (gnrc_netapi_send(dev, pkt) < 1) {
-                DEBUG("error: unable to send");
-                gnrc_pktbuf_release(pkt);
-                */
-    // Run counter.
-    // int i = 0;
-    // main loop
-    // while(true){
-    for(int x = 0; x < 2000; x ++){
-        //printf("%d: ", x);
-
-        // Counting runs.
-        // printf("%d: ", i);
-        // i++;
-
-        xtimer_usleep(delay_usec);
-
-        range_tx_init(GPIO_PD2);
-        // Broadcasting flag setup.
-        flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
-        
-        /** Send L2 Packet **/
-        /* network interface */
-        dev = ifs[0];
-        hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
-        
-            // Pinging (ignore.)
-            //DEBUG("Pinging...");
-            /* set pin to 1 for around 50uS */
-            // gpio_set(GPIO_PD2);
-            /* ultrasound ping should execute 20.5msec after gpio pin goes up */
-            // xtimer_spin(100); //or however long it should be up
-            // DEBUG("Clearing GPIO_PD2");
-            // gpio_clear(GPIO_PD2);
-            // DEBUG("RF and ultrasound pings sent");
-        /* put packet together */
-        buf[0] = RANGE_FLAG_BYTE0;
-        buf[1] = RANGE_FLAG_BYTE1;
-        buf[2] = TX_NODE_ID;
-        pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
-        if (pkt == NULL) {
-            DEBUG("error: packet buffer full");
-            return 1;
-        }
-       
-        hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-        if (hdr == NULL) {
-            DEBUG("error: packet buffer full");
-            gnrc_pktbuf_release(pkt);
-            return 1;
-        }
-        LL_PREPEND(pkt, hdr);
-        nethdr = (gnrc_netif_hdr_t *)hdr->data;
-        nethdr->flags = flags;
-        /* ready to send */
-
-        //make sure no packets are to be sent!!
-        if (gnrc_netapi_send(dev, pkt) < 1) {
-            DEBUG("error: unable to send");
-            gnrc_pktbuf_release(pkt);
-            return 1;
-        }   
-        //gnrc_pktbuf_release(pkt);
-        range_tx_off(); //turn off just in case
-        DEBUG("RF and ultrasound pings sent");  
-    }
-
-    return 0;
 }
