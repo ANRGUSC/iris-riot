@@ -151,7 +151,11 @@ block:
 
     return time_diffs;
 }
-
+/*----------------------------------------------------------------------------*/
+xtimer_ticks32_t sync_time(xtimer_ticks32_t leader_time)
+{
+    return leader_time - xtimer_now();
+}
 /*----------------------------------------------------------------------------*/
 int range_tx( void )
 {
@@ -163,7 +167,8 @@ int range_tx( void )
     gnrc_pktsnip_t *pkt, *hdr;
     gnrc_netif_hdr_t *nethdr;
     uint8_t flags = 0x00;    
-    char buf[3] = {0x00, 0x00, 0x00};
+    char buf[BUFFER_SIZE_OF_PACKET] = {0x00, 0x00, 0x00};
+    char buf2[BUFFER_SIZE_OF_PACKET] = {0x00, 0x00, 0x00, 0x00, 0x00};
 
     int16_t tx_power = TX_POWER;
 

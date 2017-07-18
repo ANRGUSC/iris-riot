@@ -155,7 +155,7 @@ static void *_range_tx_thread(void *arg){
     while(1){
         range_tx();
         xtimer_usleep(TRANSMIT_DELAY);
-    }
+    }   
     return 0;
 }
 
