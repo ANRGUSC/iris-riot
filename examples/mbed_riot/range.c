@@ -167,8 +167,11 @@ int range_tx( void )
     gnrc_pktsnip_t *pkt, *hdr;
     gnrc_netif_hdr_t *nethdr;
     uint8_t flags = 0x00;    
-    char buf[BUFFER_SIZE_OF_PACKET] = {0x00, 0x00, 0x00};
-    char buf2[BUFFER_SIZE_OF_PACKET] = {0x00, 0x00, 0x00, 0x00, 0x00};
+    char buf[3] = {0x00, 0x00, 0x00}; // buf used to transmit
+                                      // - tx ranging data
+                                      // - follower nodes' addresses
+    char buf2[BUFFER_SIZE_OF_PACKET] = {0x00, 0x00, 0x00, 0x00, 0x00}; // buf2 used to transmit
+                                                                       // times for sync
 
     int16_t tx_power = TX_POWER;
 
