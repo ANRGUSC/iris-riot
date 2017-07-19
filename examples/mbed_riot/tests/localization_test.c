@@ -364,7 +364,6 @@ static void *_range_rx_thread(void *arg)
                 DEBUG("Recieved something else");
                 LED3_ON;
                 break;
-
         }
         
 
@@ -402,6 +401,7 @@ int main(void)
                   THREAD_CREATE_STACKTEST, _range_rx_thread, hdlc_pid, "range_rx thread");
     }
 
+    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
