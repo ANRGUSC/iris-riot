@@ -298,9 +298,6 @@ static int _send(netdev_t *netdev, const struct iovec *vector, unsigned count)
         /* this register set will immediately start TX */
         RFCORE_SFR_RFST = ISTXON;
 
-        /* sleep to give receiver a little time to setup */
-        xtimer_spin(xtimer_ticks_from_usec(5000));
-
         /* set pin to 1 for around 50uS */
         gpio_set(ranging_dev_gpio_pin);
 

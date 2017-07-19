@@ -239,16 +239,68 @@ typedef struct netdev_driver {
 #define RANGE_FLAG_BYTE1 0x67 /* == 'g' */
 #define RANGE_RX_COMPLETE   1
 
+#define ONE_SENSOR_MODE       0x60 // 96
+#define TWO_SENSOR_MODE       0x61 // 97
+#define XOR_SENSOR_MODE       0x62 // 98
+
+#define RF_RCVD           143
+#define ULTRSND_RCVD      144
+#define RANGE_DATA_LEN    5
+
 /**
- * Not thread safe.
- * @param tx_node_id    [description]
- * @param thresh        [description]
- * @param line          [description]
- * @param res           [description]
- * @param max_adc_samps [description]
+ * @brief Structure holding metrics measured by ultrasound ranging
+ *
+ * This structure is supposed to hold the Time Difference of Arrival
+ * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
+ * and any an error flag to indicate if a pin had missed a ping.
+ *
+ * It can be extended
  */
-void range_rx_init(char tx_node_id, int thresh, unsigned int line, 
-                   unsigned int res, unsigned int max_adc_samps);
+
+typedef struct __attribute__((packed)) {
+    uint16_t tdoa; /**< Time Difference of Arrival */
+    uint16_t orient_diff; /**< Orientation Difference (of Arrival) */
+    uint8_t error; /**< error flag to indicate if a pin had missed a ping */    
+} range_data_t;
+
+/**
+ * @brief Structure holding parameters for ultrasound ranging
+ *
+ * This structure is supposed to be used to send and interpret
+ * range request packets between mbed and openmote
+ *
+ * It can be extended
+ */
+typedef struct __attribute__((packed)) {
+    uint16_t num_samples; /**< Number of samples to take in a single call */
+    uint8_t ranging_mode; /**< Mode to range in */
+    // add more options in the future?
+} range_params_t;
+
+/**
+ * @brief Structure holding info on which pin are connected for ranging
+ *
+ * This structure is supposed to hold the information on which pins 
+ * _sound_ranging will use for each of its three modes
+ *
+ * It can be extended
+ */
+typedef struct gpio_rx_line {
+    unsigned int one_pin; /**< gpio_t value of pin connected to sensor 1 output */
+    unsigned int two_pin; /**< gpio_t value of pin connected to sensor 2 output */
+    unsigned int xor_pin; /**< gpio_t value of pin connected to XOR  output of sensors 1 and 2 */
+} gpio_rx_line_t;
+
+/**
+ * @brief      { function_description }
+ *
+ * @param[in]  tx_node_id      The transmit node identifier
+ * @param[in]  pid             The pid of the calling thread
+ * @param[in]  lines           The gpio_rx_lines
+ * @param[in]  max_gpio_samps  The maximum gpio samps
+ * @param[in]  mode            The mode to range in
+ */
+void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int mode);
 
 /**
  * Always call this function after you attempt to complete a sound ranging 
