@@ -107,6 +107,7 @@ block:
             printf("RF ping missed\n");
             continue;
         }
+        _unregister_thread();
 
         if(msg.type == 143){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
