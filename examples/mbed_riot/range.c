@@ -396,7 +396,7 @@ int range_tx( void )
     nethdr = (gnrc_netif_hdr_t *)hdr->data;
     nethdr->flags = flags;
     /* ready to send */
-
+    
     //make sure no packets are to be sent!!
     if (gnrc_netapi_send(dev, pkt) < 1) {
         DEBUG("error: unable to send\n");

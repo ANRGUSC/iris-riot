@@ -140,7 +140,7 @@ static int _set_channel(uint16_t channel)
  * @param channel Target channel with a valid range of 11 to 26.
  */
 static uint16_t _get_channel(void)
-{
+{   
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     uint16_t channel;
     size_t numof = gnrc_netif_get(ifs);
