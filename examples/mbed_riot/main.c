@@ -166,7 +166,7 @@ static void *_range_thread(void *arg)
     range_entry.port = (int16_t)RANGE_PORT;
     range_entry.pid = thread_getpid();
     hdlc_register(&range_entry);
-    int pkt_size = sizeof(uint32_t)*3 + sizeof(uart_pkt_hdr_t);
+    int pkt_size = sizeof(range_data_t) + sizeof(uart_pkt_hdr_t);
 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
@@ -175,7 +175,7 @@ static void *_range_thread(void *arg)
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
     hdlc_pkt_t *hdlc_rcv_pkt, *hdlc_rcv_pkt2;
     uart_pkt_hdr_t uart_hdr;
-    uint32_t* time_diffs;
+    range_data_t* time_diffs;
 
     /* hdr for each pkt is the same for this test */
     uart_hdr.src_port = RANGE_PORT;
@@ -198,12 +198,13 @@ static void *_range_thread(void *arg)
         {
             case HDLC_PKT_RDY:
                 
-                old_channel = _get_channel();
-                _set_channel(RSSI_LOCALIZATION_CHAN);
+                
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
                     case RANGE_REQ:
+                        old_channel = _get_channel();
+                        _set_channel(RSSI_LOCALIZATION_CHAN);
                         ranging_type = hdlc_rcv_pkt->data[UART_PKT_DATA_FIELD];
                         if(ranging_type!= ONE_SENSOR_MODE && 
                             ranging_type!= TWO_SENSOR_MODE && 
@@ -231,7 +232,7 @@ static void *_range_thread(void *arg)
                             //sending the data back down the hdlc
 
                             DEBUG("Sending data back down hdlc\n");
-                            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(uint32_t)*3);
+                            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t));
                             msg_snd.type = HDLC_MSG_SND;
                             msg_snd.content.ptr = &hdlc_snd_pkt;
                             if(!msg_try_send(&msg_snd, hdlc_pid)) {
@@ -278,13 +279,15 @@ static void *_range_thread(void *arg)
                                 }
                             }
                         }
+                        _set_channel(old_channel);
+                        
                         break;
                     default:
                         DEBUG("Recieved a msg type other than RANGE_REQ\n");
                         break;
                 }
                  hdlc_pkt_release(hdlc_rcv_pkt);
-                _set_channel(old_channel);
+                
                 break;
             default:
                 /* error */
