@@ -8,7 +8,6 @@
  */
 
 /**
-<<<<<<< HEAD
 
  *
  * @file
@@ -17,43 +16,23 @@
  * @author      Yutong Gu <yutonggu@usc.edu
  *
  * 
-=======
- * @ingroup     examples
- * @{
- *
- * @file
- * @brief       Simple program example to test ultrasound ranging.
- *
- * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
  */
 
 #include "range.h"
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-<<<<<<< HEAD
 #define MAXSAMPLES_ONE_PIN            18000
 #define MAXSAMPLES_TWO_PIN            18000
-=======
-#define MAXSAMPLES_ONE_PIN            100000
-#define MAXSAMPLES_TWO_PIN            30000
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3)
 #define RX_TWO_PIN                    GPIO_PIN(3, 2)
 #define RX_XOR_PIN                    GPIO_PIN(3, 1)
-<<<<<<< HEAD
 
 
 //#define TX_PIN                        GPIO_PIN(3, 0)
 #define TX_PIN                        GPIO_PIN(3, 2) //for usb openmote
 
-=======
-#define TX_PIN                        GPIO_PIN(3, 0)
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
 
 
@@ -75,11 +54,7 @@ int range_rx(int argc, char **argv)
     uint32_t timeout = 500000;
     uint32_t num_samps = atoi(argv[1]);
     uint32_t delay = atoi(argv[2]);
-<<<<<<< HEAD
     uint8_t mode = atoi(argv[3]);
-=======
-    uint8_t flag = atoi(argv[3]);
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
     
 
     if(delay < 0){
@@ -92,7 +67,6 @@ int range_rx(int argc, char **argv)
     }
 
 
-<<<<<<< HEAD
     switch (mode){
         case 0:
             mode = ONE_SENSOR_MODE;
@@ -105,20 +79,6 @@ int range_rx(int argc, char **argv)
         case 2:
             mode = XOR_SENSOR_MODE;
             printf("XOR_SENSOR_MODE:\n");
-=======
-    switch (flag){
-        case 0:
-            flag = ONE_SENSOR_MODE;
-            printf("ONE_SENSOR_MODE:\n");
-            break;
-        case 1:
-            flag = TWO_SENSOR_MODE;
-            printf("TWO_SENSOR_MODE:\n");
-            break;
-        case 2:
-            flag = XOR_SENSOR_MODE;
-            printf("THREE_SENSOR_MODE:\n");
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
             break;
         default:
             printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n");
@@ -134,7 +94,6 @@ int range_rx(int argc, char **argv)
    int i = 0;
    for(i = 0; i < num_samps; i++){
         printf("Trial %d of %lu:\n", i, num_samps);
-<<<<<<< HEAD
         if(mode == TWO_SENSOR_MODE){
             maxsamps = MAXSAMPLES_TWO_PIN;
         } else {
@@ -142,25 +101,13 @@ int range_rx(int argc, char **argv)
         }
 
         range_rx_init(TX_NODE_ID, thread_getpid(), line, maxsamps, mode);
-=======
-        if(flag == TWO_SENSOR_MODE){
-            maxsamps = 18000;
-        } else {
-            maxsamps = 18000;
-        }
-
-        range_rx_init(TX_NODE_ID, thread_getpid(), line, maxsamps, flag);
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
 block:
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
             printf("RF ping missed\n");
             continue;
         }
-<<<<<<< HEAD
         _unregister_thread();
-=======
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
         if(msg.type == 143){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
@@ -176,11 +123,7 @@ block:
         }
         if(time_diffs->tdoa > 0){
             printf("range: TDoA = %d\n", time_diffs->tdoa);
-<<<<<<< HEAD
             switch (mode){
-=======
-            switch (flag){
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
                 case ONE_SENSOR_MODE:
                     break;
 
@@ -209,7 +152,6 @@ block:
 /*----------------------------------------------------------------------------*/
 int range_tx(int argc, char **argv)
 {
-<<<<<<< HEAD
 
     // Check correct argument usage.
     if (argc < 2) {
@@ -221,40 +163,6 @@ int range_tx(int argc, char **argv)
         printf("error: delay must be a minimum of 100ms");
         return 1;
     }
-=======
-/*
-    Overall structure:
-    // main loop
-    while(true){
-        // setup variables before each run
-        boolean no_signal = true
-        time = 0
-        // listen for any fellow broadcasting signals
-        while (no_signal && not_time_yet (time < delay_time))
-            check for signal
-                if signal, no_signal = false
-            time++
-            if no_signal == false //signal received
-                check if valid signal - if valid, 
-                    calculate time to broadcast off of id of that signal
-                    wait time
-                    time = delay_time (effectively a break)
-                else ignore invalid signals
-                    error msg
-                    no_signal = true
-        if none detected within TIME_DELAY??? (time >= delay time)
-            broadcast signal id + ping for however long
-    }
-*/
-    // Check correct argument usage.
-    if (argc < 2) {
-        printf("usage: %s <udelay>\n",argv[0]);
-        return 1;
-    }
-
-    // Broadcasting setup
-    uint32_t TX_DELAY_TIME = atoi(argv[1]);
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
     /* for sending L2 pkt */
     kernel_pid_t dev;
@@ -267,14 +175,6 @@ int range_tx(int argc, char **argv)
 
     int16_t tx_power = TX_POWER;
 
-<<<<<<< HEAD
-=======
-    msg_t msg_queue[QUEUE_SIZE];
-
-    /* setup the message queue */
-    msg_init_queue(msg_queue, QUEUE_SIZE);
-
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     size_t numof = gnrc_netif_get(ifs); 
 
@@ -284,7 +184,6 @@ int range_tx(int argc, char **argv)
     }
 
     /* enable output on Port D pin 3 */
-<<<<<<< HEAD
     if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
         DEBUG("Error initializing GPIO_PIN.\n");
         return 1;
@@ -294,107 +193,6 @@ int range_tx(int argc, char **argv)
 
     while(true){
         range_tx_init(TX_PIN);
-=======
-    if(gpio_init(GPIO_PD2, GPIO_OUT) < 0) {
-        puts("Error initializing GPIO_PIN.");
-        return 1;
-    }
-    // clearing output for the ultrasonic sensor
-    puts("Clearing GPIO_PD2");
-    gpio_clear(GPIO_PD2);
-
-    // Richard's code, mod the ipv6 into mac address checking, add to main loop.
-    /*while(true){
-        no_signal = true;
-        rstx_start_time = xtimer_now();
-        current_time = 0;
-        
-        while(no_signal && current_time < TX_DELAY_TIME){
-            current_time = xtimer_now() - rstx_start_time;
-            msg_receive(&msg);
-            
-                do processing to check ipv6 address, i.e., where it should
-                belong on the chart/node list, etc.
-
-                if(is_valid_addr(ipv6)){
-                    no_signal = false;
-
-                    uint32_t waiting_time = processing(ipv6_addr);
-                    xtimer_sleep(waiting_time);
-                }
-                else{
-                    puts("Invalid ipv6 address.");
-                    no_signal = true;
-                }
-            
-            // how to check signal???
-            // use mac address instead of ipv6
-            
-            if (msg.type == GNRC_NETAPI_MSG_TYPE_RCV) {
-                pakt = msg.content.ptr;
-
-                snip = gnrc_pktsnip_search_type(pakt, GNRC_NETTYPE_IPV6);
-
-                tx_node_ip_addr = ((ipv6_hdr_t *)snip->data)->src;
-                char ipv6_addr[IPV6_ADDR_MAX_STR_LEN];
-                ipv6_addr_to_str(ipv6_addr, &tx_node_ip_addr, sizeof(ipv6_addr));
-                for(int x = 0; x < IPV6_ADDRESS_TABLE_LENGTH; x++)
-                {
-                    if(strcmp(*IPV6_ADDRESS_TABLE[x], ipv6_addr) == 0)
-                    {
-                        no_signal = false;
-                        
-                        uint32_t waiting_time = processing(ipv6_addr);
-                        xtimer_sleep(waiting_time);
-                    }
-                }
-                gnrc_pktbuf_release(pakt);
-                break;
-            }
-        }
-        if(current_time > TX_DELAY_TIME){
-            //broadcasting
-            //how to broadcast???
-            flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
-            */
-            /** Send L2 Packet **/
-            /* network interface */
-            /*dev = ifs[0];
-            hw_addr = 0;
-            hw_addr_len = 0;
-
-            hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-            if (hdr == NULL) {
-                puts("error: packet buffer full");
-                gnrc_pktbuf_release(pkt);
-                return 1;
-            }
-            LL_PREPEND(pkt, hdr);
-            nethdr = (gnrc_netif_hdr_t *)hdr->data;
-            nethdr->flags = flags;
-            */
-            /* ready to send */
-
-            //make sure no packets are to be sent!!
-            /*if (gnrc_netapi_send(dev, pkt) < 1) {
-                puts("error: unable to send");
-                gnrc_pktbuf_release(pkt);
-                */
-    // Run counter.
-    // int i = 0;
-    // main loop
-    // while(true){
-    for(int x = 0; x < 2000; x ++){
-        printf("%d: ", x);
-
-        // Counting runs.
-        // printf("%d: ", i);
-        // i++;
-
-        xtimer_usleep(TX_DELAY_TIME);
-
-        range_tx_init(GPIO_PD2);
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
         // Broadcasting flag setup.
         flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
         
@@ -402,49 +200,20 @@ int range_tx(int argc, char **argv)
         /* network interface */
         dev = ifs[0];
         hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
-<<<<<<< HEAD
         
-=======
-
-        if (hw_addr_len == 0) {
-            if (strcmp(argv[2], "bcast") == 0) {
-                flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
-            } else {
-                puts("error: invalid address given");
-                return 1;
-            }
-        }
-            // Pinging (ignore.)
-            //puts("Pinging...");
-            /* set pin to 1 for around 50uS */
-            // gpio_set(GPIO_PD2);
-            /* ultrasound ping should execute 20.5msec after gpio pin goes up */
-            // xtimer_spin(100); //or however long it should be up
-            // puts("Clearing GPIO_PD2");
-            // gpio_clear(GPIO_PD2);
-            // puts("RF and ultrasound pings sent");
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
         /* put packet together */
         buf[0] = RANGE_FLAG_BYTE0;
         buf[1] = RANGE_FLAG_BYTE1;
         buf[2] = TX_NODE_ID;
         pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
         if (pkt == NULL) {
-<<<<<<< HEAD
             DEBUG("error: packet buffer full\n");
-=======
-            puts("error: packet buffer full");
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
             return 1;
         }
        
         hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
         if (hdr == NULL) {
-<<<<<<< HEAD
             DEBUG("error: packet buffer full\n");
-=======
-            puts("error: packet buffer full");
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
             gnrc_pktbuf_release(pkt);
             return 1;
         }
@@ -455,11 +224,7 @@ int range_tx(int argc, char **argv)
 
         //make sure no packets are to be sent!!
         if (gnrc_netapi_send(dev, pkt) < 1) {
-<<<<<<< HEAD
             DEBUG("error: unable to send\n");
-=======
-            puts("error: unable to send");
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
             gnrc_pktbuf_release(pkt);
             return 1;
         }   

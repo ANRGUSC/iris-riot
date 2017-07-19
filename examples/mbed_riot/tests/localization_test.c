@@ -394,7 +394,6 @@ int main(void)
                                       "hdlc", UART_DEV(1));
 
     if(TX_MODE){
-<<<<<<< d0d14619520ebb4dbf8a8b69d48546b721dea3bb
         printf("Starting transmitter thread\n");
         thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
                   THREAD_CREATE_STACKTEST, _range_tx_thread, hdlc_pid, "range_tx thread");
@@ -405,15 +404,6 @@ int main(void)
     }
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
-=======
-        thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
-                  THREAD_CREATE_STACKTEST, _range_rx_thread, hdlc_pid, "range_rx thread");
-    } else {
-        thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
-                  THREAD_CREATE_STACKTEST, _range_tx_thread, hdlc_pid, "range_tx thread");
-    }
-
->>>>>>> documented functions and created range_tx thread for a more comprehensive test folder
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 

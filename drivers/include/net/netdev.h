@@ -245,32 +245,7 @@ typedef struct netdev_driver {
 
 #define RF_RCVD           143
 #define ULTRSND_RCVD      144
-<<<<<<< HEAD
 #define RANGE_DATA_LEN    5
-=======
-
-typedef struct range_data
-{
-    uint16_t tdoa; //time difference of arrival
-    uint16_t orient_diff; //orientation differential
-    uint8_t error; //error message for if one sensor misses pings
-    // add more options in the future?
-} range_data_t;
-
-typedef struct range_params
-{
-    uint16_t num_samples;
-    uint8_t ranging_mode;
-    // add more options in the future?
-} range_params_t;
-
-typedef struct gpio_rx_line {
-    unsigned int one_pin;
-    unsigned int two_pin;
-    unsigned int xor_pin;
-
-} gpio_rx_line_t;
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
@@ -332,11 +307,7 @@ typedef struct gpio_rx_line {
  * @param[in]  max_gpio_samps  The maximum gpio samps
  * @param[in]  mode            The mode to range in
  */
-<<<<<<< HEAD
 void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int mode);
-=======
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int flag);
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
 
 /**
  * Always call this function after you attempt to complete a sound ranging 
