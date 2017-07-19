@@ -156,6 +156,185 @@ xtimer_ticks32_t sync_time(xtimer_ticks32_t leader_time)
 {
     return leader_time - xtimer_now();
 }
+
+
+
+
+
+
+// check for leader, leader processing
+    // if(LEADER_HW_ADDR == NETOPT_ADDRESS) //or some matching
+    // {
+    //     int current_list_size = 1;
+    //     uint16_t list_of_hw_addr[NUM_OF_NODES+1];
+    //     xtimer_ticks32_t cutoff_timer = 0
+    //     xtimer_ticks32_t current_time = xtimer_now();
+        
+    //     // prepare sync packet
+    //     // wait for a little bit for everyone to settle down
+    //     // send SYNC
+        
+    //     // Broadcasting flag setup.
+    //     flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+        
+    //     /** Send L2 Packet **/
+    //     /* network interface */
+    //     dev = ifs[0];
+    //     hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
+        
+    //     /* put packet together */
+    //     buf2[0] = (uint8_t)current_time >> 24;
+    //     buf2[1] = (uint8_t)current_time >> 16;
+    //     buf2[2] = (uint8_t)current_time >> 8;
+    //     buf2[3] = (uint8_t)current_time;
+    //     buf2[4] = FOLLOW_SYNC;
+
+    //     pkt = gnrc_pktbuf_add(NULL, &buf2, BUFFER_SIZE_OF_PACKET_LEADER, GNRC_NETTYPE_UNDEF);
+    //     if (pkt == NULL) {
+    //         DEBUG("error: packet buffer full");
+    //         return 1;
+    //     }
+       
+    //     hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+    //     if (hdr == NULL) {
+    //         DEBUG("error: packet buffer full");
+    //         gnrc_pktbuf_release(pkt);
+    //         return 1;
+    //     }
+    //     LL_PREPEND(pkt, hdr);
+    //     nethdr = (gnrc_netif_hdr_t *)hdr->data;
+    //     nethdr->flags = flags;
+    //     /* ready to send */
+
+    //     // make sure no packets are to be sent!!
+    //     if (gnrc_netapi_send(dev, pkt) < 1) {
+    //         DEBUG("error: unable to send");
+    //         gnrc_pktbuf_release(pkt);
+    //         return 1;
+    //     }   
+
+    //     // prepare time (time is equal to NUM_OF_NODES)        
+    //     current_time = xtimer_now();
+    //     cutoff_timer = xtimer_now() - current_time;
+    //     while(current_list_size < NUM_OF_NODES && cutoff_timer < (NUM_OF_NODES * TIME_WINDOW))
+    //     {
+    //         // set timer for 1 time window
+    //         msg_receive(&msg);
+    //         if (msg.type == LEAD_INFO) // ensure that they send an INFO signal or something
+    //         {
+    //             // unpack and get the hw_addr
+    //             pkt = msg.content.ptr;
+    //             snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
+
+    //             // getting the hw_addr
+    //             uint16_t incoming_hw_addr = 0x0000;
+    //             incoming_hw_addr | ((uint16_t)((uint8_t *)snip->data)[0]) << 8;
+    //             incoming_hw_addr | ((uint8_t *)snip->data)[1];
+
+    //             // add to the list: hw_addr_nodes
+    //             hw_addr_nodes[current_list_size] = incoming_hw_addr;
+
+    //             current_list_size++; // increment current_list_size
+    //             cutoff_timer = 0; // reset the timer
+    //         }
+    //         // TODO: figure out how to get it to stop if nothing received.
+    //         if(msg.type == NULL) // no message received or something
+    //         {
+    //             cutoff_timer = xtimer_now() - current_time;
+    //         }
+    //         cutoff_timer = xtimer_now() - current_time; // increment timer
+    //     }
+
+    //     // done with getting the list
+    //     // now need to send out the list
+    //     for(int x = 1; x < current_list_size + 1; x++)
+    //     {
+    //         // prepare and send packets with x and *(x + hw_addr_nodes) and ASSIGN flags.
+    //         /** Send L2 Packet **/
+    //         /* network interface */
+    //         dev = ifs[0];
+    //         // hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
+    //         hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), hw_addr_nodes[x]);
+
+    //         /* put packet together */
+    //         buf[0] = 0x00; // unused
+    //         buf[1] = (uint8_t)x;
+    //         buf[2] = FOLLOW_ASSIGN;
+    //         pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
+    //         if (pkt == NULL) {
+    //             DEBUG("error: packet buffer full");
+    //             return 1;
+    //         }
+           
+    //         hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+    //         if (hdr == NULL) {
+    //             DEBUG("error: packet buffer full");
+    //             gnrc_pktbuf_release(pkt);
+    //             return 1;
+    //         }
+    //         LL_PREPEND(pkt, hdr);
+    //         nethdr = (gnrc_netif_hdr_t *)hdr->data;
+    //         nethdr->flags = flags;
+    //         /* ready to send */
+
+    //         // make sure no packets are to be sent!!
+    //         if (gnrc_netapi_send(dev, pkt) < 1) {
+    //             DEBUG("error: unable to send");
+    //             gnrc_pktbuf_release(pkt);
+    //             return 1;
+    //         }   
+    //     }
+    //     while(true)
+    //     {
+    //         // send GO signal with timestamp
+    //         // send SYNC
+            
+    //         // Broadcasting flag setup.
+    //         flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+            
+    //         /** Send L2 Packet **/
+    //         /* network interface */
+    //         dev = ifs[0];
+    //         hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
+            
+    //         /* put packet together */
+    //         buf2[0] = (uint8_t)current_time >> 24;
+    //         buf2[1] = (uint8_t)current_time >> 16;
+    //         buf2[2] = (uint8_t)current_time >> 8;
+    //         buf2[3] = (uint8_t)current_time;
+    //         buf2[0] = FOLLOW_GO;
+
+    //         pkt = gnrc_pktbuf_add(NULL, &buf2, BUFFER_SIZE_OF_PACKET_LEADER, GNRC_NETTYPE_UNDEF);
+    //         if (pkt == NULL) {
+    //             DEBUG("error: packet buffer full");
+    //             return 1;
+    //         }
+           
+    //         hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+    //         if (hdr == NULL) {
+    //             DEBUG("error: packet buffer full");
+    //             gnrc_pktbuf_release(pkt);
+    //             return 1;
+    //         }
+    //         LL_PREPEND(pkt, hdr);
+    //         nethdr = (gnrc_netif_hdr_t *)hdr->data;
+    //         nethdr->flags = flags;
+    //         /* ready to send */
+
+    //         // make sure no packets are to be sent!!
+    //         if (gnrc_netapi_send(dev, pkt) < 1) {
+    //             DEBUG("error: unable to send");
+    //             gnrc_pktbuf_release(pkt);
+    //             return 1;
+    //         }   
+    //         // wait current_list_size * TIME_WINDOW + 1
+    //         xtimer_usleep( (current_list_size + 1) * TIME_WINDOW );
+    //     }
+    // }
+    // end leader processing
+    // leader should never go beyond this
+
+
 /*----------------------------------------------------------------------------*/
 int range_tx( void )
 {
