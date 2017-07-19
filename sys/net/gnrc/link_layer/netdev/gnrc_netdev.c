@@ -332,10 +332,17 @@ void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int 
     ranging_on = 1;
     _tx_node_id = tx_node_id;
     ranging_pid = pid;
+<<<<<<< 3905a2042ef1aad03b636acf26e729a7475bff55
     rx_line = lines;
     gpio_init(rx_line.one_pin,GPIO_IN);
     gpio_init(rx_line.two_pin,GPIO_IN);
     gpio_init(rx_line.xor_pin,GPIO_IN);
+=======
+    memcpy(gpio_lines, lines, sizeof(unsigned int)*3);
+    gpio_init(gpio_lines[0],GPIO_IN);
+    gpio_init(gpio_lines[1],GPIO_IN);
+    gpio_init(gpio_lines[2],GPIO_IN);
+>>>>>>> fixed xtimer issues and corrupted pointer issues
     max_samps = max_gpio_samps;
     ref = 2;
     time_diffs.tdoa = 0;

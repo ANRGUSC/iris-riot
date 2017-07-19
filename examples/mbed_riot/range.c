@@ -109,7 +109,7 @@ block:
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
             DEBUG("RF ping missed\n");
             return NULL;
-        }
+        }   
 
         if(msg.type == RF_RCVD){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
