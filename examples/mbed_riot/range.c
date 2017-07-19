@@ -157,11 +157,6 @@ xtimer_ticks32_t sync_time(xtimer_ticks32_t leader_time)
     return leader_time - xtimer_now();
 }
 
-
-
-
-
-
 // check for leader, leader processing
     // if(LEADER_HW_ADDR == NETOPT_ADDRESS) //or some matching
     // {
