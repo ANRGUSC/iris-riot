@@ -139,11 +139,6 @@ xtimer_ticks32_t sync_time(xtimer_ticks32_t leader_time)
     return leader_time - xtimer_now();
 }
 
-
-
-
-
-
 // check for leader, leader processing
     // if(LEADER_HW_ADDR == NETOPT_ADDRESS) //or some matching
     // {
@@ -409,6 +404,95 @@ int range_tx(uint32_t delay_usec)
     
     
     // follower code starts here, should skip leader processing
+    
+	/** Send L2 Packet **/
+    /* network interface */
+    dev = ifs[0];
+    hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), LEADER_HW_ADDR);
+    
+    /* put packet together */
+    buf[0] = tx_node_id1;
+    buf[1] = tx_node_id2;
+    buf[2] = LEAD_INFO;
+
+    pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
+    if (pkt == NULL) {
+        DEBUG("error: packet buffer full");
+        return 1;
+    }
+   
+    hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+    if (hdr == NULL) {
+        DEBUG("error: packet buffer full");
+        gnrc_pktbuf_release(pkt);
+        return 1;
+    }
+
+    LL_PREPEND(pkt, hdr);
+    nethdr = (gnrc_netif_hdr_t *)hdr->data;
+    nethdr->flags = flags;
+    /* ready to send */
+
+    // make sure no packets are to be sent!!
+    if (gnrc_netapi_send(dev, pkt) < 1) {
+        DEBUG("error: unable to send");
+        gnrc_pktbuf_release(pkt);
+        return 1;
+    }   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     while(true)
     {
         msg_receive(&msg);
