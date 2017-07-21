@@ -72,6 +72,7 @@
 #include "hdlc.h"
 #include "uart_pkt.h"
 #include "range.h"
+#include "dac.h"
 #include "shell.h"
 
 #define ENABLE_DEBUG (0)
@@ -183,6 +184,15 @@ static void *_range_rx_thread(void *arg)
     range_hdr_t range_hdr;
     range_data_t* time_diffs;
 
+    DEBUG("starting DAC\n");
+    if(init_dac(DEFAULT_DAC_CS, SPI_CLK_400KHZ) == SPI_OK){
+        DEBUG("Setting voltage at %d%%\n", DEFAULT_SENSOR_THRESH*100/255);
+        set_voltage((uint8_t) DEFAULT_SENSOR_THRESH, DAC_GAIN_1);
+        stop_dac();
+
+    } else{
+        DEBUG("SPI failed\n");
+    }
 
     int exit = 0;
 
@@ -208,13 +218,13 @@ static void *_range_rx_thread(void *arg)
 
                         switch(params->ranging_mode){
                             case ONE_SENSOR_MODE:
-                                printf("******************ONE SENSOR MODE*******************\n");
+                                DEBUG("******************ONE SENSOR MODE*******************\n");
                                 break;
                             case TWO_SENSOR_MODE:
-                                printf("******************TWO SENSOR MODE*******************\n");
+                                DEBUG("******************TWO SENSOR MODE*******************\n");
                                 break;
                             case XOR_SENSOR_MODE:
-                                printf("******************XOR SENSOR MODE*******************\n");
+                                DEBUG("******************XOR SENSOR MODE*******************\n");
                                 break;
                         }
 
@@ -281,7 +291,7 @@ static void *_range_rx_thread(void *arg)
                                         
                                     } 
                                 }
-
+                                
                                 UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
                                 UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
                                 UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
@@ -298,7 +308,6 @@ static void *_range_rx_thread(void *arg)
                                     //sending the data back down the hdlc
 
                                 DEBUG("Sending data back down hdlc\n");
-                                
                                 
 
                                 msg_snd.type = HDLC_MSG_SND;
@@ -389,14 +398,14 @@ int main(void)
     // range_rx(3, temp);
 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
+                                      "hdlc", UART_DEV(0));
 
     if(TX_MODE){
-        printf("Starting transmitter thread\n");
+        DEBUG("Starting transmitter thread\n");
         thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
                   THREAD_CREATE_STACKTEST, _range_tx_thread, hdlc_pid, "range_tx thread");
     } else {
-        printf("Starting reciever thread\n");
+        DEBUG("Starting reciever thread\n");
         thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
                   THREAD_CREATE_STACKTEST, _range_rx_thread, hdlc_pid, "range_rx thread");
     }
