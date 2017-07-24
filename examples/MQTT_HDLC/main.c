@@ -346,15 +346,7 @@ static void *_mqtt_thread(void *arg)
         //if a message has been received 
         while(1)
         { 
-            DEBUG("In while loop\n");
-            if (sent_hwaddr == 1 && mqtt_go == 1)
-            {
-                pub_server[0] = HW_ADDR + '0';//HWADDR
-                for(int i = 0; i < sizeof(EMCUTE_ID); i++){
-                    pub_server[i + 1] = EMCUTE_ID[i];
-                }
-                auto_pub(EMCUTE_ID, pub_server);
-            }
+            // DEBUG("In while loop\n");
             if (mqtt_go == 0)
             {   
                 mqtt_go = 1;
@@ -496,7 +488,7 @@ static void *_mqtt_thread(void *arg)
         frame_no++;
 
         //control transmission rate via interpacket intervals 
-        xtimer_usleep(10000);
+        // xtimer_usleep(10000);
     }
 
     //should be never reached 
