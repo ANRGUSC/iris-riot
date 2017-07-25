@@ -24,8 +24,6 @@ USEMODULE += emcute
 USEMODULE += gnrc_ipv6_router_default
 USEMODULE += gnrc_udp
 USEMODULE += ps
-USEMODULE += shell
-USEMODULE += shell_commands
 # This application dumps received packets to STDIO using the pktdump module
 USEMODULE += gnrc_pktdump
 # For testing we also include the ping6 command and some stats
@@ -35,7 +33,7 @@ USEMODULE += gnrc_icmpv6_echo
 # USEMODULE += netstats_ipv6
 
 # Set a custom 802.15.4 channel if needed
-DEFAULT_CHANNEL ?= 23
+DEFAULT_CHANNEL ?= 26
 #very important line of code 
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 

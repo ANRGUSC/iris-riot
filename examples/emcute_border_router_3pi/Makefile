@@ -29,7 +29,7 @@ CFLAGS += '-DETHOS_UART=UART_DEV(0)' -DETHOS_BAUDRATE=$(ETHOS_BAUDRATE) -DUSE_ET
 FEATURES_REQUIRED += periph_uart
 endif
                                          # radio is IEEE 802.15.4 2.4 GHz
-DEFAULT_CHANNEL ?= 19
+DEFAULT_CHANNEL ?= 26
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 # SLIP legacy compatibility
