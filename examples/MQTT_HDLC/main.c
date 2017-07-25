@@ -75,6 +75,7 @@
 #include "periph/uart.h"
 #include "hdlc.h"
 #include "uart_pkt.h"
+#include "utlist.h"
 
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
@@ -112,6 +113,44 @@ static char thread2_stack[THREAD_STACKSIZE_MAIN];//16384
 
 #define NUMOFSUBS           (16U)  //Define the maximum number of subscriptions
 #define TOPIC_MAXLEN        (16U)
+
+
+typedef struct mqtt_topic_entry {
+    struct mqtt_topic_entry *next;
+    uint16_t id;
+    char topic[16];
+} mqtt_topic_entry_t;
+
+static mqtt_topic_entry_t *mqtt_reg;
+//adding the hdlc to a list(which list?)
+void mqtt_topic_register(mqtt_topic_entry_t *entry)
+{
+    LL_PREPEND(mqtt_reg, entry);
+}
+
+void mqtt_topic_unregister(mqtt_topic_entry_t *entry)
+{
+    LL_DELETE(mqtt_reg, entry);
+}
+
+uint16_t MQTT_SEARCH_SCALAR (char topic[])
+{
+    mqtt_topic_entry_t *el;
+    for(el = mqtt_reg ; el ; el=(el)->next)
+    {
+        // DEBUG("%s  ::  %s\n", el->topic, topic);
+        if (strcmp(el->topic,topic) == 0)
+        {
+            return (el->id);
+        }
+    }
+    return 0;
+}
+
+
+
+
+
 
 static char EMCUTE_ID[8];
 static char stack[THREAD_STACKSIZE_DEFAULT];
@@ -179,20 +218,33 @@ static int auto_pub(char* pub_topic, char* data)
 {
     emcute_topic_t t;
     unsigned flags = EMCUTE_QOS_0;
-
-    DEBUG("auto_pub: Tryint to publish with topic: %s and data %s \n", pub_topic, data);
+    mqtt_topic_entry_t *new_topic_entry;
+    mqtt_topic_entry_t *entry;
+    DEBUG("auto_pub: Trying to publish with topic: %s and data %s \n", pub_topic, data);
 
     /* step 1: get topic id */
     t.name = pub_topic;
-    if (emcute_reg(&t) != EMCUTE_OK) {
-        DEBUG("error: unable to obtain topic ID");
-        return 1;
+    t.id  = MQTT_SEARCH_SCALAR(pub_topic);
+    if ( !t.id )
+    {
+        DEBUG("auto_pub: No registry found %d\n",strlen(pub_topic));
+
+        if (emcute_reg(&t) != EMCUTE_OK) {
+            DEBUG("error: unable to obtain topic ID");
+            fflush(stdout);
+            return 1;
+        }
+        new_topic_entry = (mqtt_topic_entry_t *)malloc(sizeof(mqtt_topic_entry_t));
+        new_topic_entry->id = t.id;
+        memcpy(new_topic_entry->topic, pub_topic, strlen(pub_topic) +1);
+        mqtt_topic_register(new_topic_entry);
     }
 
     /* step 2: publish data */
     if (emcute_pub(&t, data, strlen(data), flags) != EMCUTE_OK) {
         DEBUG("error: unable to publish data to topic %s\n",
                 t.name);
+        fflush(stdout);
         return 1;
     }
 
@@ -448,6 +500,9 @@ static void *_mqtt_thread(void *arg)
                                     // TODO: On the mbed side, if the reply is not received after certain time. Just retry
                                 } 
                             }
+                            else
+                                DEBUG("mqtt_control_thread: Subscribe Request Failed\n");
+
                             break;
 
                         case MQTT_PUB:
@@ -464,6 +519,8 @@ static void *_mqtt_thread(void *arg)
                                     DEBUG("mqtt_control_thread: (pub ack failed) HDLC msg queue full\n");
                                 }
                             }
+                            else
+                                DEBUG("mqtt_control_thread: Publish Request Failed\n");
                             break;
                         default:
                             //error
