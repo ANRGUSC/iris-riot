@@ -124,6 +124,8 @@ static char stack[THREAD_STACKSIZE_DEFAULT];
 static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];
 static kernel_pid_t thread2_pid;
+static kernel_pid_t rssi_pid;
+
 
 //Global variables 
 char send_data[32];
@@ -345,7 +347,9 @@ static void *_mqtt_thread(void *arg)
 
     //automatically connects to the topic init_info and emcute id
     auto_sub(EMCUTE_ID);
-
+    //creating a struct to send a message to the rssi thread
+    msg_t msg_rssi;
+    char rssi_send = "hello";
     //creating two message structs 
     msg_t msg_snd, msg_rcv;
 
@@ -386,6 +390,14 @@ static void *_mqtt_thread(void *arg)
                 } 
                 else
                     DEBUG("mqtt_control_thread: MQTT GO message has been sent\n");
+                msg_rssi.type = MQTT_RSSI;
+                //msg_rssi.content.ptr = &rssi_send;
+                if(msg_try_send(&msg_rssi, rssi_pid)){
+                    DEBUG("mqtt_control_thread: The RSSI GO message was sent\n");
+                }
+                else
+                    DEBUG("mqtt_control_thread: The RSSI GO message was not sent\n");
+
             }
 
             //pub to init_info
@@ -526,7 +538,15 @@ static void *_mqtt_thread(void *arg)
 
 /*rssi thread */
 
-static int _dump(gnrc_pktsnip_t *pkt)
+/**
+ * @brief      Gets the rssi value from the gnrc packet
+ *
+ * @param      pkt   The packet snip
+ *
+ * @return     { returns the rssi value of the udp message }
+ */
+
+static int rssi_val(gnrc_pktsnip_t *pkt)
 {
     int snips = 0;
     int size = 0;
@@ -552,64 +572,48 @@ static void *_rssi_dump(void *arg)
 {
     //hdlc pid
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
-    msg_t msg, msg2;
+    msg_t msg;
     int rssi_value;
-    bool is_rssi_pkt = false;
+    int rssi_go=0;
     bool hdlc_snd_locked = false;
-    hdlc_pkt_t *recv_pkt;
-    gnrc_netif_hdr_t *netif_hdr;
-    uint8_t *dst_addr;
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
-    gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
-                                                               thread_getpid());
-
-    hdlc_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_DUMP_PORT, 
+    hdlc_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_THREAD_PORT, 
                                          .pid = thread_getpid() };
     hdlc_register(&rssi_dump_thr);    
-    char send_data[UART_PKT_HDR_LEN + 1];
-    hdlc_pkt_t send_pkt = { send_data, UART_PKT_HDR_LEN + 1 };
-    char rssi_data[UART_PKT_HDR_LEN + 1];
-    hdlc_pkt_t rssi_pkt = { rssi_data, UART_PKT_HDR_LEN + 1 };
 
-    uart_pkt_hdr_t uart_hdr;
-    uart_pkt_hdr_t rssi_uart_hdr;
     printf("completed\n" );
-
-    while(1)
+    
+    while(rssi_go==0)
     {
         msg_receive(&msg);
         switch (msg.type)
         {
+            case MQTT_RSSI:
+                DEBUG("rssi: Go message received\n");
+                rssi_go=1;
+                break;
+        }
+    }
+    while(1)
+    {
+        msg_receive(&msg);
+        printf("Got something\n");
+        switch (msg.type)
+        {
             case HDLC_PKT_RDY:
-                recv_pkt = msg.content.ptr;
-                uart_pkt_hdr_t recv_uart_hdr;
-                uart_pkt_parse_hdr(&recv_uart_hdr, recv_pkt->data, recv_pkt->length);
-                DEBUG("_rssi_dump: Packet type : %d \n",recv_uart_hdr.pkt_type);
+                DEBUG("rssi: message from hdlc:\n");
+                break;
             case HDLC_RESP_RETRY_W_TIMEO:
                 DEBUG("_rssi_dump : retry frame \n");
-                if (is_rssi_pkt) {
-                    /* don't bother resending */
-                    is_rssi_pkt = false;
-                    hdlc_snd_locked = false;
-                } 
-                else {
-                    xtimer_usleep(msg.content.value);
-                    DEBUG("rssi_dump: resend UART packet\n");
-                    msg_send(&msg2, hdlc_pid);
-                }
-
                 break;
             case HDLC_RESP_SND_SUCC:
-                // DEBUG("_rssi_dump : sent frame \n");
+                DEBUG("_rssi_dump : sent frame \n");
                 hdlc_snd_locked = false;
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                // DEBUG("_rssi_dump : received a beacon \n");
-
-                if (!hdlc_snd_locked) { 
-                    rssi_value = _dump(msg.content.ptr);
-                    printf("rssi: %d\n",rssi_value);
-                    }
+                rssi_value = rssi_val(msg.content.ptr);
+                printf("rssi: %d\n",rssi_value);
+                
                 break;
             case GNRC_NETAPI_MSG_TYPE_SND:
                 /* just in case */
@@ -628,10 +632,6 @@ static void *_rssi_dump(void *arg)
     DEBUG("Error: Reached Exit!");
     return NULL;
 }
-
-
-
-
 
 
 
@@ -667,9 +667,6 @@ int main(void)
     }
     DEBUG("The Hardware address is %s \n", EMCUTE_ID);
 
-    //stores the rssi pid value
-    kernel_pid_t rssi_pid;
-
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */
     msg_init_queue(main_msg_queue, 16);
@@ -688,6 +685,7 @@ int main(void)
     //creates rssi_dump thread
     rssi_pid = thread_create(rssi_dump_stack, sizeof(rssi_dump_stack), RSSI_DUMP_PRIO, NULL,
                   _rssi_dump, (void *) (uint32_t) hdlc_pid, "rssi_dump");
+
     //Initializes and starts the udp server on RSSI_DUMP_PORT
     static gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                                                                KERNEL_PID_UNDEF);

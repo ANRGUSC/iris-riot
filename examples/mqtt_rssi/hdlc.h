@@ -103,6 +103,7 @@ enum {
     HDLC_RESP_SND_SUCC,
     HDLC_PKT_RDY,
     MQTT_MBED,
+    MQTT_RSSI,
     MQTT_SN
 };
 
