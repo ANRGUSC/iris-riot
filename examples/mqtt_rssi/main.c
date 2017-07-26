@@ -373,10 +373,19 @@ static void *_mqtt_thread(void *arg)
         //if a message has been received 
         while(1)
         { 
+            if (sent_hwaddr==1)
+            {
+                pub_server[0]= HW_ADDR + '0';//HWADDR
+                for(int i=0; i<sizeof(EMCUTE_ID);i++){
+                    pub_server[i+1]=EMCUTE_ID[i];
+                }
+                auto_pub(TOPIC, pub_server);
+            }
             // DEBUG("In while loop\n");
             if (mqtt_go == 0)
             {   
                 mqtt_go = 1;
+                sent_hwaddr = 0;
                 uart_hdr.src_port = THREAD2_PORT; //PORT 170
                 uart_hdr.dst_port = MBED_PORT; //PORT 200
                 uart_hdr.pkt_type = MQTT_GO; 
@@ -409,6 +418,7 @@ static void *_mqtt_thread(void *arg)
             switch (msg_rcv.type)
             {
                 case MQTT_MBED:
+
                     mqtt_data_rcv = (mqtt_pkt_t *)msg_rcv.content.ptr;
                     if (mqtt_go == 1 && sent_hwaddr == 1)
                     {
