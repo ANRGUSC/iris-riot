@@ -346,7 +346,12 @@ static void *_mqtt_thread(void *arg)
     mqtt_go = 1;
 
     //automatically connects to the topic init_info and emcute id
-    auto_sub(EMCUTE_ID);
+    while (mqtt_go == 1)
+    {
+        mqtt_go = auto_sub(EMCUTE_ID);  
+    }
+    mqtt_go = 1;
+    
     //creating a struct to send a message to the rssi thread
     msg_t msg_rssi;
     char rssi_send = "hello";
@@ -546,7 +551,7 @@ static void *_mqtt_thread(void *arg)
     
 }
 
-/*rssi thread */
+/*rssi thread starts here*/
 
 /**
  * @brief      Gets the rssi value from the gnrc packet
@@ -578,18 +583,84 @@ static int rssi_val(gnrc_pktsnip_t *pkt)
     gnrc_pktbuf_release(pkt);
 }
 
+/**
+ * @brief      function to send udp packets to a chosen port
+ *
+ * @param      addr_str  The address string
+ * @param      port_str  The port string
+ * @param      data      The data
+ */
+static void rssi_send(char *addr_str, uint16_t port, char *data)
+{
+    ipv6_addr_t addr;
+    unsigned int num =1;
+
+    /* parse destination address */
+    if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
+        puts("Error: unable to parse destination address");
+        return;
+    }
+    /* parse port */
+    if (port == 0) {
+        puts("Error: unable to parse destination port");
+        return;
+    }
+
+    for (unsigned int i = 0; i < num; i++) {
+        gnrc_pktsnip_t *payload, *udp, *ip;
+        unsigned payload_size;
+        /* allocate payload */
+        payload = gnrc_pktbuf_add(NULL, data, strlen(data), GNRC_NETTYPE_UNDEF);
+        if (payload == NULL) {
+            puts("Error: unable to copy data to packet buffer");
+            return;
+        }
+        /* store size for output */
+        payload_size = (unsigned)payload->size;
+        /* allocate UDP header, set source port := destination port */
+        udp = gnrc_udp_hdr_build(payload, port, port);
+        if (udp == NULL) {
+            puts("Error: unable to allocate UDP header");
+            gnrc_pktbuf_release(payload);
+            return;
+        }
+        /* allocate IPv6 header */
+        ip = gnrc_ipv6_hdr_build(udp, NULL, &addr);
+        if (ip == NULL) {
+            puts("Error: unable to allocate IPv6 header");
+            gnrc_pktbuf_release(udp);
+            return;
+        }
+        /* send packet */
+        if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
+            puts("Error: unable to locate UDP thread");
+            gnrc_pktbuf_release(ip);
+            return;
+        }
+        /* access to `payload` was implicitly given up with the send operation above
+         * => use temporary variable for output */
+        printf("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
+               port);
+        xtimer_usleep(100000);
+    }
+}
+
 static void *_rssi_dump(void *arg) 
 {
     //hdlc pid
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
-    msg_t msg;
+    msg_t msg, msg_snd;
     int rssi_value;
     int rssi_go=0;
+    char rssi_str_val[10];
     bool hdlc_snd_locked = false;
+    char send_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
     hdlc_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_THREAD_PORT, 
                                          .pid = thread_getpid() };
-    hdlc_register(&rssi_dump_thr);    
+    hdlc_register(&rssi_dump_thr); 
+    uart_pkt_hdr_t uart_hdr;   
 
     printf("completed\n" );
     
@@ -622,7 +693,21 @@ static void *_rssi_dump(void *arg)
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 rssi_value = rssi_val(msg.content.ptr);
-                printf("rssi: %d\n",rssi_value);
+                sprintf(rssi_str_val,"%d",rssi_value);
+                printf("rssi: %s\n",rssi_str_val);             
+                rssi_send(NODE_LEADER_ADDR, NODE_LEADER_PORT, "hello");
+                uart_hdr.src_port = RSSI_THREAD_PORT; //PORT 220
+                uart_hdr.dst_port = RSSI_MBED_DUMP_PORT; //PORT 9111
+                uart_hdr.pkt_type = RSSI_DATA_PKT;
+                uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, rssi_str_val, sizeof(rssi_str_val));  
+
+                msg_snd.type = HDLC_MSG_SND;
+                msg_snd.content.ptr = &hdlc_snd_pkt;                
+                if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                        DEBUG("mqtt_control_thread: HDLC msg queue full\n");
+                        continue;
+                    } 
                 
                 break;
             case GNRC_NETAPI_MSG_TYPE_SND:

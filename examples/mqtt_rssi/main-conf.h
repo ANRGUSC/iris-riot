@@ -5,6 +5,7 @@
 /* RSSI dump thread port number */
 #define RSSI_DUMP_PORT                      9000
 #define RSSI_THREAD_PORT					220
+#define RSSI_MBED_DUMP_PORT         		9111
 
 #define GET_SET_RANGING_THR_PORT            9100
 
@@ -15,6 +16,9 @@
 
 #define RSSI_LOCALIZATION_CHAN              26
 #define ARREST_DATA_CHANNEL                 21
+
+#define NODE_LEADER_ADDR					"fe80::212:4b00:433:ed02"
+#define NODE_LEADER_PORT					9400
 
 #define ARREST_LEADER_LONG_HWADDR           "00:12:4b:00:04:33:ed:81"
 #define ARREST_LEADER_SOUNDRF_IPV6_ADDR     "fe80::212:4b00:433:ed5e"

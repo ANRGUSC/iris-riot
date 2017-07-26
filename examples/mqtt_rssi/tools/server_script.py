@@ -105,7 +105,8 @@ def on_publish(client,userdata,result):
 	#check to ensure that all clients have connected
 	#For this test it assumes there are only 2 clients
 	if connected_clients==2:
-		usr_input(client)
+		#usr_input(client)
+		pass
  
 #Creating an instance and setting up the callbacks 
 
