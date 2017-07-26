@@ -1,91 +1,59 @@
+/**
+ * All macros for network addresses
+ */
 #ifndef RANGE_PARAM_H
 #define RANGE_PARAM_H
 
-#define TX_POWER            7
-#define TX_NODE_IPV6_ADDR   "fe80::212:4b00:613:622" //fe80::212:4b00:433:ed81"
+/* RSSI dump thread port number */
+#define RSSI_DUMP_PORT                      9000
 
-#define CLIENT_PORT         8000
-#define SERVER_PORT         8888
+#define GET_SET_RANGING_THR_PORT            9100
 
-#define MAX_ADDR_LEN        (8U)
-#define RANGE_RX_HW_ADDR    "ff:ff"
-#define QUEUE_SIZE          8
-#define CC2538_RSSI_OFFSET  73
+/* for ARREST, set follower's short hwaddr here */
+#define ARREST_FOLLOWER_SHORT_HWADDR        "e7:e9"
+#define ARREST_LEADER_SHORT_HWADDR          "ed:81"
+#define ARREST_LDR_CTRL_SHORT_HWADDR        "ed:4f"
 
-#define RANGE_REQ_FLAG      0x12 // 18
-#define RANGE_RDY_FLAG      0x34 // 52
-#define RANGE_GO_FLAG       0x56 // 86
+#define RSSI_LOCALIZATION_CHAN              26
+#define ARREST_DATA_CHANNEL                 25
 
-#define TX_NODE_ID 0x00
+#define ARREST_LEADER_LONG_HWADDR           "00:12:4b:00:04:33:ed:81"
+#define ARREST_LEADER_SOUNDRF_IPV6_ADDR     "fe80::212:4b00:433:ed5e"
 
-#define LEADER_HW_ADDR                	ff:ff // TODO: Replace with the correct MAC address of the leader.
+#define ARREST_LEADER_SOUNDRF_PORT          9200
 
-#define LEAD_REQ						0x10  //pray that these aren't taken
-#define LEAD_ACK	                    0x85    
-#define FOLLOW_ASSIGN                   'MA'
+#define ARREST_LEADER_SOUNDRF_ID            170
 
+#define ARREST_FOLLOWER_RANGE_THR_PORT      9300
 
+#define ARREST_FOLLOWER_IPV6_ADDR           "fe80::212:4b00:433:eca3"
 
+#define RANGE_REQ_FLAG                      0x12
+#define RANGE_RDY_FLAG                      0x34
+#define RANGE_GO_FLAG                       0x56
 
-#define FOLLOW_SYNC                     0x32    
+#define DEFAULT_ULTRASOUND_THRESH           45
+#define MAX_SOUND_SAMPLES                   500
 
-#define FOLLOW_GO                       0x76
-#define LEAD_INFO                       0X98
+#define REMOTE_CTRL_FLAG                    0x99 /* 10011001 */
 
-// #define BUFFER_SIZE_OF_PACKET           3       // size of buf that holds address and other data.
-// #define BUFFER_SIZE_OF_PACKET_LEADER    4       // size of buf that holds address and other data.
+#define RANGE_REQ_TIMEO_USEC                1000000
+
+/* TDMA Localization Settings */
+/* sent in network byte order (big-endian) */
+#define TDMA_ANCHOR_ID_REQ_U16_FLAG         0x5444  /* 'T' and 'D' for TDma */
+#define TDMA_ANCHOR_ID_RESP_U16_FLAG        0x4d41  /* 'M' and 'A' for tdMA */
+#define TDMA_SLOT_TIME_USEC                 200000
+#define TDMA_BOOTSTRAP_CHANNEL              11
+#define TDMA_TOTAL_ANCHOR_NODES             3       /* experiment specific */
+
+#define MAX_TX_POWER             7       //valid range: -27 to 7
+
+#define MAIN_QUEUE_SIZE         (8)
+
+#define TDMA_ANCHOR_ID_ACK_U16_FLAG			0x4e43 // random, not sure if necessary
+
+#define RANGE_FLAG_BYTE0					0x55
+#define RANGE_FLAG_BYTE1					0x66
 
 #endif
-
-
-// void _send_message(uint8_t *buf[BUFFER_SIZE_OF_PACKET])
-// {
-//     /** Send L2 Packet **/
-//     /* network interface */
-//     dev = ifs[0];
-//     hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
-    
-//     /* put packet together */
-//     pkt = gnrc_pktbuf_add(NULL, buf, 3, GNRC_NETTYPE_UNDEF);
-//     if (pkt == NULL) {
-//         DEBUG("error: packet buffer full\n");
-//         return 1;
-//     }
-   
-//     hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-//     if (hdr == NULL) {
-//         DEBUG("error: packet buffer full\n");
-//         gnrc_pktbuf_release(pkt);
-//         return 1;
-//     }
-//     LL_PREPEND(pkt, hdr);
-//     nethdr = (gnrc_netif_hdr_t *)hdr->data;
-//     nethdr->flags = flags;
-//     /* ready to send */
-    
-//     //make sure no packets are to be sent!!
-//     if (gnrc_netapi_send(dev, pkt) < 1) {
-//         DEBUG("error: unable to send\n");
-//         gnrc_pktbuf_release(pkt);
-//         return 1;
-//     }   
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
