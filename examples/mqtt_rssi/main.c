@@ -561,19 +561,18 @@ static void *_mqtt_thread(void *arg)
  * @return     { returns the rssi value of the udp message }
  */
 
-static int rssi_val(gnrc_pktsnip_t *pkt)
+static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
 {
     int snips = 0;
     int size = 0;
-    int raw_rssi =0;
+    uint8_t raw_rssi =0;
     gnrc_netif_hdr_t *hdr;
     gnrc_pktsnip_t *snip = pkt;
     while (snip != NULL) {
         if (snip->type == GNRC_NETTYPE_NETIF)
         {
             hdr = (gnrc_netif_hdr_t *) (snip->data);
-            raw_rssi=hdr->rssi;
-            raw_rssi -=73;
+            raw_rssi=hdr->rssi;            
             return raw_rssi;          
         }
         ++snips;
@@ -650,9 +649,8 @@ static void *_rssi_dump(void *arg)
     //hdlc pid
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
     msg_t msg, msg_snd;
-    int rssi_value;
-    int rssi_go=0;
-    char rssi_str_val[10];
+    uint8_t rssi_value;
+    int rssi_go=0;    
     bool hdlc_snd_locked = false;
     char send_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
@@ -691,16 +689,16 @@ static void *_rssi_dump(void *arg)
                 DEBUG("_rssi_dump : sent frame \n");
                 hdlc_snd_locked = false;
                 break;
-            case GNRC_NETAPI_MSG_TYPE_RCV:
-                rssi_value = rssi_val(msg.content.ptr);
-                sprintf(rssi_str_val,"%d",rssi_value);
-                printf("rssi: %s\n",rssi_str_val);             
+            case GNRC_NETAPI_MSG_TYPE_RCV:                
+                rssi_value = rssi_val(msg.content.ptr);                
+                printf("rssi:%d\n", rssi_value);           
+                        
                 rssi_send(NODE_LEADER_ADDR, NODE_LEADER_PORT, "hello");
                 uart_hdr.src_port = RSSI_THREAD_PORT; //PORT 220
                 uart_hdr.dst_port = RSSI_MBED_DUMP_PORT; //PORT 9111
                 uart_hdr.pkt_type = RSSI_DATA_PKT;
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, rssi_str_val, sizeof(rssi_str_val));  
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, &rssi_value, sizeof(rssi_value));  
 
                 msg_snd.type = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;                
