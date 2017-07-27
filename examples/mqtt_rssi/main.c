@@ -411,6 +411,10 @@ static void *_mqtt_thread(void *arg)
                 }
                 else
                     DEBUG("mqtt_control_thread: The RSSI GO message was not sent\n");
+                //Publishes to init_info to start the request 
+                xtimer_usleep(100000);
+                auto_pub(TOPIC,"1");
+            
 
             }
 

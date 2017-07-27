@@ -1,5 +1,6 @@
 from __future__ import print_function
 import paho.mqtt.client as mqtt
+import time
 
 
 #initializing the variables
@@ -12,20 +13,22 @@ topic_client_con = "$SYS/broker/clients/connected"
 topic_client_id = "$SYS/broker/clients/ID"
 global topic_pub 
 topic_pub = ""
-server_mqtt = {'0': 'ACK', '1': 'Do something'}
+server_mqtt = {'0': 'ACK', '1': 'REQUEST'}
 hwaddr=[]
 global total_num_clients_con_broker
 total_num_clients_con_broker=0
+global client_req
+client_req=0
 global connected_clients
 connected_clients=0
-client_ID=[]
 
 #Creating the callback functions 
 
 # The callback for when the client receives a CONNACK response from the server.
 # The callback function when client is connected to the broker.
-	
+#Function is not used in this test
 def usr_input(client):
+	global client_req
 	c=0
 	exit=0
 	while(c!=3):
@@ -76,14 +79,20 @@ def on_message(client, userdata, msg):
 	global topic_pub
 	global total_num_clients_con_broker
 	global connected_clients
+	global client_req
 	print ("Data received")
 	message = str(msg.payload.decode())
 	if msg.topic==topic_sub:		
-			if message[0] in server_mqtt:
+			if message[0] == '0':
 				topic_pub=message[1:]
 				hwaddr.append(topic_pub)
 				#when a message is received, the message is published to another topic
-				client.publish(topic_pub,server_mqtt[message[0]])     
+				client.publish(topic_pub,server_mqtt[message[0]]) 
+			if message[0] == '1':
+				client_req=client_req+1	
+				print("clients requested",client_req)	
+
+
 	elif msg.topic==topic_client_con:
 		connected_clients=connected_clients+1
 		total_num_clients_con_broker=int(message)
@@ -92,21 +101,23 @@ def on_message(client, userdata, msg):
 				connected_clients=connected_clients-1
 		else:
 			client_ID.append(str(msg.payload.decode()))
+	print("The clients connected", hwaddr)
+	connected_clients=len(hwaddr)
+
 	  
 def on_subscribe(mosq, obj, mid, granted_qos):
 	print("Subscribed to all topics ")
 
 def on_publish(client,userdata,result): 
 	global connected_clients
-	print("Data published to topic", topic_pub)
-	print("The number of clients connected is",connected_clients)
-	print("The total number of clients that have connected to broker", total_num_clients_con_broker)
-	print("The clients are", client_ID) 
+	print("Data published to topic", topic_pub) 
+	print("The number of connected clients:", connected_clients)
 	#check to ensure that all clients have connected
 	#For this test it assumes there are only 2 clients
-	if connected_clients==2:
-		#usr_input(client)
-		pass
+	
+
+
+		
  
 #Creating an instance and setting up the callbacks 
 
@@ -116,9 +127,27 @@ client.on_message = on_message	#on_message callback
 client.on_publish = on_publish	#on_publish callback	
 client.on_subscribe =on_subscribe
 #client.tls_set(path_to_certificate)	#establishing the SSL certificate
-client.connect(broker_address, port)	#connecting to broker
+client.connect(broker_address, port)
+client.subscribe([(topic_sub, 0), (topic_client_con, 0), (topic_client_id,0)])	#connecting to broker
+client.loop_start()
+while (1):
+	if client_req==2:
+		for i in range(2):
+			len_data="3"+str(client_req)
+			infoc=client.publish(hwaddr[i],len_data)
+			infoc.wait_for_publish()
+		time.sleep(1)
+		for i in range(2):
+			for j in range(2):
+				data = "4"+hwaddr[j]
+				info=client.publish(hwaddr[i], data)
+				info.wait_for_publish()
+				for c in range(10000000):
+					pass
+			for a in range(10000000):
+					pass
+			print ("Sent to hardware address", hwaddr[i])
+		client_req=0;
 
-#Setting up the subscribe 
 
-client.subscribe([(topic_sub, 0), (topic_client_con, 0), (topic_client_id,0)])
 client.loop_forever()	#looping forever so it doesn't terminate 
