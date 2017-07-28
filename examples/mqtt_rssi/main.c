@@ -412,11 +412,23 @@ static void *_mqtt_thread(void *arg)
                 else
                     DEBUG("mqtt_control_thread: The RSSI GO message was not sent\n");
                 //Publishes to init_info to start the request 
-                xtimer_usleep(100000);
+                xtimer_usleep(1000000);
                 auto_pub(TOPIC,"1");
-            
-
+                hdlc_snd_pkt.data=send_data;
+                uart_hdr.src_port = THREAD2_PORT; //PORT 170
+                uart_hdr.dst_port = MBED_PORT; //PORT 200
+                uart_hdr.pkt_type = HWADDR_GET; 
+                //adds the uart hdr to the hdlc data
+                uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);                
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, &EMCUTE_ID, sizeof(EMCUTE_ID));                
+                msg_snd.type = HDLC_MSG_SND;
+                msg_snd.content.ptr= &hdlc_snd_pkt;
+                if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                    DEBUG("mqtt_control_thread: the MQTT GO message was not sent to the hdlc thread\n");
+                                    
+                }                 
             }
+
 
             //pub to init_info
             if (sent_hwaddr == 1)
@@ -547,7 +559,7 @@ static void *_mqtt_thread(void *arg)
         frame_no++;
 
         //control transmission rate via interpacket intervals 
-        xtimer_usleep(10000);
+        xtimer_usleep(100000);
     }
 
     //should be never reached 
@@ -761,7 +773,7 @@ int main(void)
             count--;
         }
         i++;
-    }
+    }    
     DEBUG("The Hardware address is %s \n", EMCUTE_ID);
 
     /* we need a message queue for the thread running the shell in order to
@@ -798,7 +810,7 @@ int main(void)
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
     //create packets with max size 
-    char send_data[HDLC_MAX_PKT_SIZE];//size 16
+    char send_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     hdlc_pkt_t *hdlc_rcv_pkt;
     uart_pkt_hdr_t uart_hdr;
@@ -807,10 +819,9 @@ int main(void)
 
     // hdr for each pkt is the same for this test 
     uart_hdr.src_port = MAIN_THR_PORT;
-    uart_hdr.dst_port = MAIN_THR_PORT;
-    uart_hdr.pkt_type = MQTT_PKT_TYPE;
-    uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-
+    uart_hdr.dst_port = MBED_PORT;
+    uart_hdr.pkt_type = HWADDR_GET;
+    
     random_init(xtimer_now().ticks32);
 
     //DEBUG("Main Thread pid is %" PRIkernel_pid "\n", thread_getpid());

@@ -97,7 +97,7 @@ typedef enum  {
     MQTT_PKT_TYPE           = 10,
     SUB_ACK                 = 11,
     PUB_ACK                 = 12,
-    
+    HWADDR_GET              = 13    
 } riot_to_mbed_t;
 
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
