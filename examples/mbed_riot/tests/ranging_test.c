@@ -173,8 +173,7 @@ static void *_range_rx_thread(void *arg)
     int i = 0;
     int num_iter = 0;
     int remainder = 0;
-    int end_of_series = 0;
-
+    
     msg_t msg_snd, msg_rcv;
     /* create packets with max size */
     char send_data[pkt_size];
