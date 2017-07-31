@@ -48,11 +48,11 @@
  */
 
 #include "range.h"
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 #define MAXSAMPLES_ONE_PIN            18000
-#define MAXSAMPLES_TWO_PIN            18000
+#define MAXSAMPLES_TWO_PIN            36000
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
 #define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
@@ -124,26 +124,26 @@ block:
 
         }
         if(time_diffs[i].tdoa > 0){
-            printf("range: TDoA = %d\n", time_diffs[i].tdoa);
+            DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
             switch (range_mode){
                 case ONE_SENSOR_MODE:
                     break;
 
                 case TWO_SENSOR_MODE:
                     if(time_diffs[i].error!=0){
-                        printf("range: Missed pin %d\n", time_diffs[i].error);
+                        DEBUG("range: Missed pin %d\n", time_diffs[i].error);
                     } else{
-                        printf("range: OD = %d\n", time_diffs[i].orient_diff);
+                        DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
                     }
                     break;
 
                 case XOR_SENSOR_MODE:
-                    printf("range: OD = %d\n", time_diffs[i].orient_diff);
+                    DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
                     break;
             }
         }
         else{
-            printf("Ultrsnd ping missed\n");
+            DEBUG("Ultrsnd ping missed\n");
         }
 
 
@@ -180,6 +180,7 @@ int range_tx( void )
         DEBUG("Error initializing GPIO_PIN.\n");
         return 1;
     }
+    
     // clearing output for the ultrasonic sensor
     gpio_clear(TX_PIN);
 
