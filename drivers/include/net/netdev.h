@@ -256,7 +256,6 @@ typedef struct netdev_driver {
  *
  * It can be extended
  */
-
 typedef struct __attribute__((packed)) {
     uint16_t tdoa; /**< Time Difference of Arrival */
     uint16_t orient_diff; /**< Orientation Difference (of Arrival) */
@@ -276,13 +275,6 @@ typedef struct __attribute__((packed)) {
     uint8_t ranging_mode; /**< Mode to range in */
     // add more options in the future?
 } range_params_t;
-
-typedef struct gpio_rx_line {
-    unsigned int one_pin;
-    unsigned int two_pin;
-    unsigned int xor_pin;
-
-} gpio_rx_line_t;
 
 /**
  * @brief Structure holding info on which pin are connected for ranging

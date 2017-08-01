@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Jason A. Tran
+ * Richard Kim
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,303 +36,164 @@
  */
 
 /**
- * @ingroup     examples
- * @{
+ * @file       tdma_master.c
+ * @brief      Implements the master node for initializing TDMA-based localization anchors. 
  *
- * @file
- * @brief       Full-duplex hdlc test using a single thread (run on both sides).
- *
- * In this test, the main thread and thread2 thread will contend for the same
- * UART line to communicate to another MCU also running a main and thread2 
- * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
- * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
- *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 200000
- * -RETRANSMIT_TIMEO_USEC 50000
- *
- * @author      Jason A. Tran <jasontra@usc.edu>
- *
- * @}
+ * @author     Jason A. Tran <jasontra@usc.edu>
+ * @author     Richard Kim <richartk@usc.edu>
  */
 
-#include <stdio.h>
-#include <string.h>
 #include <inttypes.h>
 
 #include "board.h"
-#include "thread.h"
 #include "msg.h"
-#include "random.h"
-#include "xtimer.h"
 #include "net/gnrc.h"
-#include "net/gnrc/ipv6.h"
-#include "net/gnrc/udp.h"
-#include "net/netdev.h"
-#include "periph/uart.h"
+#include "timex.h"
+#include "xtimer.h"
 #include "main-conf.h"
-#include "range_param.h"
-#include "hdlc.h"
-#include "uart_pkt.h"
-#include "range.h"
-#include "shell.h"
+#include "anchor_node_table.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG            (1)
 #include "debug.h"
 
-#define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
-#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN)
+#define MAX_TX_POWER             7       //valid range: -27 to 7
 
-#define MAIN_THR_PORT       1234
-#define RANGE_PORT          5678
+#define MAIN_QUEUE_SIZE         (8)
+static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
-#define PKT_FROM_MAIN_THR   0
-#define RANGE_PKT           1
-#define RANGE_REQ           100
+/*--------------------------------------------------------------------*/
+#include <stdio.h>
 
-#define RANGE_TIMEO_USEC    250000
-#define MAIN_QUEUE_SIZE     (8)
+#include "shell.h"
+#include "msg.h"
 
+// #define MAIN_QUEUE_SIZE     (8)
+// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
-#undef BIT
-#define BIT(n) ( 1 << (n) )
-/* Bit field definitions for the UART Line Control Register: */
-#define FEN   BIT( 4) /**< Enable FIFOs */
-#define UART_CTL_HSE_VALUE    0
-
-/* see openmote-cc2538's periph_conf.h for second UART pin config */
-
-static msg_t range_msg_queue[16];
-
-static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
-static char range_stack[THREAD_STACKSIZE_MAIN];
+// extern int udp_cmd(int argc, char **argv);
+// extern int range_tx(int argc, char **argv);
+int range(void);
+// extern int range_rx(int argc, char **argv);
 
 static const shell_command_t shell_commands[] = {
+    // { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
+    { "range", "act as the transmitter for sound ranging", range},
+    // { "range_rx", "act as the receiver for sound ranging", range_rx},
     { NULL, NULL, NULL }
 };
+/*--------------------------------------------------------------------*/
 
-/**
- * Set channel of radio. Works only if one netif exists.
- * @param channel Target channel with a valid range of 11 to 26.
- */
-static int _set_channel(uint16_t channel)
+int range(void)
+// int main(void)
 {
-    if (channel < 11 || channel > 26) {
-        return -1; /* invalid channel number */
-    }
+    msg_t msg;
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    size_t numof = gnrc_netif_get(ifs);
-    if (numof == 1) {
-        return gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
-    }
+    gnrc_netif_get(ifs);
+    gnrc_pktsnip_t *send_pkt, *recv_pkt, *hdr;
+    uint8_t *src_l2addr;
+    int src_l2addr_len;
+    char l2_addr_str[GNRC_NETIF_HDR_L2ADDR_PRINT_LEN];
+    int anchor_node_id;
+    uint8_t buf[6];      // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
+    uint16_t tdma_slot_time_msec = (uint16_t) (TDMA_SLOT_TIME_USEC / 1000);
+    uint8_t total_num_anchors = TDMA_TOTAL_ANCHOR_NODES; 
 
-    return -1; /* fail */
-}
+    gnrc_netreg_entry_t tdma_master_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
 
-/**
- * Get channel of radio. Works only if one netif exists.
- * @param channel Target channel with a valid range of 11 to 26.
- */
-static uint16_t _get_channel(void)
-{
-    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    uint16_t channel;
-    size_t numof = gnrc_netif_get(ifs);
-    if (numof == 1) {
-        return gnrc_netapi_get(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
-    }
+    msg_init_queue(_main_msg_queue, sizeof(_main_msg_queue));
 
-    return -1; /* fail */
-}
+    uint16_t channel = TDMA_BOOTSTRAP_CHANNEL;
+    uint16_t tx_power = MAX_TX_POWER;
+    gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
+    gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
 
-/**
- * Checks if params_ranging_mode is valid.
- * @param ranging_mode_char From params->ranging_mode.
- */
-// bool isInvalidRangingMode(char ranging_mode_char)
-// {
-//     return ranging_mode_char != ONE_SENSOR_MODE && 
-//             ranging_mode_char != TWO_SENSOR_MODE && 
-//             ranging_mode_char != XOR_SENSOR_MODE;
-// }                          
+    /* register for all l2 packets */
+    gnrc_netreg_register(1, &tdma_master_serv);
 
-/**
- * Main ranging code.
- * @param *arg Pointer to the HDLC pid.
- */
-static void *_range_thread(void *arg)
-{   
-    kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
-    uint16_t old_channel;
-    range_params_t* params;
-    msg_init_queue(range_msg_queue, sizeof(range_msg_queue));
-    hdlc_entry_t range_entry;
-    range_entry.next = NULL;
-    range_entry.port = (int16_t)RANGE_PORT;
-    range_entry.pid = thread_getpid();
-    hdlc_register(&range_entry);
-    int pkt_size = sizeof(range_data_t) + sizeof(uart_pkt_hdr_t);
+    while (1) {
+        msg_receive(&msg);
 
-    msg_t msg_snd, msg_rcv;
-    /* create packets with max size */
-    char send_data[pkt_size];
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
-    hdlc_pkt_t *hdlc_rcv_pkt, *hdlc_rcv_pkt2;
-    uart_pkt_hdr_t uart_hdr;
-    range_data_t* time_diffs;
+        switch (msg.type) {
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                DEBUG("Received pkt.\n");
+                recv_pkt = msg.content.ptr;
 
-    /* hdr for each pkt is the same for this test */
-    uart_hdr.src_port = RANGE_PORT;
-    uart_hdr.dst_port = RANGE_PORT;
-    uart_hdr.pkt_type = RANGE_PKT;
-    uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+                /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
+                if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_REQ_U16_FLAG >> 8) & 0xFF) &&
+                    ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_REQ_U16_FLAG & 0xFF)) {
+                    recv_pkt = recv_pkt->next;
+                    src_l2addr_len = gnrc_netif_hdr_get_srcaddr(recv_pkt, &src_l2addr);
 
-    DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
-    DEBUG("PORT is %lu\n",(uint32_t)RANGE_PORT);
+                    anchor_node_id = anchor_id_lookup(src_l2addr, (unsigned int) src_l2addr_len);
 
-    int exit = 0;
-
-    while(1)
-    {
-        DEBUG("Waiting for message...\n");
-        msg_receive(&msg_rcv);
-
-        DEBUG("Message recieved\n");
-        switch (msg_rcv.type)
-        {
-            case HDLC_PKT_RDY:
-                hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
-
-                switch (uart_hdr.pkt_type)
-                {
-                    case RANGE_REQ:
-                        old_channel = _get_channel();
-                        _set_channel(RSSI_LOCALIZATION_CHAN);
-
-                        params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
-
-                        if( params->ranging_mode != ONE_SENSOR_MODE && 
-                            params->ranging_mode != TWO_SENSOR_MODE && 
-                            params->ranging_mode != XOR_SENSOR_MODE ){
-                            DEBUG("Recieved an invalid ranging mode\n");
-                            break;
-                        }
-                        /*if( isInvalidRangingMode(params->ranging_mode)
-                        {
-                            DEBUG("Recieved an invalid ranging mode\n");
-                            break;
-                        } else{
-                            UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-
-                            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode);
-                            
-                            UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                            UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                            UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                            UART1->cc2538_uart_dr.ECR = 0xFF;
-                            UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                            UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                            UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-                            if(time_diffs == NULL){
-                                DEBUG("An error occured while ranging\n");
-                                break;
-                            }
-                            
-                            //sending the data back down the hdlc
-
-                            DEBUG("Sending data back down hdlc\n");
-                            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, time_diffs, sizeof(range_data_t));
-                            msg_snd.type = HDLC_MSG_SND;
-                            msg_snd.content.ptr = &hdlc_snd_pkt;
-                            if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                /* TODO: use xtimer_msg_receive_timeout() instead */
-                                /* this is where applications can decide on a timeout */
-                                DEBUG("HDLC busy retrying...\n");
-                                msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-                                msg_rcv.content.value = RTRY_TIMEO_USEC;
-                                msg_send_to_self(&msg_rcv);
-                            }
-
-                            while(1)
-                            {
-                                msg_receive(&msg_rcv);
-
-                                switch (msg_rcv.type)
-                                {
-                                    case HDLC_RESP_SND_SUCC:
-                                        DEBUG("Successfully sent ranging data\n");
-                                        exit = 1;
-                                        break;
-                                    case HDLC_RESP_RETRY_W_TIMEO:
-                                        xtimer_usleep(msg_rcv.content.value);
-                                        DEBUG("Range thread: retrying\n");
-                                        if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                            DEBUG("Range thread: HDLC msg queue full!\n");
-                                            msg_send_to_self(&msg_rcv);
-                                        }
-                                        break;
-                                    case HDLC_PKT_RDY:
-                                        hdlc_rcv_pkt2 = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                                        DEBUG("Range thread: received pkt while trying to send\n");
-                                        hdlc_pkt_release(hdlc_rcv_pkt2);
-                                        break;
-                                    default:
-                                        /* error */
-                                        LED3_ON;
-                                        break;
-                                }
-
-                                if(exit) {
-                                    exit = 0;
-                                    break;
-                                }
-                            }
-                        }
-                        _set_channel(old_channel);
-                        
+                    if (anchor_node_id < 0) {
+                        DEBUG("Anchor node unrecognized\n");
+                        gnrc_pktbuf_release(recv_pkt);
                         break;
-                    default:
-                        DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
-                        break;
+                    }
+
+                    DEBUG("Assigning %s anchor id %d\n", 
+                          gnrc_netif_addr_to_str(l2_addr_str, sizeof(l2_addr_str),
+                                                 src_l2addr, src_l2addr_len),
+                          anchor_node_id);
+
+                    buf[0] = TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8 & 0xFF;
+                    buf[1] = TDMA_ANCHOR_ID_RESP_U16_FLAG      & 0xFF; 
+                    buf[2] = anchor_node_id;
+                    buf[3] = tdma_slot_time_msec >> 8 & 0xFF;
+                    buf[4] = tdma_slot_time_msec      & 0xFF;
+                    buf[5] = total_num_anchors;
+
+                    send_pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
+                    if (send_pkt == NULL) {
+                        DEBUG("error: packet buffer full\n");
+                        return 1;
+                    }
+
+                    /* TODO: sending the l2addr directly hasn't been tested. Not
+                    sure if this works. Usually we convert a string into RIOT's
+                    structure, whatever that is. Make sure this works first! */
+                    hdr = gnrc_netif_hdr_build(NULL, 0, src_l2addr, src_l2addr_len);
+                    if (hdr == NULL) {
+                        DEBUG("error: packet buffer full\n");
+                        gnrc_pktbuf_release(send_pkt);
+                        return 1;
+                    }
+
+                    LL_PREPEND(send_pkt, hdr);
+
+                    if (gnrc_netapi_send(ifs[0], send_pkt) < 1) {
+                        DEBUG("error: unable to send\n");
+                        gnrc_pktbuf_release(send_pkt);
+                    }
                 }
-                hdlc_pkt_release(hdlc_rcv_pkt);
+
+                /* done with src_l2addr */
+                gnrc_pktbuf_release(recv_pkt);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_SND:
+                /* This thread will get all send l2 send requests, even if it's
+                coming from this thread. Discard it */
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                 break;
             default:
-                /* error */
-                DEBUG("Recieved something else");
-                LED3_ON;
+                DEBUG("msg.type = %d\n", msg.type);
+                DEBUG("tdma_master: unknown msg_t!\n");
                 break;
-
         }
-
-        /* control transmission rate via interpacket intervals */
-        xtimer_usleep(50000);
     }
 
     /* should be never reached */
     return 0;
 }
 
+/*--------------------------------------------------------------------*/
 int main(void)
 {
-    /** 
-     * We need a message queue for the thread running the shell in order to
-     * receive potentially fast incoming networking packets.
-     */
+    /* we need a message queue for the thread running the shell in order to
+     * receive potentially fast incoming networking packets */
     msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
     puts("RIOT network stack example application");
-    xtimer_init();
-
     /* start shell */
     puts("All up, running the shell now");
     char line_buf[SHELL_DEFAULT_BUFSIZE];
@@ -343,15 +205,9 @@ int main(void)
     // temp[2] = "1000000";     //interval_in_us
     // range_rx(3, temp);
 
-    kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
-
-    /* comment the lines below to test a single thread */
-    thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
-                  THREAD_CREATE_STACKTEST, _range_thread, hdlc_pid, "range thread");
-
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
     /* should be never reached */
     return 0;
 }
+/*--------------------------------------------------------------------*/

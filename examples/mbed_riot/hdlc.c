@@ -131,7 +131,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
     uart_pkt_hdr_t hdr;
     hdlc_entry_t *entry;
     
-    int i=0;
+    // int i=0;
         
     while(1) {
         retval = ringbuffer_get_one(&(ctx.rx_buf));

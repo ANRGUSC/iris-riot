@@ -353,3 +353,4 @@ void range_rx_stop(void)
     ref--;
     ranging_complete.type=ULTRSND_RCVD;
     msg_send(&ranging_complete,ranging_pid);
+}

@@ -52,8 +52,5 @@
 #define MAIN_QUEUE_SIZE         (8)
 
 #define TDMA_ANCHOR_ID_ACK_U16_FLAG			0x4e43 // random, not sure if necessary
-
-#define RANGE_FLAG_BYTE0					0x55
-#define RANGE_FLAG_BYTE1					0x66
-
+#define RANGE_RX_HW_ADDR    "ff:ff"
 #endif

@@ -41,29 +41,53 @@
  *
  * @author     Jason A. Tran <jasontra@usc.edu>
  * @author     Richard Kim <richartk@usc.edu>
- * @author      Yutong Gu <yutonggu@usc.edu>
  */
 #include "range.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
+// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
+#define MAX_ADDR_LEN        (8U)
+#define TX_PIN              GPIO_PD3
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
+
+/*--------------------------------------------------------------------*/
+#include <stdio.h>
+
+#include "shell.h"
+#include "msg.h"
+
+#define MAIN_QUEUE_SIZE     (8)
+// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
+
+// extern int udp_cmd(int argc, char **argv);
+// extern int range_tx(int argc, char **argv);
+int range_tx(void);
+// extern int range_rx(int argc, char **argv);
+
+static const shell_command_t shell_commands[] = {
+    // { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
+    { "range_tx", "act as the transmitter for sound ranging", range_tx},
+    // { "range_rx", "act as the receiver for sound ranging", range_rx},
+    { NULL, NULL, NULL }
+};
+/*--------------------------------------------------------------------*/
+
 /*----------------------------------------------------------------------------*/
 int range_tx(void)
 {
+    DEBUG("Running range_tx.\n");
+
 // SETUP
     // Radio
     //------------------------------------------------------------------------//
     msg_t msg;
-    msg_init_queue(main_msg_queue, sizeof(_main_msg_queue));
+    msg_init_queue(_main_msg_queue, sizeof(_main_msg_queue));
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     size_t numof = gnrc_netif_get(ifs); 
     gnrc_pktsnip_t *send_pkt, *recv_pkt, *hdr;
-    uint8_t *src_l2addr;
-    int src_l2addr_len;
-    char l2_addr_str[GNRC_NETIF_HDR_L2ADDR_PRINT_LEN];
-    int anchor_node_id;
+    uint8_t anchor_node_id;
     // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
     uint8_t buf[3]; // buf is size 6 in master
     uint16_t tdma_slot_time_msec = 0;
@@ -101,21 +125,21 @@ int range_tx(void)
     }
     // Clearing output for the ultrasonic sensor.
     gpio_clear(TX_PIN);
-
     range_tx_init(TX_PIN);
     //------------------------------------------------------------------------//
     
     // Miscellaneous
     //------------------------------------------------------------------------//
 	bool wait_for_id = true;
-    xtimer_ticks32_t start_time, wait_time, ranking_time, go_time;
-    int incoming_rank;
+    xtimer_ticks32_t start_time, wait_time, go_time;
+    uint8_t incoming_rank;
     // NETOPT_ADDRESS; // this device's hw_addr 
     //------------------------------------------------------------------------//
 
 // MAIN LOOP
  	while (true)
  	{
+        DEBUG("Sending REQ packet...");
 		// NODE sends REQ packet to LEADER.
 	    //--------------------------------------------------------------------//
  		buf[0] = TDMA_ANCHOR_ID_REQ_U16_FLAG >> 8 & 0xFF;
@@ -149,17 +173,15 @@ int range_tx(void)
             gnrc_pktbuf_release(send_pkt);
         }
 	    //--------------------------------------------------------------------//
+        DEBUG("Done.\n");
 
+        DEBUG("Waiting for ID packet...\n");
     	// NODE A waits for ID packet from LEADER.
 	    //--------------------------------------------------------------------//
     	wait_for_id = true;
         while (wait_for_id)
         {
 	        msg_receive(&msg);
-	        // pkt = msg.content.ptr;
-
-			/* get snip containing packet data where we put the packet number */
-	        // snip = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_UNDEF);
 	        switch (msg.type)
 	        {
 				// NODE receives ID packet from LEADER.
@@ -172,12 +194,14 @@ int range_tx(void)
                     	((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
                     {
 			            // NODE records its ranking.
-			            anchor_node_id = (int)(((uint8_t *)recv_pkt->data)[2]);
-
+			            anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
+                        DEBUG("Rank: ");
+                        DEBUG("%d\n", anchor_node_id);
 			            // NODE syncs with the LEADER.
-	                    tdma_slot_time_msec & 0x00;
-	                    ( tdma_slot_time_msec | ((uint8_t *)recv_pkt->data)[3] ) << 8;
-	                      tdma_slot_time_msec | ((uint8_t *)recv_pkt->data)[4];
+	                    tdma_slot_time_msec &= 0x00;
+                        tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
+	                    tdma_slot_time_msec = tdma_slot_time_msec << 8;
+                        tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
 
 	                    // NODE records total number of nodes (useful for NODE 1).
 	                    total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
@@ -190,26 +214,28 @@ int range_tx(void)
 	                /* This thread will get all send l2 send requests, even if it's
 	                coming from this thread. Discard it */
 	                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                	break
+                	break;
 				default:
 	                // pkt received didn't match any of these.
 	                DEBUG("msg.type = %d\n", msg.type);
-	                DEBUG("Waiting for ID packet from LEADER. PKT was none of these.");
+	                DEBUG("Waiting for ID packet from LEADER. PKT was none of these.\n");
 	                break;
 	        }
 	    }
 	    //--------------------------------------------------------------------//
+        DEBUG("Received ID packet.\n");
 
+        DEBUG("Waiting to go.\n");
 	    // NODE A received ID packet from LEADER and is now waiting to go.
 	    // TODO: check if GNRC_NETAPI_MSG_TYPE_RCV is correct
 	    //--------------------------------------------------------------------//
         start_time = xtimer_now();
-        wait_time = xtimer_now() - start_time;
-        go_time = anchor_node_id * tdma_slot_time_msec;
-        ranking_time = go_time;
-        while ( (wait_time < go_time) && (wait_time < ranking_time) )
+        DEBUG("Start time: %u\n", start_time.ticks32);
+        wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
+        go_time.ticks32 = anchor_node_id * tdma_slot_time_msec;
+        while (wait_time.ticks32 < go_time.ticks32)
         {
-	        msg_receive(&msg);
+	        msg_receive(&msg); // make this a thread? or make the timer a thread?
 	        switch (msg.type)
 	        {
 	            case GNRC_NETAPI_MSG_TYPE_RCV:
@@ -222,35 +248,41 @@ int range_tx(void)
 						// NODE's rank is 1 and listening for the last NODE.
 						if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1))
 						{
-							ranking_time = 1 * tdma_slot_time_msec;
+                            DEBUG("last rank to first.\n");
+							go_time.ticks32 = wait_time.ticks32 + (uint32_t)tdma_slot_time_msec;
 						}
 						// NODE's rank is higher than the incoming NODE's transmission.
 						if (incoming_rank < anchor_node_id)
 						{
-							ranking_time = (anchor_node_id - incoming_rank) * tdma_slot_time_msec;
+                            DEBUG("lower rank to higher.\n");
+							go_time.ticks32 = wait_time.ticks32 + (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
 						}
 	                }
 	                break;
                 case GNRC_NETAPI_MSG_TYPE_SND:
 	                /* This thread will get all send l2 send requests, even if it's
 	                coming from this thread. Discard it */
+                    DEBUG("SND type packet.\n");
 	                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                	break
+                	break;
 	            default:
-	            	DEBUG("Not a ranging packet.");
+	            	DEBUG("Not a ranging packet.\n");
 	            	break;
             }
             // Refresh the timer.
-        	wait_time = xtimer_now() - rstx_start_time;
+        	wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
         }
 	    //--------------------------------------------------------------------//
+        DEBUG("Waited to go.\n");
 
+        DEBUG("Sending signal.\n");
         //ACUTALLY SENDING THE SIGNAL GOD FINALLY
         // TODO: Modify to not block the interrupts
 	    //--------------------------------------------------------------------//
         /** Send L2 Packet **/
         /* network interface */
-        hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), LEADER_HW_ADDR);
+        // need to change this to hit anything
+        hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
 
         /* put packet together */
         buf[0] = RANGE_FLAG_BYTE0;
@@ -274,7 +306,7 @@ int range_tx(void)
 
 		flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
         nethdr = (gnrc_netif_hdr_t *)hdr->data;
-        nethdr->flags = flags;
+        nethdr->flags = flags;W
         /* ready to send */
         
         //make sure no packets are to be sent!!
@@ -292,170 +324,106 @@ int range_tx(void)
     return 0;
 }
 /*----------------------------------------------------------------------------*/
-static range_data_t* time_diffs;
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
-    // Check correct argument usage.
-    uint8_t mode = range_mode;
-    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
-    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+// static range_data_t* time_diffs;
+// range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
+//     // Check correct argument usage.
+//     uint8_t mode = range_mode;
+//     uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
+//                        //
+//     gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
     
-    if(mode == TWO_SENSOR_MODE){
-        maxsamps = MAXSAMPLES_TWO_PIN;
-    } else {
-        maxsamps = MAXSAMPLES_ONE_PIN;
-    }
+//     if(mode == TWO_SENSOR_MODE){
+//         maxsamps = MAXSAMPLES_TWO_PIN;
+//     } else {
+//         maxsamps = MAXSAMPLES_ONE_PIN;
+//     }
 
-    if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
-        DEBUG("Error initializing GPIO_PIN.\n");
-        return 1;
-    }
-    // clearing output for the ultrasonic sensor
-    gpio_clear(TX_PIN);
-
-    time_diffs = malloc(sizeof(range_data_t)*num_samples);
+//     time_diffs = malloc(sizeof(range_data_t)*num_samples);
     
-    uint32_t timeout = timeout_usec;
-    if(timeout <= 0){
-        DEBUG("timeout must be greater than 0");
-        return NULL;
-    }
+//     uint32_t timeout = timeout_usec;
+//     if(timeout <= 0){
+//         DEBUG("timeout must be greater than 0");
+//         return NULL;
+//     }
 
-    msg_t msg; 
-    msg_t msg_queue[QUEUE_SIZE];
+//     msg_t msg; 
+//     msg_t msg_queue[QUEUE_SIZE];
 
-    /* setup the message queue */
-    msg_init_queue(msg_queue, QUEUE_SIZE);
+//     /* setup the message queue */
+//     msg_init_queue(msg_queue, QUEUE_SIZE);
 
    
-    int i;
-    for(i = 0; i < num_samples; i++){
+//     int i;
+//     for(i = 0; i < num_samples; i++){
 
 
-        range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
+//         range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
 
-block:
-        if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("RF ping missed\n");
-            return NULL;
-        }   
+// block:
+//         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+//             DEBUG("RF ping missed\n");
+//             return NULL;
+//         }
 
-        if(msg.type == RF_RCVD){
-            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-                DEBUG("Ultrsnd ping missed\n");
-                return NULL;
-            }
-            if(msg.type == ULTRSND_RCVD){
-                time_diffs[i] = *(range_data_t*) msg.content.ptr;
-            } else{
-                goto block;
-            }
+//         if(msg.type == RF_RCVD){
+//             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+//                 DEBUG("Ultrsnd ping missed\n");
+//                 return NULL;
+//             }
+//             if(msg.type == ULTRSND_RCVD){
+//                 time_diffs[i] = *(range_data_t*) msg.content.ptr;
+//             } else{
+//                 goto block;
+//             }
 
-        }
-        if(time_diffs[i].tdoa > 0){
-            printf("range: TDoA = %d\n", time_diffs[i].tdoa);
-            switch (range_mode){
-                case ONE_SENSOR_MODE:
-                    break;
+//         }
+//         printf("range: tdoa = %d\n", time_diffs[i].tdoa);
+//         switch (range_mode){
+//             case ONE_SENSOR_MODE:
+//                 break;
 
-                case TWO_SENSOR_MODE:
-                    if(time_diffs[i].error!=0){
-                        printf("range: Missed pin %d\n", time_diffs[i].error);
-                    } else{
-                        printf("range: OD = %d\n", time_diffs[i].orient_diff);
-                    }
-                    break;
+//             case TWO_SENSOR_MODE:
+//                 if(time_diffs[i].error!=0){
+//                     printf("range: Missed pin %d\n", time_diffs[i].error);
+//                 } else{
+//                     printf("range: odelay = %d\n", time_diffs[i].odelay);
+//                 }
+//                 break;
 
-                case XOR_SENSOR_MODE:
-                    printf("range: OD = %d\n", time_diffs[i].orient_diff);
-                    break;
-            }
-        }
-        else{
-            printf("Ultrsnd ping missed\n");
-        }
+//             case XOR_SENSOR_MODE:
+//                 printf("range: odelay = %d\n", time_diffs[i].odelay);
+//                 break;
+//         }
+//         if(i == num_samples-1){
+//             time_diffs[i].error += 10;
+//         }
 
 
-    }
+//     }
 
-    return time_diffs;
+//     return time_diffs;
+// }
+/*--------------------------------------------------------------------*/
+int main(void)
+{
+    /* we need a message queue for the thread running the shell in order to
+     * receive potentially fast incoming networking packets */
+    msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
+    puts("RIOT network stack example application");
+    /* start shell */
+    puts("All up, running the shell now");
+    char line_buf[SHELL_DEFAULT_BUFSIZE];
+
+    /* auto-run */
+    // char *temp[3];
+    // temp[0] = "range_rx";
+    // temp[1] = "50";          //num pkts
+    // temp[2] = "1000000";     //interval_in_us
+    // range_rx(3, temp);
+
+    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
+
+    /* should be never reached */
+    return 0;
 }
-/*----------------------------------------------------------------------------*/
-static range_data_t* time_diffs;
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
-    // Check correct argument usage.
-    uint8_t mode = range_mode;
-    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
-                       //
-    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
-    
-    if(mode == TWO_SENSOR_MODE){
-        maxsamps = MAXSAMPLES_TWO_PIN;
-    } else {
-        maxsamps = MAXSAMPLES_ONE_PIN;
-    }
-
-    time_diffs = malloc(sizeof(range_data_t)*num_samples);
-    
-    uint32_t timeout = timeout_usec;
-    if(timeout <= 0){
-        DEBUG("timeout must be greater than 0");
-        return NULL;
-    }
-
-    msg_t msg; 
-    msg_t msg_queue[QUEUE_SIZE];
-
-    /* setup the message queue */
-    msg_init_queue(msg_queue, QUEUE_SIZE);
-
-   
-    int i;
-    for(i = 0; i < num_samples; i++){
-
-
-        range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
-
-block:
-        if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("RF ping missed\n");
-            return NULL;
-        }
-
-        if(msg.type == RF_RCVD){
-            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-                DEBUG("Ultrsnd ping missed\n");
-                return NULL;
-            }
-            if(msg.type == ULTRSND_RCVD){
-                time_diffs[i] = *(range_data_t*) msg.content.ptr;
-            } else{
-                goto block;
-            }
-
-        }
-        printf("range: tdoa = %d\n", time_diffs[i].tdoa);
-        switch (range_mode){
-            case ONE_SENSOR_MODE:
-                break;
-
-            case TWO_SENSOR_MODE:
-                if(time_diffs[i].error!=0){
-                    printf("range: Missed pin %d\n", time_diffs[i].error);
-                } else{
-                    printf("range: odelay = %d\n", time_diffs[i].odelay);
-                }
-                break;
-
-            case XOR_SENSOR_MODE:
-                printf("range: odelay = %d\n", time_diffs[i].odelay);
-                break;
-        }
-        if(i == num_samples-1){
-            time_diffs[i].error += 10;
-        }
-
-
-    }
-
-    return time_diffs;
-}
+/*--------------------------------------------------------------------*/
