@@ -306,7 +306,7 @@ int range_tx(void)
 
 		flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
         nethdr = (gnrc_netif_hdr_t *)hdr->data;
-        nethdr->flags = flags;W
+        nethdr->flags = flags;
         /* ready to send */
         
         //make sure no packets are to be sent!!
@@ -320,7 +320,7 @@ int range_tx(void)
         DEBUG("RF and ultrasound pings sent\n");  
 	    //--------------------------------------------------------------------//
     }
-    //end of while loop, code should never reach here etc.
+    //end of while loop, code should never reach here, etc.
     return 0;
 }
 /*----------------------------------------------------------------------------*/
