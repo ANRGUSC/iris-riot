@@ -13,14 +13,18 @@ topic_client_con = "$SYS/broker/clients/connected"
 topic_client_id = "$SYS/broker/clients/ID"
 global topic_pub 
 topic_pub = ""
-server_mqtt = {'0': 'ACK', '1': 'REQUEST'}
+server_mqtt = {'0': 'ACK', '1': 'REQUEST', '2': 'SEND_RSSI'}
 hwaddr=[]
 global total_num_clients_con_broker
 total_num_clients_con_broker=0
 global client_req
+global rssi_sender_topic
 client_req=0
 global connected_clients
 connected_clients=0
+global rssi_sender_topic
+global send_rssi
+send_rssi=0
 
 #Creating the callback functions 
 
@@ -80,6 +84,8 @@ def on_message(client, userdata, msg):
 	global total_num_clients_con_broker
 	global connected_clients
 	global client_req
+	global rssi_sender_topic
+	global send_rssi
 	print ("Data received")
 	message = str(msg.payload.decode())
 	if msg.topic==topic_sub:		
@@ -88,10 +94,16 @@ def on_message(client, userdata, msg):
 				hwaddr.append(topic_pub)
 				#when a message is received, the message is published to another topic
 				client.publish(topic_pub,server_mqtt[message[0]]) 
-			if message[0] == '1':
+			elif message[0] == '1':
 				client_req=client_req+1	
-				print("clients requested",client_req)	
-
+				print("clients requested",client_req)
+			elif message[0] == '2':
+				print("RSSI_PUB received")				
+				rssi_sender_topic=message[1:]
+				print("***********",rssi_sender_topic,"**********")
+				send_rssi=1
+				for i in range(1000000):
+					pass
 
 	elif msg.topic==topic_client_con:
 		connected_clients=connected_clients+1
@@ -148,6 +160,19 @@ while (1):
 					pass
 			print ("Sent to hardware address", hwaddr[i])
 		client_req=0;
+	if send_rssi==1:
+		print("send the send_rssi command")
+		for i in range(1000000000):
+			pass
+		for i in range(connected_clients):
+			data_pub=str(hwaddr[i])
+			if hwaddr[i]==rssi_sender_topic:
+				print("hwaddr is the rssi sender topic")
+			else:
+				client.publish(data_pub,"5")
+			for j in range(1000000):
+				pass
+		send_rssi=0
 
 
 client.loop_forever()	#looping forever so it doesn't terminate 
