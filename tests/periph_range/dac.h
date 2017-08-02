@@ -1,14 +1,15 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
+ * Yutong Gu
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy 
+ * Permission is here
+ * by granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
  * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
@@ -33,83 +34,64 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH 
  * THE SOFTWARE.
  */
-
 /**
  * @ingroup     examples
  * @{
  *
- * @file
- * @brief       Full duplex hdlc implementation.
+ * @file        dac.h
+ * @brief       Ultrasound ranging library for localization
  *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
- *
- * @author      Jason A. Tran <jasontra@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  *
  * @}
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
 
-#include "yahdlc.h"
-#include "mutex.h"
-#include "thread.h"
-#include "board.h"
-#include "periph/uart.h"
+#ifndef DAC_H
+#define DAC_H
 
-#define RTRY_TIMEO_USEC         200000
-#define RETRANSMIT_TIMEO_USEC   50000
+#include "periph/spi.h"
 
-#ifndef HDLC_MAX_PKT_SIZE
-#define HDLC_MAX_PKT_SIZE       64
+#define DAC_GAIN             5
+#define DAC_ACTIVE           4
+#define DAC_DATA_MASK            0xf0
+#define DAC_DATA_OFFSET          4
+#define DAC_DATA_SIZE            2
+
+#define DEFAULT_DAC_CS          GPIO_PIN(0,3)
+#define DEFAULT_SENSOR_THRESH   40
+
+typedef enum {
+	DAC_GAIN_2 = 0,         /**< sets the DAC to a gain of 2 */
+    DAC_GAIN_1 = 1,     /**< sets the DAC to a gain of 1 */
+    
+} DAC_gain_t;
+
+/**
+ * @brief      Initializes the appropriate pins for SPI communication with the DAC
+ *
+ * @param[in]  cs    The chip select pin
+ * @param[in]  clk   The clock speed
+ *
+ * @return     returns 1 if successful, 0 otherwise
+ */
+int init_dac(gpio_t cs, spi_clk_t clk);
+
+/**
+ * @brief      Converts val to DAC-readable data and sends it over SPI to set voltage
+ *
+ * @param[in]  val   The value between 0-255
+ * @param[in]  gain  The gain
+ *
+ * @return     1 on success, 0 on fail
+ */
+int set_voltage(uint8_t val, DAC_gain_t gain);
+
+
+/**
+ * @brief      Shuts down the DAC line
+ */
+void stop_dac(void);
+
+/* DAC_H */
 #endif
-
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-    mutex_t mtx;
-} hdlc_buf_t;
-
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
-
-//struct for MQTT_SN
-typedef struct __attribute__((packed)){
-    char topic[16];
-    char data[32];
-} mqtt_pkt_t;
-
-
-typedef struct hdlc_entry {
-    struct hdlc_entry *next;
-    uint16_t port;
-    kernel_pid_t pid;
-} hdlc_entry_t;
-
-/* HDLC thread messages */
-//Added MQTT_SN
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY,
-    MQTT_MBED,
-    MQTT_SN
-};
-
-void hdlc_register(hdlc_entry_t *entry);
-void hdlc_unregister(hdlc_entry_t *entry);
-int hdlc_pkt_release(hdlc_pkt_t *buf);
-int hdlc_send_pkt(hdlc_pkt_t *pkt);
-kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
-
-#endif /* MUTEX_H_ */

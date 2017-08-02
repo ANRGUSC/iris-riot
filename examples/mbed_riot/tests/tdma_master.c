@@ -108,7 +108,7 @@ int main(void)
                         gnrc_pktbuf_release(recv_pkt);
                         break;
                     }
-                    xtimer_sleep(1);
+                    xtimer_sleep(1); // did this for testing, goes too fast to check otherwise.
                     DEBUG("Assigning %s anchor id %d\n", 
                           gnrc_netif_addr_to_str(l2_addr_str, sizeof(l2_addr_str),
                                                  src_l2addr, src_l2addr_len),

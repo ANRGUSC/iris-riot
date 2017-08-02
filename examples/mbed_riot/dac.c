@@ -1,14 +1,15 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
+ * Yutong Gu
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy 
+ * Permission is here
+ * by granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
  * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
@@ -33,83 +34,60 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH 
  * THE SOFTWARE.
  */
-
 /**
  * @ingroup     examples
  * @{
  *
- * @file
- * @brief       Full duplex hdlc implementation.
+ * @file        dac.c
+ * @brief       DAC library for interfacing with the MCP4921 chip
  *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
- *
- * @author      Jason A. Tran <jasontra@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  *
  * @}
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
 
-#include "yahdlc.h"
-#include "mutex.h"
-#include "thread.h"
-#include "board.h"
-#include "periph/uart.h"
+#include "dac.h"
 
-#define RTRY_TIMEO_USEC         200000
-#define RETRANSMIT_TIMEO_USEC   50000
-
-#ifndef HDLC_MAX_PKT_SIZE
-#define HDLC_MAX_PKT_SIZE       64
-#endif
-
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-    mutex_t mtx;
-} hdlc_buf_t;
-
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
-
-//struct for MQTT_SN
-typedef struct __attribute__((packed)){
-    char topic[16];
-    char data[32];
-} mqtt_pkt_t;
+static gpio_t chip_select_pin;
 
 
-typedef struct hdlc_entry {
-    struct hdlc_entry *next;
-    uint16_t port;
-    kernel_pid_t pid;
-} hdlc_entry_t;
+int init_dac(gpio_t cs, spi_clk_t clk){
+    chip_select_pin = cs;
+    spi_init(SPI_DEV(0));
+    spi_init_cs(SPI_DEV(0), chip_select_pin);
+    return spi_acquire(SPI_DEV(0),chip_select_pin, SPI_MODE_0, clk);
+}
 
-/* HDLC thread messages */
-//Added MQTT_SN
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY,
-    MQTT_MBED,
-    MQTT_SN
-};
 
-void hdlc_register(hdlc_entry_t *entry);
-void hdlc_unregister(hdlc_entry_t *entry);
-int hdlc_pkt_release(hdlc_pkt_t *buf);
-int hdlc_send_pkt(hdlc_pkt_t *pkt);
-kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
+int set_voltage(uint8_t val, DAC_gain_t gain){
+    char buff[DAC_DATA_SIZE];
 
-#endif /* MUTEX_H_ */
+     if( val < 0 || val > 255){
+        //printf("Value must be between 0 and 255");
+        return 0;
+    }
+
+
+    buff[0] = 0;
+    buff[1] = 0;
+
+    if(gain == DAC_GAIN_1){
+        buff[0] |= (1 << DAC_GAIN);
+    }
+
+    buff[0] |= (1 << DAC_ACTIVE);
+
+    buff[0] |= ((val & DAC_DATA_MASK) >> DAC_DATA_OFFSET);
+    buff[1] |= ((val & ~DAC_DATA_MASK) << DAC_DATA_OFFSET);
+
+    spi_transfer_byte(SPI_DEV(0), chip_select_pin, true, buff[0]);
+    spi_transfer_byte(SPI_DEV(0), chip_select_pin, false, buff[1]);
+
+    return 1;
+}
+
+void stop_dac(void){
+    spi_release(SPI_DEV(0));
+    return;
+}
