@@ -61,30 +61,7 @@
 #define MAIN_QUEUE_SIZE         (8)
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
-/*--------------------------------------------------------------------*/
-#include <stdio.h>
-
-#include "shell.h"
-#include "msg.h"
-
-// #define MAIN_QUEUE_SIZE     (8)
-// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
-
-// extern int udp_cmd(int argc, char **argv);
-// extern int range_tx(int argc, char **argv);
-int range(void);
-// extern int range_rx(int argc, char **argv);
-
-static const shell_command_t shell_commands[] = {
-    // { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
-    { "range", "act as the transmitter for sound ranging", range},
-    // { "range_rx", "act as the receiver for sound ranging", range_rx},
-    { NULL, NULL, NULL }
-};
-/*--------------------------------------------------------------------*/
-
-int range(void)
-// int main(void)
+int main(void)
 {
     msg_t msg;
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
@@ -131,7 +108,7 @@ int range(void)
                         gnrc_pktbuf_release(recv_pkt);
                         break;
                     }
-                    xtimer_sleep(2);
+                    xtimer_sleep(1);
                     DEBUG("Assigning %s anchor id %d\n", 
                           gnrc_netif_addr_to_str(l2_addr_str, sizeof(l2_addr_str),
                                                  src_l2addr, src_l2addr_len),
@@ -186,28 +163,3 @@ int range(void)
     /* should be never reached */
     return 0;
 }
-
-/*--------------------------------------------------------------------*/
-int main(void)
-{
-    /* we need a message queue for the thread running the shell in order to
-     * receive potentially fast incoming networking packets */
-    msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
-    puts("RIOT network stack example application");
-    /* start shell */
-    puts("All up, running the shell now");
-    char line_buf[SHELL_DEFAULT_BUFSIZE];
-
-    /* auto-run */
-    // char *temp[3];
-    // temp[0] = "range_rx";
-    // temp[1] = "50";          //num pkts
-    // temp[2] = "1000000";     //interval_in_us
-    // range_rx(3, temp);
-
-    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
-
-    /* should be never reached */
-    return 0;
-}
-/*--------------------------------------------------------------------*/

@@ -47,33 +47,11 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 #define MAX_ADDR_LEN        (8U)
 #define TX_PIN              GPIO_PD3
-static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
-
-/*--------------------------------------------------------------------*/
-#include <stdio.h>
-
-#include "shell.h"
-#include "msg.h"
-
 #define MAIN_QUEUE_SIZE     (8)
-// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
-// extern int udp_cmd(int argc, char **argv);
-// extern int range_tx(int argc, char **argv);
-int range_tx_tdma(void);
-// extern int range_rx(int argc, char **argv);
-
-static const shell_command_t shell_commands[] = {
-    // { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
-    { "range_tx_tdma", "act as the transmitter for sound ranging", range_tx_tdma},
-    // { "range_rx", "act as the receiver for sound ranging", range_rx},
-    { NULL, NULL, NULL }
-};
-/*--------------------------------------------------------------------*/
-
+static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 /*----------------------------------------------------------------------------*/
 int range_tx_tdma(void)
 {
@@ -324,106 +302,3 @@ int range_tx_tdma(void)
     return 0;
 }
 /*----------------------------------------------------------------------------*/
-// static range_data_t* time_diffs;
-// range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
-//     // Check correct argument usage.
-//     uint8_t mode = range_mode;
-//     uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
-//                        //
-//     gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
-    
-//     if(mode == TWO_SENSOR_MODE){
-//         maxsamps = MAXSAMPLES_TWO_PIN;
-//     } else {
-//         maxsamps = MAXSAMPLES_ONE_PIN;
-//     }
-
-//     time_diffs = malloc(sizeof(range_data_t)*num_samples);
-    
-//     uint32_t timeout = timeout_usec;
-//     if(timeout <= 0){
-//         DEBUG("timeout must be greater than 0");
-//         return NULL;
-//     }
-
-//     msg_t msg; 
-//     msg_t msg_queue[QUEUE_SIZE];
-
-//     /* setup the message queue */
-//     msg_init_queue(msg_queue, QUEUE_SIZE);
-
-   
-//     int i;
-//     for(i = 0; i < num_samples; i++){
-
-
-//         range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
-
-// block:
-//         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-//             DEBUG("RF ping missed\n");
-//             return NULL;
-//         }
-
-//         if(msg.type == RF_RCVD){
-//             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-//                 DEBUG("Ultrsnd ping missed\n");
-//                 return NULL;
-//             }
-//             if(msg.type == ULTRSND_RCVD){
-//                 time_diffs[i] = *(range_data_t*) msg.content.ptr;
-//             } else{
-//                 goto block;
-//             }
-
-//         }
-//         printf("range: tdoa = %d\n", time_diffs[i].tdoa);
-//         switch (range_mode){
-//             case ONE_SENSOR_MODE:
-//                 break;
-
-//             case TWO_SENSOR_MODE:
-//                 if(time_diffs[i].error!=0){
-//                     printf("range: Missed pin %d\n", time_diffs[i].error);
-//                 } else{
-//                     printf("range: odelay = %d\n", time_diffs[i].odelay);
-//                 }
-//                 break;
-
-//             case XOR_SENSOR_MODE:
-//                 printf("range: odelay = %d\n", time_diffs[i].odelay);
-//                 break;
-//         }
-//         if(i == num_samples-1){
-//             time_diffs[i].error += 10;
-//         }
-
-
-//     }
-
-//     return time_diffs;
-// }
-/*--------------------------------------------------------------------*/
-int main(void)
-{
-    /* we need a message queue for the thread running the shell in order to
-     * receive potentially fast incoming networking packets */
-    msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
-    puts("RIOT network stack example application");
-    /* start shell */
-    puts("All up, running the shell now");
-    char line_buf[SHELL_DEFAULT_BUFSIZE];
-
-    /* auto-run */
-    // char *temp[3];
-    // temp[0] = "range_rx";
-    // temp[1] = "50";          //num pkts
-    // temp[2] = "1000000";     //interval_in_us
-    // range_rx(3, temp);
-
-    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
-
-    /* should be never reached */
-    return 0;
-}
-/*--------------------------------------------------------------------*/
