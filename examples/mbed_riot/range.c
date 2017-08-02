@@ -44,10 +44,12 @@
  */
 #include "range.h"
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
-// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
+#define MAXSAMPLES_ONE_PIN            18000
+#define MAXSAMPLES_TWO_PIN            36000
+
 #define MAX_ADDR_LEN        (8U)
 #define TX_PIN              GPIO_PD3
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
@@ -268,7 +270,29 @@ int range_tx_tdma(void)
 	            default:
 	            	DEBUG("Not a ranging packet.\n");
 	            	break;
+        
+        }
+        /*
+        if(time_diffs[i].tdoa > 0){
+            DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
+            switch (range_mode){
+                case ONE_SENSOR_MODE:
+                    break;
+
+                case TWO_SENSOR_MODE:
+                    if(time_diffs[i].error!=0){
+                        DEBUG("range: Missed pin %d\n", time_diffs[i].error);
+                    } else{
+                        DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                    }
+                    break;
+
+                case XOR_SENSOR_MODE:
+                    DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                    break;
+          
             }
+          */
             // Refresh the timer.
         	wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
         }
@@ -293,7 +317,12 @@ int range_tx_tdma(void)
         if (send_pkt == NULL) {
             DEBUG("error: packet buffer full\n");
             return 1;
-        }
+        }        
+        /*
+        else{
+            DEBUG("Ultrsnd ping missed\n");
+            }
+        */
 
         hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
         if (hdr == NULL) {
@@ -355,6 +384,17 @@ int range_tx_tdma(void)
    
 //     int i;
 //     for(i = 0; i < num_samples; i++){
+
+    /* enable output on Port D pin 3 */
+    /*
+    if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
+        DEBUG("Error initializing GPIO_PIN.\n");
+        return 1;
+    }
+    
+    // clearing output for the ultrasonic sensor
+    gpio_clear(TX_PIN);
+    */
 
 
 //         range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
