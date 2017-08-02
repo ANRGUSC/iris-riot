@@ -76,7 +76,7 @@
 #include "hdlc.h"
 #include "uart_pkt.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)

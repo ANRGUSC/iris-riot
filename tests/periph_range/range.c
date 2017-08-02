@@ -107,7 +107,6 @@ block:
             printf("RF ping missed\n");
             continue;
         }
-        _unregister_thread();
 
         if(msg.type == 143){
             if(xtimer_msg_receive_timeout(&msg,timeout)<0){
@@ -230,17 +229,7 @@ int range_tx(int argc, char **argv)
         }   
         //gnrc_pktbuf_release(pkt);
         range_tx_off(); //turn off just in case
-<<<<<<< HEAD
         DEBUG("RF and ultrasound pings sent\n");  
     }
-<<<<<<< 61582a63084e4f226c43285358f7efd0cc71993b
-=======
-
->>>>>>> fixed periph_range test to work with changes in last commit
-=======
-        puts("RF and ultrasound pings sent");  
-    }
-
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
     return 0;
 }

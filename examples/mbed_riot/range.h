@@ -98,7 +98,7 @@
  * 				 (if applicable) and an error value to indicate if a pin missed an
  * 				 ultrasonic ping }
  */
-// range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples);
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples);
 
 
 /**

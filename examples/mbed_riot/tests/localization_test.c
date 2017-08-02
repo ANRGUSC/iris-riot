@@ -7,7 +7,6 @@
  *
  * Contributors:
  * Yutong Gu
- * Jason A. Tran
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -94,7 +93,6 @@
 
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
 
-
 #undef BIT
 #define BIT(n) ( 1 << (n) )
 /* Bit field definitions for the UART Line Control Register: */
@@ -140,7 +138,7 @@ static int _set_channel(uint16_t channel)
  * @param channel Target channel with a valid range of 11 to 26.
  */
 static uint16_t _get_channel(void)
-{   
+{
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     uint16_t channel;
     size_t numof = gnrc_netif_get(ifs);
@@ -155,7 +153,7 @@ static void *_range_tx_thread(void *arg){
     while(1){
         range_tx();
         xtimer_usleep(TRANSMIT_DELAY);
-    }   
+    }
     return 0;
 }
 
@@ -202,7 +200,7 @@ static void *_range_rx_thread(void *arg)
         {
             case HDLC_PKT_RDY:
                 
-                    
+                
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                 uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch (uart_hdr.pkt_type){
@@ -403,7 +401,6 @@ int main(void)
                   THREAD_CREATE_STACKTEST, _range_rx_thread, hdlc_pid, "range_rx thread");
     }
 
-    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 

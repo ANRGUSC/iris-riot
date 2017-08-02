@@ -1,36 +1,16 @@
-/**
- * All macros for network addresses
- */
 #ifndef RANGE_PARAM_H
 #define RANGE_PARAM_H
 
-/* RSSI dump thread port number */
-#define RSSI_DUMP_PORT                      9000
+#define MAX_TX_POWER             7       //valid range: -27 to 7
+#define TX_NODE_IPV6_ADDR   "fe80::212:4b00:613:622" //fe80::212:4b00:433:ed81"
 
-#define GET_SET_RANGING_THR_PORT            9100
+#define CLIENT_PORT         8000
+#define SERVER_PORT         8888
 
-/* for ARREST, set follower's short hwaddr here */
-#define ARREST_FOLLOWER_SHORT_HWADDR        "e7:e9"
-#define ARREST_LEADER_SHORT_HWADDR          "ed:81"
-#define ARREST_LDR_CTRL_SHORT_HWADDR        "ed:4f"
+#define MAIN_QUEUE_SIZE         (8U)
 
-#define RSSI_LOCALIZATION_CHAN              26
-#define ARREST_DATA_CHANNEL                 25
-
-#define ARREST_LEADER_LONG_HWADDR           "00:12:4b:00:04:33:ed:81"
-#define ARREST_LEADER_SOUNDRF_IPV6_ADDR     "fe80::212:4b00:433:ed5e"
-
-#define ARREST_LEADER_SOUNDRF_PORT          9200
-
-#define ARREST_LEADER_SOUNDRF_ID            170
-
-#define ARREST_FOLLOWER_RANGE_THR_PORT      9300
-
-#define ARREST_FOLLOWER_IPV6_ADDR           "fe80::212:4b00:433:eca3"
-
-#define RANGE_REQ_FLAG                      0x12
-#define RANGE_RDY_FLAG                      0x34
-#define RANGE_GO_FLAG                       0x56
+#define RANGE_RX_HW_ADDR    "ff:ff"
+#define QUEUE_SIZE          8
 
 #define DEFAULT_ULTRASOUND_THRESH           45
 #define MAX_SOUND_SAMPLES                   500
@@ -46,11 +26,4 @@
 #define TDMA_SLOT_TIME_USEC                 20000000
 #define TDMA_BOOTSTRAP_CHANNEL              11
 #define TDMA_TOTAL_ANCHOR_NODES             3       /* experiment specific */
-
-#define MAX_TX_POWER             7       //valid range: -27 to 7
-
-#define MAIN_QUEUE_SIZE         (8)
-
-#define TDMA_ANCHOR_ID_ACK_U16_FLAG			0x4e43 // random, not sure if necessary
-#define RANGE_RX_HW_ADDR    "ff:ff"
 #endif

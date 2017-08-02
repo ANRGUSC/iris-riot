@@ -324,6 +324,3 @@ void range_tx_off(void);
 #endif
 /** @} */
 #endif /* NET_NETDEV_H */
-
-
-

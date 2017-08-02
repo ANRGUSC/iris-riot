@@ -156,8 +156,6 @@ int yahdlc_get_data_with_state(yahdlc_state_t *state, yahdlc_control_t *control,
     char value;
     unsigned int i;
 
-    
-
     // Make sure that all parameters are valid
     if (!state || !control || !src || !dest || !dest_len) {
         return -EINVAL;

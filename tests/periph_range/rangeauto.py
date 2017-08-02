@@ -149,24 +149,18 @@ def script(port):
                     print("Trial: " + str(i) + " of " + samp_input)
                     print("TDoA: " + val)
                     if(mode == 1):
-<<<<<<< HEAD
                         print("\n****************************")
                         print("Dist = "+ str(tdoa_to_dist(int(val))))
                         print("****************************\n")
-=======
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
                         break
                     a = int(val);
             
                 if b'OD ' in line:
                     if b'failed' in line:
-<<<<<<< HEAD
                         print("\n****************************")
                         print("Dist = "+ str(tdoa_to_dist(a)))
                         print("OD failed")
                         print("****************************\n")
-=======
->>>>>>> 706e30416cba8c8fc4cb22428ba1c2397a22edd9
                         val = ""
                         break
                     else:

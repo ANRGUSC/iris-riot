@@ -352,5 +352,6 @@ void range_rx_stop(void)
     ranging_on = 0;
     ref--;
     ranging_complete.type=ULTRSND_RCVD;
+    ranging_complete.content.ptr=&time_diffs;
     msg_send(&ranging_complete,ranging_pid);
 }
