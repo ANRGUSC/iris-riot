@@ -109,6 +109,17 @@
  *
  * @return     { Doesn't return anything if successful because it will be infinitely looping }
  */
+int range_tx(void);
+
+/**
+ * @brief      { This function call will cause the openmote to go into anchor mode where
+ *				 it will transmit RF and Ultrasound pings according to a TDMA schedule,
+ *				 dependent on tdma_master.c}
+ *
+ * @param[in]  delay_usec  The delay in microseconds between pings (usually set at 100 ms)
+ *
+ * @return     { Doesn't return anything if successful because it will be infinitely looping }
+ */
 int range_tx_tdma(void);
 
 #endif
