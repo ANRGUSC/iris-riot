@@ -41,7 +41,6 @@
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
 static void _sound_ranging(void);
-static void _omni_ranging(void);
 
 /* sound ranging */
 #include "periph/adc.h"
@@ -304,7 +303,7 @@ static void *_gnrc_netdev_thread(void *args)
                 break;
         }
     }
-    /* never reached */`
+    /* never reached */
     return NULL;
 }
 

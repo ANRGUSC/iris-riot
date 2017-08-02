@@ -55,9 +55,6 @@
 #define DAC_DATA_OFFSET          4
 #define DAC_DATA_SIZE            2
 
-#define DEFAULT_DAC_CS          GPIO_PIN(0,3)
-#define DEFAULT_SENSOR_THRESH   40
-
 static gpio_t chip_select_pin;
 
 
