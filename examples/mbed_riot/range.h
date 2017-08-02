@@ -109,6 +109,6 @@
  *
  * @return     { Doesn't return anything if successful because it will be infinitely looping }
  */
-int range_tx(void);
+int range_tx_tdma(void);
 
 #endif
