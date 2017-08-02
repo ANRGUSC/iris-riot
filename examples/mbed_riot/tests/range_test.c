@@ -225,6 +225,9 @@ static void *_range_rx_thread(void *arg)
                             case XOR_SENSOR_MODE:
                                 DEBUG("******************XOR SENSOR MODE*******************\n");
                                 break;
+                            case OMNI_SENSOR_MODE:
+                                DEBUG("******************OMNI SENSOR MODE******************\n");
+                                break;
                         }
 
                         old_channel = _get_channel();
@@ -234,7 +237,8 @@ static void *_range_rx_thread(void *arg)
 
                         if(params->ranging_mode!= ONE_SENSOR_MODE && 
                             params->ranging_mode!= TWO_SENSOR_MODE && 
-                            params->ranging_mode!= XOR_SENSOR_MODE){
+                            params->ranging_mode!= XOR_SENSOR_MODE && 
+                            params->ranging_mode!= OMNI_SENSOR_MODE){
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{

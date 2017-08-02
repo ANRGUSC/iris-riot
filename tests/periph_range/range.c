@@ -27,7 +27,7 @@
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3)
 #define RX_TWO_PIN                    GPIO_PIN(3, 2)
-#define RX_XOR_PIN                    GPIO_PIN(3, 1)
+#define RX_LOGIC_PIN                    GPIO_PIN(3, 1)
 
 
 //#define TX_PIN                        GPIO_PIN(3, 0)
@@ -48,7 +48,7 @@ int range_rx(int argc, char **argv)
         return 1;
     }
     
-    gpio_rx_line_t line = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+    gpio_rx_line_t line = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
 
     uint32_t maxsamps = 0;
     uint32_t timeout = 500000;
