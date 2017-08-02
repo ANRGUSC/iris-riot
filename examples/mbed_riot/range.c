@@ -46,7 +46,6 @@
  * @}
  */
 
-
 #include "range.h"
 #define ENABLE_DEBUG (1)
 #include "debug.h"
@@ -124,7 +123,7 @@ block:
 
         }
         if(time_diffs[i].tdoa > 0){
-            DEBUG("range: tdoa = %d\n", time_diffs[i].tdoa);
+            DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
             switch (range_mode){
                 case ONE_SENSOR_MODE:
                     break;
@@ -133,17 +132,17 @@ block:
                     if(time_diffs[i].error!=0){
                         DEBUG("range: Missed pin %d\n", time_diffs[i].error);
                     } else{
-                        DEBUG("range: odelay = %d\n", time_diffs[i].orient_diff);
+                        DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
                     }
                     break;
 
                 case XOR_SENSOR_MODE:
-                    DEBUG("range: odelay = %d\n", time_diffs[i].orient_diff);
+                    DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
                     break;
             }
         }
         else{
-              DEBUG("Ultrsnd ping missed\n");
+            DEBUG("Ultrsnd ping missed\n");
         }
 
 
@@ -156,7 +155,7 @@ block:
 int range_tx( void )
 {
 
-/* for sending L2 pkt */
+    /* for sending L2 pkt */
     kernel_pid_t dev;
     uint8_t hw_addr[MAX_ADDR_LEN];
     size_t hw_addr_len;
@@ -169,7 +168,7 @@ int range_tx( void )
 
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     size_t numof = gnrc_netif_get(ifs); 
-    
+
     /* there should be only one network interface on the board */
     if (numof == 1) {
         gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
@@ -180,7 +179,7 @@ int range_tx( void )
         DEBUG("Error initializing GPIO_PIN.\n");
         return 1;
     }
-      
+    
     // clearing output for the ultrasonic sensor
     gpio_clear(TX_PIN);
 

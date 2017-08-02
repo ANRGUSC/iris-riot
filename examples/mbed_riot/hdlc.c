@@ -176,7 +176,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 memcpy(recv_pkt.data, recv_buf.data, recv_buf.length);
                 recv_pkt.length = recv_buf.length;
                 uart_pkt_parse_hdr(&hdr, recv_pkt.data, recv_pkt.length);
-                LL_SEARCH_SCALAR(hdlc_registry, entry, port, hdr.dst_port);
+                LL_SEARCH_SCALAR(hdlc_reg, entry, port, hdr.dst_port);
                 DEBUG("hdlc: received packet for port %d\n", hdr.dst_port);
                 (*recv_seq_no)++;
                 if(entry) {
