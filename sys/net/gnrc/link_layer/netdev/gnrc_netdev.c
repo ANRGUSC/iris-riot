@@ -136,9 +136,7 @@ static void _sound_ranging(void)
     time_diffs.status = 0;
     unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.xor_pin};
 
-    
-    //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
-    while(cnt < max_samps)
+    while(cnt < max_samps && ranging)
     {
         test = xtimer_now_usec();
         if(test < last){
@@ -156,16 +154,15 @@ static void _sound_ranging(void)
             }
         }
         else if(range_sys_flag == TWO_SENSOR_MODE){
-            //printf("%d\n",cnt);
+
             sample1 = gpio_read(rx_line_array[0]);
             sample2 = gpio_read(rx_line_array[1]);
             DEBUG("%d ",sample1);
             DEBUG("%d ",sample2);
-            /* wait for 200us before next poll for input capacitor to settle */
+
             if(sample1 != 0){ first = 0; second = 1; }
             else if(sample2 != 0){ first = 1; second = 0; }
 
-            //xtimer_spin(XTIMER_USEC_TO_TICKS(1));
             if (first != 2) {
                 last2 = xtimer_now_usec();
                 do {
@@ -179,7 +176,7 @@ static void _sound_ranging(void)
                 time_diffs.status = first + 1;
                 
                 if(sample1 == 0){
-                    time_diffs.status += 10; //returns the pin that first recieve if both recieved, otherwise add 10 to the flag
+                    time_diffs.status += MISSED_PIN_MASK; //returns the pin that first recieve if both recieved, otherwise add 10 to the flag
                 }
                 
                 range_rx_successful_stop();
@@ -201,8 +198,6 @@ static void _sound_ranging(void)
 
         ++cnt;
     }
-
-    last = xtimer_now_usec();
 
     if(cnt >= max_samps){
         DEBUG("cnt>max_samps\n");
@@ -300,7 +295,7 @@ static void *_gnrc_netdev_thread(void *args)
                 break;
         }
     }
-    /* never reached */
+    /* never reached */`
     return NULL;
 }
 

@@ -29,15 +29,11 @@
 #define RX_TWO_PIN                    GPIO_PIN(3, 2)
 #define RX_XOR_PIN                    GPIO_PIN(3, 1)
 
-
-//#define TX_PIN                        GPIO_PIN(3, 0)
 #define TX_PIN                        GPIO_PIN(3, 2) //for usb openmote
+//#define TX_PIN                        GPIO_PIN(3, 0) //for regular openmote
+
 #define ULTRSND_TIMEOUT               99000 //usec
 
-
-
-
-//static unsigned int gpio_lines[]={GPIO_PIN(3, 3), GPIO_PIN(3, 2), GPIO_PIN(3, 1)};
 static range_data_t* time_diffs;
 
 /*----------------------------------------------------------------------------*/
@@ -85,9 +81,16 @@ int range_rx(int argc, char **argv)
             printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n");
             return 1;
     }
+    
+    if(mode == TWO_SENSOR_MODE){
+        maxsamps = MAXSAMPLES_TWO_PIN;
+    } else {
+        maxsamps = MAXSAMPLES_ONE_PIN;
+    }
 
     msg_t msg; 
     msg_t msg_queue[QUEUE_SIZE];
+
 
     /* setup the message queue */
     msg_init_queue(msg_queue, QUEUE_SIZE);
@@ -95,15 +98,9 @@ int range_rx(int argc, char **argv)
    int i = 0;
    for(i = 0; i < num_samps; i++){
         printf("Trial %d of %lu:\n", i, num_samps);
-        if(mode == TWO_SENSOR_MODE){
-            maxsamps = MAXSAMPLES_TWO_PIN;
-        } else {
-            maxsamps = MAXSAMPLES_ONE_PIN;
-        }
+        
 
         range_rx_init(TX_NODE_ID, thread_getpid(), line, maxsamps, mode);
-
-block:
 
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
             DEBUG("RF ping missed\n");
@@ -120,7 +117,9 @@ block:
             if(msg.type == ULTRSND_RCVD){
                 time_diffs = (range_data_t*) msg.content.ptr;
             } else{
-                goto block;
+                range_rx_stop();
+                i--;
+                continue;
             }
 
         }
@@ -132,7 +131,7 @@ block:
 
             case TWO_SENSOR_MODE:
                 if(time_diffs->status > 2){
-                    printf("range: OD failed - missed pin %d\n", MISSED_PIN_MASK - time_diffs->status);
+                    printf("range: OD failed - missed pin %d\n", MISSED_PIN_UNMASK - time_diffs->status);
                 } else{
                     printf("range: OD = %d\n", time_diffs->orient_diff);
                 }
@@ -228,7 +227,7 @@ int range_tx(int argc, char **argv)
             gnrc_pktbuf_release(pkt);
             return 1;
         }   
-        //gnrc_pktbuf_release(pkt);
+        
         range_tx_off(); //turn off just in case
         DEBUG("RF and ultrasound pings sent\n");  
     }

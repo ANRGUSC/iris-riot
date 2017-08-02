@@ -52,15 +52,6 @@
 
 #include "periph/spi.h"
 
-#define DAC_GAIN             5
-#define DAC_ACTIVE           4
-#define DAC_DATA_MASK            0xf0
-#define DAC_DATA_OFFSET          4
-#define DAC_DATA_SIZE            2
-
-#define DEFAULT_DAC_CS          GPIO_PIN(0,3)
-#define DEFAULT_SENSOR_THRESH   40
-
 typedef enum {
 	DAC_GAIN_2 = 0,         /**< sets the DAC to a gain of 2 */
     DAC_GAIN_1 = 1,     /**< sets the DAC to a gain of 1 */

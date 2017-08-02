@@ -1,4 +1,3 @@
-#pylint: disable=C0103, C0111, C0301, C0326, C0330, W0603, W0611, W0612, W0613
 from __future__ import print_function
 import sys
 import re
