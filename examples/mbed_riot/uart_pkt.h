@@ -47,7 +47,7 @@
 #ifndef UART_PKT_H_
 #define UART_PKT_H_
 
-#define UART_PKT_HDR_LEN            6
+#define UART_PKT_HDR_LEN            5
 #define UART_PKT_TYPE_FIELD         4
 #define UART_PKT_DATA_FIELD         5
 
