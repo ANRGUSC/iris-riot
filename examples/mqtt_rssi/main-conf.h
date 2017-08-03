@@ -8,6 +8,9 @@
 #define RSSI_MBED_DUMP_PORT         		9111
 
 #define GET_SET_RANGING_THR_PORT            9100
+//On the mbed side 
+#define INTER_THREAD						0xaa
+#define SEND_RSSI_PUB						0xab
 
 /* for ARREST, set follower's short hwaddr here */
 #define ARREST_FOLLOWER_SHORT_HWADDR        "e7:e9"

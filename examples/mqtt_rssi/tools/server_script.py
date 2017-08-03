@@ -105,14 +105,6 @@ def on_message(client, userdata, msg):
 				for i in range(1000000):
 					pass
 
-	elif msg.topic==topic_client_con:
-		connected_clients=connected_clients+1
-		total_num_clients_con_broker=int(message)
-	elif msg.topic==topic_client_id:
-		if str(msg.payload.decode()) in client_ID:
-				connected_clients=connected_clients-1
-		else:
-			client_ID.append(str(msg.payload.decode()))
 	print("The clients connected", hwaddr)
 	connected_clients=len(hwaddr)
 
@@ -142,6 +134,7 @@ client.on_subscribe =on_subscribe
 client.connect(broker_address, port)
 client.subscribe([(topic_sub, 0), (topic_client_con, 0), (topic_client_id,0)])	#connecting to broker
 client.loop_start()
+count=0
 while (1):
 	if client_req==2:
 		for i in range(2):
@@ -162,16 +155,23 @@ while (1):
 		client_req=0;
 	if send_rssi==1:
 		print("send the send_rssi command")
-		for i in range(1000000000):
+		for i in range(1000000):
 			pass
 		for i in range(connected_clients):
 			data_pub=str(hwaddr[i])
 			if hwaddr[i]==rssi_sender_topic:
 				print("hwaddr is the rssi sender topic")
 			else:
-				client.publish(data_pub,"5")
+				print("The topic to pub to is",data_pub)
+				topic_pub=data_pub
+				infop=client.publish(data_pub,"5")
+				infop.wait_for_publish()
 			for j in range(1000000):
 				pass
+		for j in range(1000000):
+				pass
+		count=count+1
+		print("the count is", count)
 		send_rssi=0
 
 

@@ -119,7 +119,7 @@ static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];//16384
 #define NUMOFSUBS           (16U)  //Define the maximum number of subscriptions
 #define TOPIC_MAXLEN        (16U)
 
-static char EMCUTE_ID[8];
+static char EMCUTE_ID[9];
 static char stack[THREAD_STACKSIZE_DEFAULT];
 static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];
@@ -561,7 +561,7 @@ static void *_mqtt_thread(void *arg)
         frame_no++;
 
         //control transmission rate via interpacket intervals 
-        xtimer_usleep(100000);
+        
     }
 
     //should be never reached 
@@ -658,7 +658,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
          * => use temporary variable for output */
         printf("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
                port);               
-        xtimer_usleep(100000);        
+                
         return 0;
     }
 }
@@ -668,6 +668,7 @@ static void *_rssi_dump(void *arg)
     //hdlc pid
     char rssi_data = "hello";
     kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
+    msg_t msg_send_to_rssi_dump;
     msg_t msg, msg_snd;
     uint8_t rssi_value;
     int rssi_go=0;   
@@ -686,7 +687,7 @@ static void *_rssi_dump(void *arg)
     hdlc_register(&rssi_dump_thr); 
     uart_pkt_hdr_t uart_hdr;
     uart_pkt_hdr_t uart_rcv_hdr; 
-    char node_ID[8];  
+    char node_ID[9];  
 
     printf("completed\n" );
     
@@ -731,27 +732,14 @@ static void *_rssi_dump(void *arg)
                             }
                         }
                         ipv6_send_addr[c]='\0';
+                        i=0;
+                        c=15;
                         DEBUG("The ipv6 is %s\n", ipv6_send_addr); 
-                        //sending to the constructed ipv6 address at port 9000
-                        xtimer_usleep(5000000);
+                        //sending to the constructed ipv6 address at port 9000                                              
                         if(rssi_send(ipv6_send_addr,RSSI_DUMP_PORT,rssi_data)==0){
                             printf("udp message sent\n");
-                        }   
+                        } 
                         
-                        //send an RSSI pub message to the mbed 
-                        uart_hdr.src_port = RSSI_THREAD_PORT; //PORT 220
-                        uart_hdr.dst_port = MBED_PORT; //PORT 9111
-                        uart_hdr.pkt_type = RSSI_PUB;
-                        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);                        
-                        msg_snd.type = HDLC_MSG_SND;
-                        msg_snd.content.ptr = &hdlc_snd_pkt;                
-                        if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                DEBUG("rssi: HDLC msg queue full\n");
-                                continue;
-                            } 
-                
-                        
-
                         break;  
                 }
                 hdlc_pkt_release(hdlc_rcv_pkt);
@@ -788,6 +776,7 @@ static void *_rssi_dump(void *arg)
                 break;
             case GNRC_NETAPI_MSG_TYPE_SND:
                 /* just in case */
+                printf("gnrc_pkt send\n");
                 gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                 break;
 
@@ -796,7 +785,7 @@ static void *_rssi_dump(void *arg)
                 DEBUG("rssi_dump: invalid packet\n");
                 break;
             }
-            xtimer_usleep(10000);
+            
         }    
     
 
@@ -837,6 +826,7 @@ int main(void)
         }
         i++;
     }    
+    EMCUTE_ID[8]='\0';
     DEBUG("The Hardware address is %s \n", EMCUTE_ID);
 
     /* we need a message queue for the thread running the shell in order to
@@ -848,7 +838,7 @@ int main(void)
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
+                                      "hdlc", UART_DEV(0));
     
     //Creates the thread 2 from the main thread
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
@@ -937,7 +927,7 @@ int main(void)
         frame_no++;
 
         //control transmission rate via interpacket intervals 
-        xtimer_usleep(10000);
+        
     }
     //should be never reached 
     
