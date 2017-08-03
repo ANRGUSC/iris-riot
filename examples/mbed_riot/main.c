@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Yutong Gu
+ * Jason A. Tran
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,27 +38,24 @@
  * @ingroup     examples
  * @{
  *
- * @file        
- * @brief       Ultrasound ranging test using packets passed over hdlc
- * 
- * In this test, the mbed will repeated send packets to a dedicated thread for 
- * ranging on the openmote requesting range data. The packets sent will contain 
- * information on the mode to range with. Available options are ONE_SENSOR_MODE, 
- * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The loop will alternate through all 
- * three options, taking a specified sample number, SAMPS_PER_MODE, at a delay 
- * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
- * to the hardware limitations of the ultrasound sensors.
- * 
- * @author      Yutong Gu <yutonggu@usc.edu>
+ * @file
+ * @brief       Application for ARREST project.
  *
+ *              RSSI dumping over uart and sound ranging features.
+ *
+ * @author      Jason A. Tran <jasontra@usc.edu>
+ *
+ * @}
  */
 
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#include <stdbool.h>
 
 #include "board.h"
 #include "thread.h"
+#include "mutex.h"
 #include "msg.h"
 #include "random.h"
 #include "xtimer.h"
@@ -67,54 +64,61 @@
 #include "net/gnrc/udp.h"
 #include "net/netdev.h"
 #include "periph/uart.h"
-#include "main-conf.h"
-#include "range_param.h"
 #include "hdlc.h"
 #include "uart_pkt.h"
-#include "range.h"
-#include "dac.h"
-#include "shell.h"
+#include "main-conf.h"
+#include "periph/adc.h"
 
-#define ENABLE_DEBUG (0)
-#define TX_MODE      (1) //TOGGLE THIS TO SET UP OPENMOTE AS RECEIVER OR TRANSMITTER
-
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
+#ifndef UART_STDIO_DEV
+#define UART_STDIO_DEV          (UART_UNDEF)
+#endif
+
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
-#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN)
+#define DISPATCHER_PRIO         (THREAD_PRIORITY_MAIN - 1)
+#define RSSI_DUMP_PRIO          (THREAD_PRIORITY_MAIN - 1) 
 
-#define MAIN_THR_PORT       1234
-#define RANGE_PORT          5678
-
-#define PKT_FROM_MAIN_THR   0
-
-#define RANGE_TIMEO_USEC    250000
-#define MAIN_QUEUE_SIZE     (8)
-#define TRANSMIT_DELAY      100000 //this is 100ms which is the minimum delay between pings
-
-#define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
-
+/* from CC2538's uart.c */
 #undef BIT
 #define BIT(n) ( 1 << (n) )
 /* Bit field definitions for the UART Line Control Register: */
 #define FEN   BIT( 4) /**< Enable FIFOs */
 #define UART_CTL_HSE_VALUE    0
 
-/* see openmote-cc2538's periph_conf.h for second UART pin config */
+static msg_t main_msg_queue[8];
+/* larger queue for fast incoming RSSI packets */
+static msg_t rssi_dump_msg_queue[16];
 
-static msg_t range_msg_queue[16];
+static char hdlc_stack[THREAD_STACKSIZE_MAIN];
+static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
+static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];
 
-static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
-static char range_stack[THREAD_STACKSIZE_MAIN];
+/* Holds the current main radio channel. */
+static uint16_t main_channel = ARREST_DATA_CHANNEL;
 
-static const shell_command_t shell_commands[] = {
-    { NULL, NULL, NULL }
-};
+/* TODO: need to program leader-follower IP discovery */
 
-typedef struct __attribute__((packed)) {
-    uint8_t         last_pkt;      
-    range_data_t    data[DATA_PER_PKT];                  
-} range_hdr_t;
+/**
+ * Set short hardware address of radio. Works only if only one netif exists.
+ * @param target_hwaddr_str Null terminated string in format similar to "ff:ff". 
+ */
+static int _set_hwaddr_short(const char *target_hwaddr_str)
+{
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    size_t numof = gnrc_netif_get(ifs);
+    uint8_t target_hwaddr_short[2];
+    uint8_t target_hwaddr_short_len;
+    if (numof == 1) {
+        target_hwaddr_short_len = gnrc_netif_addr_from_str(target_hwaddr_short,
+                                    sizeof(target_hwaddr_short), target_hwaddr_str);
+        return gnrc_netapi_set(ifs[0], NETOPT_ADDRESS, 0, target_hwaddr_short, 
+                               target_hwaddr_short_len);
+    }
+
+    return -1; /* fail */
+}
 
 /**
  * Set channel of radio. Works only if one netif exists.
@@ -135,286 +139,487 @@ static int _set_channel(uint16_t channel)
 }
 
 /**
- * Get channel of radio. Works only if one netif exists.
- * @param channel Target channel with a valid range of 11 to 26.
+ * Set radio transmit power. CC2538 specific. Works only if one netif exists.
+ * @param  power Power  in dBm within the range -24 to 7.
+ * @return       0 on success. Implementation defined negative number on failure.
  */
-static uint16_t _get_channel(void)
+static int _set_tx_power(uint16_t power)
 {
+    if (power < -24 || power > 7)
+    {
+        return -1; /* fail */
+    }
+
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    uint16_t channel;
     size_t numof = gnrc_netif_get(ifs);
     if (numof == 1) {
-        return gnrc_netapi_get(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
+        return gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &power, sizeof(uint16_t));
     }
 
     return -1; /* fail */
 }
 
-static void *_range_tx_thread(void *arg){
-    while(1){
-        range_tx();
-        xtimer_usleep(TRANSMIT_DELAY);
-    }
-    return 0;
-}
+/* Note, the use of a mutex may slow down RSSI readings */
+static void *_rssi_dump(void *arg) 
+{
+    kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
+    msg_t msg, msg2;
+    bool is_rssi_pkt = false;
+    bool hdlc_snd_locked = false;
+    hdlc_pkt_t *recv_pkt;
+    gnrc_netif_hdr_t *netif_hdr;
+    uint8_t *dst_addr;
+    gnrc_netreg_entry_t rssi_dump_server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
 
-static void *_range_rx_thread(void *arg)
-{   
-    kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
-    uint16_t old_channel;
-    range_params_t* params;
-    msg_init_queue(range_msg_queue, sizeof(range_msg_queue));
-    hdlc_entry_t range_entry;
-    range_entry.next = NULL;
-    range_entry.port = (int16_t)RANGE_PORT;
-    range_entry.pid = thread_getpid();
-    hdlc_register(&range_entry);
-    int pkt_size = RANGE_DATA_LEN * DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-    int i = 0;
-    int num_iter = 0;
-    int remainder = 0;
-    
-    msg_t msg_snd, msg_rcv;
-    /* create packets with max size */
-    char send_data[pkt_size];
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
-    hdlc_pkt_t *hdlc_rcv_pkt, *hdlc_rcv_pkt2;
+
+    msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
+
+    hdlc_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_DUMP_PORT, 
+                                         .pid = thread_getpid() };
+    hdlc_register(&rssi_dump_thr);
+
+    /* assuming _set_hwaddr_short above was successful */
+    uint8_t my_hwaddr_short[2];
+    gnrc_netif_addr_from_str(my_hwaddr_short, sizeof(my_hwaddr_short), ARREST_FOLLOWER_SHORT_HWADDR);
+
+    char send_data[UART_PKT_HDR_LEN + 1];
+    hdlc_pkt_t send_pkt = { send_data, UART_PKT_HDR_LEN + 1 };
+    char rssi_data[UART_PKT_HDR_LEN + 1];
+    hdlc_pkt_t rssi_pkt = { rssi_data, UART_PKT_HDR_LEN + 1 };
+
     uart_pkt_hdr_t uart_hdr;
-    range_hdr_t range_hdr;
-    range_data_t* time_diffs;
-
-    DEBUG("starting DAC\n");
-    if(init_dac(DEFAULT_DAC_CS, SPI_CLK_400KHZ) == SPI_OK){
-        DEBUG("Setting voltage at %d%%\n", DEFAULT_SENSOR_THRESH*100/255);
-        set_voltage((uint8_t) DEFAULT_SENSOR_THRESH, DAC_GAIN_1);
-        stop_dac();
-
-    } else{
-        DEBUG("SPI failed\n");
-    }
-
-    int exit = 0;
+    uart_pkt_hdr_t rssi_uart_hdr;
 
     while(1)
     {
-
-        DEBUG("Range pid is %" PRIkernel_pid "\n", thread_getpid());
-        DEBUG("PORT is %lu\n",(uint32_t)RANGE_PORT);
-
-        DEBUG("Waiting for message...\n");
-        msg_receive(&msg_rcv);
-
-        DEBUG("Message recieved\n");
-        switch (msg_rcv.type)
+        msg_receive(&msg);
+        switch (msg.type)
         {
             case HDLC_PKT_RDY:
-                
-                
-                hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                uart_pkt_parse_hdr(&uart_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
-                switch (uart_hdr.pkt_type){
-                    case SOUND_RANGE_REQ:
+                recv_pkt = msg.content.ptr;
+                uart_pkt_hdr_t recv_uart_hdr;
+                uart_pkt_parse_hdr(&recv_uart_hdr, recv_pkt->data, recv_pkt->length);
+                DEBUG("_rssi_dump: Packet type : %d \n",recv_uart_hdr.pkt_type);
 
-                        switch(params->ranging_mode){
-                            case ONE_SENSOR_MODE:
-                                DEBUG("******************ONE SENSOR MODE*******************\n");
-                                break;
-                            case TWO_SENSOR_MODE:
-                                DEBUG("******************TWO SENSOR MODE*******************\n");
-                                break;
-                            case XOR_SENSOR_MODE:
-                                DEBUG("******************XOR SENSOR MODE*******************\n");
-                                break;
-                            case OMNI_SENSOR_MODE:
-                                DEBUG("******************OMNI SENSOR MODE******************\n");
-                                break;
-                        }
-
-                        old_channel = _get_channel();
+                switch (recv_uart_hdr.pkt_type) 
+                {
+                    case RSSI_DUMP_START:
+                        /* TODO: check for custom channel request */
+                        /* default localization channel */
                         _set_channel(RSSI_LOCALIZATION_CHAN);
 
-                        params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
+                        if(!hdlc_snd_locked) {
+                            hdlc_snd_locked = true; 
+                            uart_hdr.dst_port = recv_uart_hdr.src_port;
+                            uart_hdr.src_port = RSSI_DUMP_PORT;
+                            uart_hdr.pkt_type = RSSI_SCAN_STARTED;
+                            uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                                &uart_hdr);
+                            send_pkt.length = UART_PKT_HDR_LEN;
 
-                        if(params->ranging_mode!= ONE_SENSOR_MODE && 
-                            params->ranging_mode!= TWO_SENSOR_MODE && 
-                            params->ranging_mode!= XOR_SENSOR_MODE && 
-                            params->ranging_mode!= OMNI_SENSOR_MODE){
-                            DEBUG("Recieved an invalid ranging mode\n");
-                            break;
-                        } else{
-
-                            num_iter = params->num_samples / DATA_PER_PKT;
-                            remainder = params->num_samples % DATA_PER_PKT;
-                            DEBUG("num_samples = %d\n",params->num_samples);
-                            DEBUG("num_iter = %d\n",num_iter);
-                            DEBUG("remainder = %d\n",remainder);
-                            DEBUG("data_per_pkt = %d\n", DATA_PER_PKT);
-
-                            range_hdr.last_pkt = 0;
-
-                            for(i = 0; i <= num_iter; i++){
-                                DEBUG("i= %d\n",i);
-                                
-                                uart_hdr.src_port = RANGE_PORT;
-                                uart_hdr.dst_port = RANGE_PORT;
-                                uart_hdr.pkt_type = SOUND_RANGE_DONE;
-                                uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-
-                                UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-
-                                if(i <= num_iter-1){
-
-                                    hdlc_snd_pkt.length = RANGE_DATA_LEN*DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-
-                                    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, DATA_PER_PKT);
-                                    DEBUG("sampling %d\n",DATA_PER_PKT);
-
-                                    if(i == num_iter-1 && remainder == 0){
-                                        DEBUG("message complete\n");
-                                        range_hdr.last_pkt = 1;
-                                        i++; 
-                                    }
-                                    memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * DATA_PER_PKT);
-
-                                    uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*DATA_PER_PKT);
-                                    
-                                } else{
-                                    if(remainder != 0){ 
-                                        hdlc_snd_pkt.length = RANGE_DATA_LEN * remainder + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-
-                                        time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
-
-                                        DEBUG("sampling %d\n",remainder);
-                                        DEBUG("message complete\n");
-                            
-                                        range_hdr.last_pkt = 1;
-                                        memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * remainder);
-
-                                        uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*remainder);
-                                        
-                                    } 
-                                }
-                                
-                                UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-                                UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-                                UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-                                UART1->cc2538_uart_dr.ECR = 0xFF;
-                                UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-                                UART1->cc2538_uart_lcrh.LCRH |= FEN;
-                                UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-                                if(time_diffs == NULL){
-                                    DEBUG("An error occured while ranging\n");
-                                    break;
-                                }
-                                    
-                                    //sending the data back down the hdlc
-
-                                DEBUG("Sending data back down hdlc\n");
-                                
-
-                                msg_snd.type = HDLC_MSG_SND;
-                                msg_snd.content.ptr = &hdlc_snd_pkt;
-                                if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                    /* TODO: use xtimer_msg_receive_timeout() instead */
-                                    /* this is where applications can decide on a timeout */
-                                    DEBUG("HDLC busy retrying...\n");
-                                    msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-                                    msg_rcv.content.value = RTRY_TIMEO_USEC;
-                                    msg_send_to_self(&msg_rcv);
-                                }
-
-                                while(1)
-                                {
-                                    msg_receive(&msg_rcv);
-
-                                    switch (msg_rcv.type)
-                                    {
-                                        case HDLC_RESP_SND_SUCC:
-                                            DEBUG("Successfully sent pkt\n");
-                                            exit = 1;
-                                            break;
-                                        case HDLC_RESP_RETRY_W_TIMEO:
-                                            xtimer_usleep(msg_rcv.content.value);
-                                            DEBUG("Range thread: retrying\n");
-                                            if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                                                DEBUG("Range thread: HDLC msg queue full!\n");
-                                                msg_send_to_self(&msg_rcv);
-                                            }
-                                            break;
-                                        case HDLC_PKT_RDY:
-                                            hdlc_rcv_pkt2 = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                                            DEBUG("Range thread: received pkt while trying to send\n");
-                                            hdlc_pkt_release(hdlc_rcv_pkt2);
-                                            break;
-                                        default:
-                                            /* error */
-                                            LED3_ON;
-                                            break;
-                                    }
-
-                                    if(exit) {
-                                        exit = 0;
-                                        break;
-                                    }
-                                }
-                                free(time_diffs);
-                            }
+                            msg2.type = HDLC_MSG_SND;
+                            msg2.content.ptr = &send_pkt;
+                            msg_send(&msg2, hdlc_pid);
+                        } else {
+                            /* requeue the msg_t */
+                            msg_send_to_self(&msg);
                         }
-                        _set_channel(old_channel);
-                        
+
+                        DEBUG("rssi_dump : dump STARTING... \n");
+
+                        gnrc_netreg_register(1, &rssi_dump_server);
+                        break;
+                    case RSSI_DUMP_STOP:
+                        gnrc_netreg_unregister(1, &rssi_dump_server);
+                        _set_channel(main_channel);
+                        DEBUG("rssi_dump: dump STOPPED.\n");
+
+                        if (!hdlc_snd_locked) {
+                            hdlc_snd_locked = true; 
+                            uart_hdr.dst_port = recv_uart_hdr.src_port;
+                            uart_hdr.src_port = RSSI_DUMP_PORT;
+                            uart_hdr.pkt_type = RSSI_SCAN_STOPPED;
+                            uart_pkt_insert_hdr(send_pkt.data, UART_PKT_HDR_LEN + 1,
+                                &uart_hdr);
+                            send_pkt.length = UART_PKT_HDR_LEN;
+
+                            msg2.type = HDLC_MSG_SND;
+                            msg2.content.ptr = &send_pkt;
+                            msg_send(&msg2, hdlc_pid);
+                            DEBUG("_rssi_dump : Dumping stopped \n");
+                        } else {
+                            /* requeue the msg_t */
+                            msg_send_to_self(&msg);
+                        }
+
+                        /* TODO: send RSSI_SCAN_STOPPED to mbed */
                         break;
                     default:
-                        DEBUG("Recieved a msg type other than SOUND_RANGE_REQ\n");
+                        DEBUG("rssi_dump: invalid packet!\n");
                         break;
                 }
-                hdlc_pkt_release(hdlc_rcv_pkt);
+                hdlc_pkt_release(recv_pkt);
+                break;
+            case HDLC_RESP_RETRY_W_TIMEO:
+                DEBUG("_rssi_dump : retry frame \n");
+                if (is_rssi_pkt) {
+                    /* don't bother resending */
+                    is_rssi_pkt = false;
+                    hdlc_snd_locked = false;
+                } else {
+                    xtimer_usleep(msg.content.value);
+                    DEBUG("rssi_dump: resend UART packet\n");
+                    msg_send(&msg2, hdlc_pid);
+                }
+
+                break;
+            case HDLC_RESP_SND_SUCC:
+                // DEBUG("_rssi_dump : sent frame \n");
+                hdlc_snd_locked = false;
+                break;
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                // DEBUG("_rssi_dump : received a beacon \n");
+
+                if (!hdlc_snd_locked) {
+                    // DEBUG("rssi_dump: getting RSSI and sending to mbed...\n"); 
+
+                    netif_hdr = ((gnrc_pktsnip_t *)msg.content.ptr)->next->data;
+                    dst_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
+                    /* need to subtract 73 from raw RSSI (do on mbed side) to get dBm value */
+                    uint8_t raw_rssi = netif_hdr->rssi;
+                    if(dst_addr == 0){/* do nothing*/}
+                    if (netif_hdr->dst_l2addr_len == 2 ) {//&& !memcmp(dst_addr, my_hwaddr_short, 2)) {
+                        hdlc_snd_locked = true;
+                        rssi_uart_hdr.src_port = RSSI_DUMP_PORT;
+                        rssi_uart_hdr.dst_port = 0xFFFF; /* taken care of by dispatcher */
+                        rssi_uart_hdr.pkt_type = RSSI_DATA_PKT;
+                        uart_pkt_insert_hdr(rssi_pkt.data, UART_PKT_HDR_LEN + 1,
+                            &rssi_uart_hdr);
+                        rssi_pkt.length = uart_pkt_cpy_data(rssi_pkt.data, 
+                            UART_PKT_HDR_LEN + 1, &raw_rssi, sizeof(raw_rssi)); 
+
+                        is_rssi_pkt = true;
+                        msg2.type = HDLC_MSG_SND;
+                        msg2.content.ptr = &rssi_pkt;
+
+                        // DEBUG("rssi_dump: sending RSSI over uart...\n");
+
+                        msg_send(&msg2, hdlc_pid);
+                    }
+                } /* else { do nothing, wait for next packet } */
+
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_SND:
+                /* just in case */
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                 break;
             default:
                 /* error */
-                DEBUG("Recieved something else");
-                LED3_ON;
+                DEBUG("rssi_dump: invalid packet\n");
                 break;
-
-        }
-        
-
-        /* control transmission rate via interpacket intervals */
-        xtimer_usleep(50000);
+        }    
     }
 
     /* should be never reached */
+    DEBUG("Error: Reached Exit!");
+    return NULL;
+}
+
+static int _sound_rf_ping_req(uint16_t rcvr_port, 
+    ipv6_addr_t *sender_ip, uint16_t sender_port, uint8_t sender_node_id)
+{
+    char buf[2] = { RANGE_REQ_FLAG, sender_node_id };
+    gnrc_pktsnip_t *payload, *udp, *ip;
+
+    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        puts("Error: unable to copy data to packet buffer");
+        return 1;
+    }
+
+    udp = gnrc_udp_hdr_build(payload, rcvr_port, sender_port);
+    if (udp == NULL) {
+        puts("Error: unable to allocate UDP header");
+        gnrc_pktbuf_release(payload);
+        return 1;
+    }
+
+    ip = gnrc_ipv6_hdr_build(udp, NULL, sender_ip);
+    if (ip == NULL) {
+        puts("Error: unable to allocate IPv6 header");
+        gnrc_pktbuf_release(udp);
+        return 1;
+    }
+
+    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
+        puts("Error: unable to locate UDP thread");
+        gnrc_pktbuf_release(ip);
+        return 1;
+    }
+
     return 0;
+}
+
+static uint32_t _sound_rf_ping_go(uint16_t rcvr_port, 
+    ipv6_addr_t *sender_ip, uint16_t sender_port, uint8_t sender_node_id){
+
+    msg_t msg;
+    gnrc_pktsnip_t *payload, *udp, *ip;
+    uint32_t retval;
+
+    /* turn off UART temporarily because of HDLC*/
+    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
+    /* depending on implementation, turn off any other interrupts as needed */
+
+    /* range_rx_init() */
+    /* send GO udp pkt */
+    /* send "GO" packet */
+    char buf[2] = { RANGE_GO_FLAG, sender_node_id };
+    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
+    if (payload == NULL) {
+        puts("Error: unable to copy data to packet buffer");
+        return 0;
+    }
+
+    udp = gnrc_udp_hdr_build(payload, rcvr_port, sender_port);
+    if (udp == NULL) {
+        puts("Error: unable to allocate UDP header");
+        gnrc_pktbuf_release(payload);
+        return 0;
+    }
+
+    ip = gnrc_ipv6_hdr_build(udp, NULL, sender_ip);
+    if (ip == NULL) {
+        puts("Error: unable to allocate IPv6 header");
+        gnrc_pktbuf_release(udp);
+        return 0;
+    }
+
+    adc_init(AD5_PIN);
+    range_rx_init(sender_node_id, DEFAULT_ULTRASOUND_THRESH, AD5_PIN, 
+        ADC_RES_7BIT, MAX_SOUND_SAMPLES);
+
+    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, 
+        ip)) {
+        puts("Error: unable to locate UDP thread");
+        gnrc_pktbuf_release(ip);
+        return 0;
+    }
+
+    DEBUG("PID of req is %d\n", thread_getpid());
+
+    /* there should no be other messages being sent to this thread at this point */
+    /* wait 500ms */
+    if(xtimer_msg_receive_timeout(&msg, 500000) < 0) {
+        /* timed out */
+        DEBUG("netdev ranging timed out\n");
+        retval = 0;
+    } else {
+        DEBUG("TDoA: %ld\n", (uint32_t) msg.content.value);
+        retval = ((uint32_t) msg.content.value);
+    }
+
+    /* on timeout or packet receive, manually reset UART just in case 
+    see CC2538's uart.c) */
+    UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+    UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+    UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+    UART1->cc2538_uart_dr.ECR = 0xFF;
+    UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+    UART1->cc2538_uart_lcrh.LCRH |= FEN;
+    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+
+    return retval;
 }
 
 int main(void)
 {
-    /* start shell */
-    puts("All up, running the shell now");
-    char line_buf[SHELL_DEFAULT_BUFSIZE];
+    msg_t msg, msg_snd_pkt;
+    int hdlc_send_locked = 0;
+    int range_req = 0;
+    uint32_t sound_rf_tdoa;
+    uint32_t range_req_time;
+    hdlc_pkt_t *recv_pkt;
+    gnrc_pktsnip_t *gnrc_pkt;
+    gnrc_pktsnip_t *snip;
+    ipv6_addr_t sound_rf_sender_ip;
+    char send_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t hdlc_pkt = { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    uart_pkt_hdr_t uart_hdr;
+    gnrc_netreg_entry_t main_thr_server = { NULL, GET_SET_RANGING_THR_PORT, {thread_getpid()} };
+    hdlc_entry_t main_thr = { NULL, GET_SET_RANGING_THR_PORT, thread_getpid() };
 
-    /* auto-run */
-    // char *temp[3];
-    // temp[0] = "range_rx";
-    // temp[1] = "50";          //num pkts
-    // temp[2] = "1000000";     //interval_in_us
-    // range_rx(3, temp);
+    msg_init_queue(main_msg_queue, sizeof(main_msg_queue));
 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(0));
+        "hdlc", UART_DEV(1));
+    thread_create(rssi_dump_stack, sizeof(rssi_dump_stack), RSSI_DUMP_PRIO, NULL,
+                  _rssi_dump, (void *) (uint32_t) hdlc_pid, "rssi_dump");
 
-    if(TX_MODE){
-        DEBUG("Starting transmitter thread\n");
-        thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
-                  THREAD_CREATE_STACKTEST, _range_tx_thread, hdlc_pid, "range_tx thread");
-    } else {
-        DEBUG("Starting reciever thread\n");
-        thread_create(range_stack, sizeof(range_stack), THREAD2_PRIO, 
-                  THREAD_CREATE_STACKTEST, _range_rx_thread, hdlc_pid, "range_rx thread");
+    hdlc_register(&main_thr);
+
+    _set_hwaddr_short(ARREST_FOLLOWER_SHORT_HWADDR);
+    _set_channel(main_channel);
+
+    /* this thread handles set tx power, set channel, and ranging requests */
+    while(1)
+    {
+        if(range_req) {
+            uint32_t timeout = (uint32_t) (range_req_time + RANGE_REQ_TIMEO_USEC) 
+                          - (uint32_t) xtimer_now().ticks32;
+            if(timeout < 0) {
+                range_req = 0;
+                DEBUG("Ranging REQ timeout!\n");
+                if(!hdlc_send_locked) {
+                    uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
+                    uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
+                    uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                    uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
+                    hdlc_pkt.length = uart_pkt_cpy_data(hdlc_pkt.data, 
+                        HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    sound_rf_tdoa = 0;
+
+                    msg_snd_pkt.type = HDLC_MSG_SND;
+                    msg_snd_pkt.content.ptr = &hdlc_pkt;
+                    msg_send(&msg_snd_pkt, hdlc_pid);
+                    hdlc_send_locked = 1;
+                    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &main_thr_server);
+                } else {
+                    DEBUG("Error: Already sending SOUND_RANGE_DONE.\n");
+                    LED3_ON;
+                }
+
+                msg_receive(&msg);
+            } else {
+                if(0 > xtimer_msg_receive_timeout(&msg, timeout)) {
+                    range_req = 0;
+                    DEBUG("Ranging REQ timeout!\n");
+                    uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
+                    uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
+                    uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                    uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
+                    hdlc_pkt.length = uart_pkt_cpy_data(hdlc_pkt.data, 
+                        HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    sound_rf_tdoa = 0;
+
+                    msg_snd_pkt.type = HDLC_MSG_SND;
+                    msg_snd_pkt.content.ptr = &hdlc_pkt;
+                    msg_send(&msg_snd_pkt, hdlc_pid);
+                    hdlc_send_locked = 1;
+                    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &main_thr_server);
+                }
+            }
+        } else {
+            msg_receive(&msg);
+        }
+        DEBUG("received a msg!\n");
+
+        switch (msg.type)
+        {
+            case HDLC_RESP_SND_SUCC:
+                hdlc_send_locked = 0;
+                break;
+            case HDLC_RESP_RETRY_W_TIMEO:
+                xtimer_usleep(msg.content.value);
+                msg_send(&msg_snd_pkt, hdlc_pid);
+                break;
+            case HDLC_PKT_RDY:
+                recv_pkt = (hdlc_pkt_t *)msg.content.ptr;
+                uart_pkt_hdr_t recv_uart_hdr;
+                uart_pkt_parse_hdr(&recv_uart_hdr, recv_pkt->data, recv_pkt->length);
+                switch (recv_uart_hdr.pkt_type) 
+                {
+                    case RADIO_SET_CHAN:
+                        DEBUG("Set channel request received\n");
+                        _set_channel(recv_pkt->data[UART_PKT_DATA_FIELD]);
+                        /* TODO: respond to mbed via RADIO_SET_CHAN_X msg */
+                        break;
+                    case RADIO_SET_POWER:
+                        DEBUG("Set tx power request received.\n");
+                        _set_tx_power(recv_pkt->data[UART_PKT_DATA_FIELD]);
+                        /* TODO: respond to mbed via RADIO_SET_POWER_X msg */
+                        break;
+                    case SOUND_RANGE_REQ:
+                        DEBUG("ranging: SOUND_RANGE_REQ received!\n");
+
+                        gnrc_netreg_register(GNRC_NETTYPE_UDP, &main_thr_server);
+                        if (ipv6_addr_from_str(&sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_IPV6_ADDR) == NULL) {
+                            DEBUG("Error: unable to parse destination address");
+                            return 1;
+                        }
+                        range_req = 1;
+                        range_req_time = xtimer_now().ticks32;
+                        _sound_rf_ping_req(GET_SET_RANGING_THR_PORT, 
+                            &sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_PORT, 
+                            ARREST_LEADER_SOUNDRF_ID);
+                        break;
+                    case SOUND_RANGE_X10_REQ:
+                        /* TODO */
+                        break;
+                    default:
+                        DEBUG("rssi_dump: invalid packet!\n");
+                        break;
+                }
+                hdlc_pkt_release(recv_pkt);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                gnrc_pkt = msg.content.ptr;
+                snip = gnrc_pktsnip_search_type(gnrc_pkt, GNRC_NETTYPE_UNDEF);
+                if ( RANGE_RDY_FLAG == ((uint8_t *) snip->data)[0] && 
+                     ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
+                    DEBUG("Got init msg. Turning on ranging mode.");
+                    /* no need for anymore UDP packets. unregister. */
+                    gnrc_netreg_unregister(GNRC_NETTYPE_UDP, &main_thr_server);
+                    if (ipv6_addr_from_str(&sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_IPV6_ADDR) == NULL) {
+                        DEBUG("Error: unable to parse destination address");
+                        return 1;
+                    }
+                    sound_rf_tdoa = _sound_rf_ping_go(GET_SET_RANGING_THR_PORT, 
+                        &sound_rf_sender_ip, ARREST_LEADER_SOUNDRF_PORT, 
+                        ARREST_LEADER_SOUNDRF_ID);
+                    range_req = 0;  /* turnoff range req timeo */
+                    range_rx_stop();
+
+                    /* WARNING: if the time between two sound range requests to 
+                    the openmote is too short, your TDoA values may be unusually
+                    low. This may be because the ADC is not settling properly. */
+                    
+                    DEBUG("ranging: 'GO' done\n");
+                } else {
+                    DEBUG("Unknown packet.");
+                    gnrc_pktbuf_release(gnrc_pkt);
+                    break;
+                }
+
+                if(!hdlc_send_locked) {
+                    DEBUG("ranging: sending SOUND_RANGE_DONE over UART\n");
+                    uart_hdr.src_port = GET_SET_RANGING_THR_PORT;
+                    uart_hdr.dst_port = ARREST_FOLLOWER_RANGE_THR_PORT;
+                    uart_hdr.pkt_type = SOUND_RANGE_DONE;
+                    uart_pkt_insert_hdr(hdlc_pkt.data, HDLC_MAX_PKT_SIZE, &uart_hdr);
+                    hdlc_pkt.length = uart_pkt_cpy_data(hdlc_pkt.data, 
+                        HDLC_MAX_PKT_SIZE, &sound_rf_tdoa, sizeof(uint32_t));
+                    sound_rf_tdoa = 0;
+
+                    msg_snd_pkt.type = HDLC_MSG_SND;
+                    msg_snd_pkt.content.ptr = &hdlc_pkt;
+                    msg_send(&msg_snd_pkt, hdlc_pid);
+                    hdlc_send_locked = 1;
+                } else {
+                    DEBUG("Error: Already sending SOUND_RANGE_DONE.\n");;
+                    LED3_ON;
+                }
+
+                gnrc_pktbuf_release(gnrc_pkt);
+                break;
+            default:
+                /* error */
+                LED3_ON;
+                break;
+        }
     }
 
-
-    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 
     /* should be never reached */
     return 0;
