@@ -84,7 +84,7 @@ int range_tx_tdma(void)
     }
     /* register for all l2 packets */
     gnrc_netreg_register(1, &tdma_slave_serv);
-	// ------------------------------------------------------------------
+    // ------------------------------------------------------------------
     uint8_t hw_addr[MAX_ADDR_LEN];
     size_t hw_addr_len;
     hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
@@ -108,155 +108,155 @@ int range_tx_tdma(void)
     
     // Miscellaneous
     //------------------------------------------------------------------------//
-	bool wait_for_id = true;
+    bool wait_for_id = true;
     xtimer_ticks32_t start_time, wait_time, go_time;
     uint8_t incoming_rank;
     // NETOPT_ADDRESS; // this device's hw_addr 
     //------------------------------------------------------------------------//
 
 // MAIN LOOP
- 	while (true)
- 	{
+    while (true)
+    {
         DEBUG("Sending REQ packet...");
-		// NODE sends REQ packet to LEADER.
-	    //--------------------------------------------------------------------//
- 		buf[0] = TDMA_ANCHOR_ID_REQ_U16_FLAG >> 8 & 0xFF;
-	    buf[1] = TDMA_ANCHOR_ID_REQ_U16_FLAG & 0xFF;
-	    buf[2] = 0x00;
+        // NODE sends REQ packet to LEADER.
+        //--------------------------------------------------------------------//
+        buf[0] = TDMA_ANCHOR_ID_REQ_U16_FLAG >> 8 & 0xFF;
+        buf[1] = TDMA_ANCHOR_ID_REQ_U16_FLAG & 0xFF;
+        buf[2] = 0x00;
 
-		send_pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
+        send_pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
         if (send_pkt == NULL) 
         {
-	        DEBUG("error: packet buffer full\n");
+            DEBUG("error: packet buffer full\n");
             return 1;
         }
 
-	    hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-	    if (hdr == NULL) 
-	    {
-	        DEBUG("error: packet buffer full\n");
-	        gnrc_pktbuf_release(send_pkt);
-	        return 1;
-	    }
+        hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
+        if (hdr == NULL) 
+        {
+            DEBUG("error: packet buffer full\n");
+            gnrc_pktbuf_release(send_pkt);
+            return 1;
+        }
 
         LL_PREPEND(send_pkt, hdr);
 
-		flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
-		nethdr = (gnrc_netif_hdr_t *)hdr->data;
-	    nethdr->flags = flags;
+        flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+        nethdr = (gnrc_netif_hdr_t *)hdr->data;
+        nethdr->flags = flags;
 
-		if (gnrc_netapi_send(ifs[0], send_pkt) < 1) 
-		{
-	        DEBUG("error: unable to send\n");
+        if (gnrc_netapi_send(ifs[0], send_pkt) < 1) 
+        {
+            DEBUG("error: unable to send\n");
             gnrc_pktbuf_release(send_pkt);
         }
-	    //--------------------------------------------------------------------//
+        //--------------------------------------------------------------------//
         DEBUG("Done.\n");
 
         DEBUG("Waiting for ID packet...\n");
-    	// NODE A waits for ID packet from LEADER.
-	    //--------------------------------------------------------------------//
-    	wait_for_id = true;
+        // NODE A waits for ID packet from LEADER.
+        //--------------------------------------------------------------------//
+        wait_for_id = true;
         while (wait_for_id)
         {
-	        msg_receive(&msg);
-	        switch (msg.type)
-	        {
-				// NODE receives ID packet from LEADER.
-	            case GNRC_NETAPI_MSG_TYPE_RCV:
-	                DEBUG("Received pkt.\n");
-	                recv_pkt = msg.content.ptr;
+            msg_receive(&msg);
+            switch (msg.type)
+            {
+                // NODE receives ID packet from LEADER.
+                case GNRC_NETAPI_MSG_TYPE_RCV:
+                    DEBUG("Received pkt.\n");
+                    recv_pkt = msg.content.ptr;
 
-	                /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
-					if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
-                    	((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
+                    /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
+                    if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
+                        ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
                     {
-			            // NODE records its ranking.
-			            anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
+                        // NODE records its ranking.
+                        anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
                         DEBUG("Rank: ");
                         DEBUG("%d\n", anchor_node_id);
-			            // NODE syncs with the LEADER.
-	                    tdma_slot_time_msec &= 0x00;
+                        // NODE syncs with the LEADER.
+                        tdma_slot_time_msec &= 0x00;
                         tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
-	                    tdma_slot_time_msec = tdma_slot_time_msec << 8;
+                        tdma_slot_time_msec = tdma_slot_time_msec << 8;
                         tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
 
-	                    // NODE records total number of nodes (useful for NODE 1).
-	                    total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
+                        // NODE records total number of nodes (useful for NODE 1).
+                        total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
 
-	                    // NODE A received the data correctly and now breaks out of the loop.
-	                    wait_for_id = false;
-	                }
-	                break;
+                        // NODE A received the data correctly and now breaks out of the loop.
+                        wait_for_id = false;
+                    }
+                    break;
                 case GNRC_NETAPI_MSG_TYPE_SND:
-	                /* This thread will get all send l2 send requests, even if it's
-	                coming from this thread. Discard it */
-	                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                	break;
-				default:
-	                // pkt received didn't match any of these.
-	                DEBUG("msg.type = %d\n", msg.type);
-	                DEBUG("Waiting for ID packet from LEADER. PKT was none of these.\n");
-	                break;
-	        }
-	    }
-	    //--------------------------------------------------------------------//
+                    /* This thread will get all send l2 send requests, even if it's
+                    coming from this thread. Discard it */
+                    gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                    break;
+                default:
+                    // pkt received didn't match any of these.
+                    DEBUG("msg.type = %d\n", msg.type);
+                    DEBUG("Waiting for ID packet from LEADER. PKT was none of these.\n");
+                    break;
+            }
+        }
+        //--------------------------------------------------------------------//
         DEBUG("Received ID packet.\n");
 
         DEBUG("Waiting to go.\n");
-	    // NODE A received ID packet from LEADER and is now waiting to go.
-	    // TODO: check if GNRC_NETAPI_MSG_TYPE_RCV is correct
-	    //--------------------------------------------------------------------//
+        // NODE A received ID packet from LEADER and is now waiting to go.
+        // TODO: check if GNRC_NETAPI_MSG_TYPE_RCV is correct
+        //--------------------------------------------------------------------//
         start_time = xtimer_now();
         DEBUG("Start time: %u\n", start_time.ticks32);
         wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
         go_time.ticks32 = anchor_node_id * tdma_slot_time_msec;
         while (wait_time.ticks32 < go_time.ticks32)
         {
-	        msg_receive(&msg); // make this a thread? or make the timer a thread?
-	        switch (msg.type)
-	        {
-	            case GNRC_NETAPI_MSG_TYPE_RCV:
-	                DEBUG("Received pkt.\n");
-	                recv_pkt = msg.content.ptr;
-	                if ( ((uint8_t *)recv_pkt->data)[0] == RANGE_FLAG_BYTE0 &&
-	                     ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
-	                {
-						incoming_rank = ((uint8_t *)recv_pkt->data)[1];
-						// NODE's rank is 1 and listening for the last NODE.
-						if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1))
-						{
+            msg_receive(&msg); // make this a thread? or make the timer a thread?
+            switch (msg.type)
+            {
+                case GNRC_NETAPI_MSG_TYPE_RCV:
+                    DEBUG("Received pkt.\n");
+                    recv_pkt = msg.content.ptr;
+                    if ( ((uint8_t *)recv_pkt->data)[0] == RANGE_FLAG_BYTE0 &&
+                         ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
+                    {
+                        incoming_rank = ((uint8_t *)recv_pkt->data)[1];
+                        // NODE's rank is 1 and listening for the last NODE.
+                        if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1))
+                        {
                             DEBUG("last rank to first.\n");
-							go_time.ticks32 = wait_time.ticks32 + (uint32_t)tdma_slot_time_msec;
-						}
-						// NODE's rank is higher than the incoming NODE's transmission.
-						if (incoming_rank < anchor_node_id)
-						{
+                            go_time.ticks32 = wait_time.ticks32 + (uint32_t)tdma_slot_time_msec;
+                        }
+                        // NODE's rank is higher than the incoming NODE's transmission.
+                        if (incoming_rank < anchor_node_id)
+                        {
                             DEBUG("lower rank to higher.\n");
-							go_time.ticks32 = wait_time.ticks32 + (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
-						}
-	                }
-	                break;
+                            go_time.ticks32 = wait_time.ticks32 + (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
+                        }
+                    }
+                    break;
                 case GNRC_NETAPI_MSG_TYPE_SND:
-	                /* This thread will get all send l2 send requests, even if it's
-	                coming from this thread. Discard it */
+                    /* This thread will get all send l2 send requests, even if it's
+                    coming from this thread. Discard it */
                     DEBUG("SND type packet.\n");
-	                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                	break;
-	            default:
-	            	DEBUG("Not a ranging packet.\n");
-	            	break;
+                    gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                    break;
+                default:
+                    DEBUG("Not a ranging packet.\n");
+                    break;
             }
             // Refresh the timer.
-        	wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
+            wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
         }
-	    //--------------------------------------------------------------------//
+        //--------------------------------------------------------------------//
         DEBUG("Waited to go.\n");
 
         DEBUG("Sending signal.\n");
         //ACUTALLY SENDING THE SIGNAL GOD FINALLY
         // TODO: Modify to not block the interrupts
-	    //--------------------------------------------------------------------//
+        //--------------------------------------------------------------------//
         /** Send L2 Packet **/
         /* network interface */
         // need to change this to hit anything
@@ -282,7 +282,7 @@ int range_tx_tdma(void)
 
         LL_PREPEND(send_pkt, hdr);
 
-		flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+        flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
         nethdr = (gnrc_netif_hdr_t *)hdr->data;
         nethdr->flags = flags;
         /* ready to send */
@@ -296,7 +296,7 @@ int range_tx_tdma(void)
         gnrc_pktbuf_release(recv_pkt);
         range_tx_off(); //turn off just in case
         DEBUG("RF and ultrasound pings sent\n");  
-	    //--------------------------------------------------------------------//
+        //--------------------------------------------------------------------//
     }
     //end of while loop, code should never reach here, etc.
     return 0;
