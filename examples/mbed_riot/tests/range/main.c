@@ -372,7 +372,6 @@ static void *_range_rx_thread(void *arg)
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
-
                             range_and_send(range_params, hdlc_pid);
                         }
                         _set_channel(old_channel);
