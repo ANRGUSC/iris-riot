@@ -160,6 +160,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
         if (recv_buf.length > 0 && 
             (recv_buf.control.seq_no == *recv_seq_no % 8 ||
             recv_buf.control.seq_no == (*recv_seq_no - 1) % 8)) {
+            
             /* valid data frame received */
             DEBUG("hdlc: received data frame w/ seq_no: %d\n", recv_buf.control.seq_no);
 

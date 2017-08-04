@@ -256,7 +256,6 @@ typedef struct netdev_driver {
  *
  * It can be extended
  */
-
 typedef struct __attribute__((packed)) {
     uint16_t tdoa; /**< Time Difference of Arrival */
     uint16_t orient_diff; /**< Orientation Difference (of Arrival) */

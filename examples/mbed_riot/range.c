@@ -8,9 +8,8 @@
  * Contributors:
  * Yutong Gu
  * Richard Kim
- *
- * Permission is here
- * by granted, free of charge, to any person obtaining a copy 
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
  * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
@@ -48,7 +47,7 @@
  */
 
 #include "range.h"
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 #define MAXSAMPLES_ONE_PIN            18000
@@ -98,7 +97,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     /* setup the message queue */
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
-   
+
     int i;
     for(i = 0; i < num_samples; i++){
 
@@ -202,7 +201,7 @@ int range_tx( void )
         DEBUG("error: packet buffer full\n");
         return 1;
     }
-   
+
     hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
     if (hdr == NULL) {
         DEBUG("error: packet buffer full\n");

@@ -59,7 +59,7 @@
 #include "timex.h"
 #include "xtimer.h"
 #include "periph/gpio.h"
-
+#include "board.h"
 #include "thread.h"
 #include "msg.h"
 #include "range_param.h"
@@ -109,6 +109,17 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
  *
  * @return     { Doesn't return anything if successful because it will be infinitely looping }
  */
-int range_tx( void );
+int range_tx(void);
+
+/**
+ * @brief      { This function call will cause the openmote to go into anchor mode where
+ *				 it will transmit RF and Ultrasound pings according to a TDMA schedule,
+ *				 dependent on tdma_master.c}
+ *
+ * @param[in]  delay_usec  The delay in microseconds between pings (usually set at 100 ms)
+ *
+ * @return     { Doesn't return anything if successful because it will be infinitely looping }
+ */
+int range_tx_tdma(void);
 
 #endif
