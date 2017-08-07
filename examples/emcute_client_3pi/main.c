@@ -85,7 +85,7 @@
 #include "net/ipv6/addr.h"
 
 /*Initializing the various aspects of MQTT client */
-#define EMCUTE_PORT         (1883U)                 // MQTT Client Port Number
+#define EMCUTE_PORT         (1886U)                 // MQTT Client Port Number
 #define MQTT_SN_SERVER      ("fd00:dead:beef::1")   // MQTT Server Border Router IP
 #define MQTT_SN_PORT        ("8888")                // MQTT Server Listening Port Number
 #define TOPIC               ("test/trial")          // Default topic to subscribe at bootup

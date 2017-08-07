@@ -2,7 +2,8 @@
 APPLICATION = emcute
 
 # If no BOARD is found in the environment, use this default:
-BOARD ?= native
+BOARD ?= openmote-cc2538
+PROGRAMMER ?= jlink
 
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
@@ -13,6 +14,9 @@ BOARD_INSUFFICIENT_MEMORY := arduino-duemilanove arduino-mega2560 arduino-uno \
                              nucleo-f072 nucleo-f302 nucleo-f334 nucleo-l053 \
                              stm32f0discovery telosb waspmote-pro weio wsn430-v1_3b \
                              wsn430-v1_4 z1
+
+
+WERROR = 0
 
 # Include packages that pull up and auto-init the link layer.
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
