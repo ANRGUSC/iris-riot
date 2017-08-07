@@ -45,6 +45,8 @@
 
 #define RANGE_REQ_TIMEO_USEC                1000000
 
+#define RESET_TIMEOUT						60000000
+
 
 
 

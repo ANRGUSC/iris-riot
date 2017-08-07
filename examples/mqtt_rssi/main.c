@@ -68,6 +68,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+//Header to reboot the system
+#include "periph/pm.h"
 
 #include "board.h"
 #include "thread.h"
@@ -304,8 +306,16 @@ static int auto_con(char* addr, char* port)
     }    
 }
 
+void reset(void){
+    printf("Haven't connected to broker in 1 minute\n");
+    printf("RESETTING\n");
+    pm_reboot();
+}
+
 static void *_mqtt_thread(void *arg)
 {
+    xtimer_ticks32_t ticks;
+    xtimer_t timer = {.target=0, .long_target=0, .callback=reset};
     int                 mqtt_go = 1;//not connected state
     int                 mqtt_connected = 1;    
     int                 sent_hwaddr = 1;//not sent state
@@ -338,12 +348,16 @@ static void *_mqtt_thread(void *arg)
     // start the emcute thread 
     thread_create(stack, sizeof(stack), EMCUTE_PRIO, 0,
                   emcute_thread, thread2_pid, "emcute");
+    ticks = xtimer_ticks_from_usec(RESET_TIMEOUT);
+    xtimer_set(&timer,ticks.ticks32);
     
     //automatically connects to the MQTT-SN server  
+    
     while (mqtt_go == 1){
         mqtt_go = auto_con(MQTT_SN_SERVER, MQTT_SN_PORT);
     } 
     mqtt_go = 1;
+
 
     //automatically connects to the topic init_info and emcute id
     while (mqtt_go == 1)
@@ -351,6 +365,8 @@ static void *_mqtt_thread(void *arg)
         mqtt_go = auto_sub(EMCUTE_ID);  
     }
     mqtt_go = 1;
+    xtimer_remove(&timer);
+
     
     //creating a struct to send a message to the rssi thread
     msg_t msg_rssi;    
@@ -478,7 +494,13 @@ static void *_mqtt_thread(void *arg)
 
                 case HDLC_RESP_SND_SUCC:
                     DEBUG("mqtt_control_thread: the MQTT packet dump SUCCESS\n");
-                    DEBUG("mqtt_control_thread: sent frame_no %d!\n", frame_no);                    
+                    DEBUG("mqtt_control_thread: sent frame_no %d!\n", frame_no); 
+                    if (frame_no==75)
+                    {
+                        xtimer_usleep(2944000);
+                        printf("RIOT:REBOOTING\n");
+                        pm_reboot();
+                    }                
                     exit = 1;
                     break;
 
@@ -531,13 +553,20 @@ static void *_mqtt_thread(void *arg)
                                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                                 msg_snd.type = HDLC_MSG_SND;
                                 msg_snd.content.ptr = &hdlc_snd_pkt;
+                                
                                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
                                     DEBUG("mqtt_control_thread: (pub ack failed) HDLC msg queue full\n");
-                                }
+                                }                                
                             }
                             else
                                 DEBUG("mqtt_control_thread: Publish Request Failed\n");
                             break;
+                        /*
+                        case RESET_RIOT:
+                            printf("Resetting RIOT\n");
+                            pm_reboot();
+                            break;
+                            */
                         default:
                             //error
                             break;
@@ -658,7 +687,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
          * => use temporary variable for output */
         printf("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
                port);               
-                
+        xtimer_usleep(1000000);       
         return 0;
     }
 }
@@ -673,8 +702,7 @@ static void *_rssi_dump(void *arg)
     uint8_t rssi_value;
     int rssi_go=0;   
     int i=0; 
-    int c=15;
-    bool hdlc_snd_locked = false;
+    int c=15;   
     char send_data[HDLC_MAX_PKT_SIZE];
     char ipv6_send_addr[24]="fe80::212:4b00:";
     gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
@@ -713,10 +741,13 @@ static void *_rssi_dump(void *arg)
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg.content.ptr;   
                 uart_pkt_parse_hdr(&uart_rcv_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch(uart_rcv_hdr.pkt_type){
+                    case RESET_RIOT:
+                        printf("resetting riot\n");
+                        pm_reboot();
+                        break;
                     case RSSI_SND:
 
-                        DEBUG("rssi: received the rssi send message\n");
-                        
+                        DEBUG("rssi: received the rssi send message\n");                        
                         memcpy(node_ID,hdlc_rcv_pkt->data+UART_PKT_DATA_FIELD, sizeof(node_ID));
                         DEBUG("(if shows more than 8 characters, it is normal)The node to send to is %s\n", node_ID);
                         while (i<8){
@@ -735,7 +766,8 @@ static void *_rssi_dump(void *arg)
                         i=0;
                         c=15;
                         DEBUG("The ipv6 is %s\n", ipv6_send_addr); 
-                        //sending to the constructed ipv6 address at port 9000                                              
+                        //sending to the constructed ipv6 address at port 9000 
+                                                                    
                         if(rssi_send(ipv6_send_addr,RSSI_DUMP_PORT,rssi_data)==0){
                             printf("udp message sent\n");
                         } 
@@ -754,7 +786,7 @@ static void *_rssi_dump(void *arg)
                 break;                
             case HDLC_RESP_SND_SUCC:
                 DEBUG("_rssi_dump : sent frame \n");
-                hdlc_snd_locked = false;
+               
                 break;
             case GNRC_NETAPI_MSG_TYPE_RCV:                
                 rssi_value = rssi_val(msg.content.ptr);                
@@ -838,7 +870,7 @@ int main(void)
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(0));
+                                      "hdlc", UART_DEV(1));
     
     //Creates the thread 2 from the main thread
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 

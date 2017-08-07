@@ -78,7 +78,8 @@ typedef enum {
     RSSI_DUMP_STOP          = 5,
     MQTT_SUB                = 6,
     MQTT_PUB                = 7,
-    RSSI_SND               = 8
+    RSSI_SND                = 8,
+    RESET_RIOT              = 9
 } mbed_to_riot_t;
 
 /**

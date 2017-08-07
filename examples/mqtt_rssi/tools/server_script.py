@@ -91,7 +91,10 @@ def on_message(client, userdata, msg):
 	if msg.topic==topic_sub:		
 			if message[0] == '0':
 				topic_pub=message[1:]
-				hwaddr.append(topic_pub)
+				if topic_pub in hwaddr:
+					print("already registered")
+				else:
+					hwaddr.append(topic_pub)
 				#when a message is received, the message is published to another topic
 				client.publish(topic_pub,server_mqtt[message[0]]) 
 			elif message[0] == '1':
