@@ -59,7 +59,6 @@ static int ranging_pid;
 static uint32_t last            = 0;
 static uint32_t last2           = 0;
 static range_data_t time_diffs;
-static int ref                  = -1;
 int ranging                     = 0;
 
 /**
@@ -134,12 +133,10 @@ static void _sound_ranging(void)
     last = xtimer_now_usec();
     time_diffs.tdoa = 0;
     time_diffs.orient_diff = 0;
-    time_diffs.error = 0;
+    time_diffs.status = 0;
     unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.xor_pin};
 
-    
-    //xtimer_spin(XTIMER_USEC_TO_TICKS(5));
-    while(cnt < max_samps)
+    while(cnt < max_samps && ranging)
     {
         test = xtimer_now_usec();
         if(test < last){
@@ -150,24 +147,22 @@ static void _sound_ranging(void)
             DEBUG("%d ",sample1);
             if(sample1 != 0){
                 last2 = xtimer_now_usec();
-
+                DEBUG("%lu - %lu ",last, last2);
                 time_diffs.tdoa = last2 - last;
-                
-                range_rx_stop();
+                range_rx_successful_stop();
                 break;
             }
         }
         else if(range_sys_flag == TWO_SENSOR_MODE){
-            //printf("%d\n",cnt);
+
             sample1 = gpio_read(rx_line_array[0]);
             sample2 = gpio_read(rx_line_array[1]);
             DEBUG("%d ",sample1);
             DEBUG("%d ",sample2);
-            /* wait for 200us before next poll for input capacitor to settle */
+
             if(sample1 != 0){ first = 0; second = 1; }
             else if(sample2 != 0){ first = 1; second = 0; }
 
-            //xtimer_spin(XTIMER_USEC_TO_TICKS(1));
             if (first != 2) {
                 last2 = xtimer_now_usec();
                 do {
@@ -177,11 +172,14 @@ static void _sound_ranging(void)
                 
                 time_diffs.orient_diff = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
+
+                time_diffs.status = first + 1;
                 
                 if(sample1 == 0){
-                    time_diffs.error = second + 1; //returns 0 if no error, otherwise returns which gpio missed the ping
+                    time_diffs.status += MISSED_PIN_MASK; //returns the pin that first recieve if both recieved, otherwise add 10 to the flag
                 }
-                range_rx_stop();
+                
+                range_rx_successful_stop();
                 break;
             } 
         }
@@ -193,7 +191,7 @@ static void _sound_ranging(void)
                 while(gpio_read(rx_line_array[2]) != 0);
                 time_diffs.orient_diff = xtimer_now_usec() - last2;
                 time_diffs.tdoa = last2 - last;
-                range_rx_stop();
+                range_rx_successful_stop();
                 break;
             }
         }
@@ -201,11 +199,8 @@ static void _sound_ranging(void)
         ++cnt;
     }
 
-    last = xtimer_now_usec();
-
     if(cnt >= max_samps){
         DEBUG("cnt>max_samps\n");
-        range_rx_stop();
     }
     //irq_restore(old_state);
 }
@@ -300,7 +295,7 @@ static void *_gnrc_netdev_thread(void *args)
                 break;
         }
     }
-    /* never reached */
+    /* never reached */`
     return NULL;
 }
 
@@ -337,12 +332,21 @@ void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int 
     gpio_init(rx_line.two_pin,GPIO_IN);
     gpio_init(rx_line.xor_pin,GPIO_IN);
     max_samps = max_gpio_samps;
-    ref = 2;
+
     time_diffs.tdoa = 0;
     time_diffs.orient_diff = 0;
-    time_diffs.error = 0;
+    time_diffs.status = 0;
 
     DEBUG("ranging initialized!\n");
+}
+
+void range_rx_successful_stop(void)
+{
+    //puts("stopped");
+    range_rx_stop();
+    ranging_complete.type=ULTRSND_RCVD;
+    ranging_complete.content.ptr=&time_diffs;
+    msg_send(&ranging_complete,ranging_pid);
 }
 
 void range_rx_stop(void)
@@ -350,8 +354,4 @@ void range_rx_stop(void)
     //puts("stopped");
     ranging = 0;
     ranging_on = 0;
-    ref--;
-    ranging_complete.type=ULTRSND_RCVD;
-    ranging_complete.content.ptr=&time_diffs;
-    msg_send(&ranging_complete,ranging_pid);
 }

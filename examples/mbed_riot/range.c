@@ -51,17 +51,18 @@
 #include "debug.h"
 
 #define MAXSAMPLES_ONE_PIN            18000
-#define MAXSAMPLES_TWO_PIN            36000
+#define MAXSAMPLES_TWO_PIN            18000
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
 #define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
 #define RX_XOR_PIN                    GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
 
 #define TX_PIN                        GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1 //for usb openmote
-//#define TX_PIN                      GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3 
+//#define TX_PIN                      GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3  //for regular openmote
+
+#define ULTRSND_TIMEOUT               99000 //usec
 
 static range_data_t* time_diffs;
-
 
 range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
     // Check correct argument usage.
@@ -104,45 +105,47 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
 
         range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
 
-block:
+
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
             DEBUG("RF ping missed\n");
-            return NULL;
+            range_rx_stop();
+            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED};
+            continue;
         }
 
         if(msg.type == RF_RCVD){
-            if(xtimer_msg_receive_timeout(&msg,timeout)<0){
+            if(xtimer_msg_receive_timeout(&msg, ULTRSND_TIMEOUT) < 0){
                 DEBUG("Ultrsnd ping missed\n");
-                return NULL;
+                range_rx_stop();
+                time_diffs[i] = (range_data_t) {0, 0, ULTRSND_MISSED};
+                continue;
             }
             if(msg.type == ULTRSND_RCVD){
                 time_diffs[i] = *(range_data_t*) msg.content.ptr;
             } else{
-                goto block;
+                range_rx_stop();
+                i--;
+                continue;
             }
 
         }
-        if(time_diffs[i].tdoa > 0){
-            DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
-            switch (range_mode){
-                case ONE_SENSOR_MODE:
-                    break;
 
-                case TWO_SENSOR_MODE:
-                    if(time_diffs[i].error!=0){
-                        DEBUG("range: Missed pin %d\n", time_diffs[i].error);
-                    } else{
-                        DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
-                    }
-                    break;
+        DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
+        switch (range_mode){
+            case ONE_SENSOR_MODE:
+                break;
 
-                case XOR_SENSOR_MODE:
+            case TWO_SENSOR_MODE:
+                if(time_diffs[i].status > 2){
+                    DEBUG("range: Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs[i].status);
+                } else{
                     DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
-                    break;
-            }
-        }
-        else{
-            DEBUG("Ultrsnd ping missed\n");
+                }
+                break;
+
+            case XOR_SENSOR_MODE:
+                DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                break;
         }
 
 
@@ -219,7 +222,7 @@ int range_tx( void )
         gnrc_pktbuf_release(pkt);
         return 1;
     }   
-    //gnrc_pktbuf_release(pkt);
+    
     range_tx_off(); //turn off just in case
     DEBUG("RF and ultrasound pings sent\n");  
 

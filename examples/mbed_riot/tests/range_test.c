@@ -173,8 +173,7 @@ static void *_range_rx_thread(void *arg)
     int i = 0;
     int num_iter = 0;
     int remainder = 0;
-    int end_of_series = 0;
-
+    
     msg_t msg_snd, msg_rcv;
     /* create packets with max size */
     char send_data[pkt_size];
@@ -264,6 +263,12 @@ static void *_range_rx_thread(void *arg)
                                     hdlc_snd_pkt.length = RANGE_DATA_LEN*DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
 
                                     time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, DATA_PER_PKT);
+                                    
+                                    if(time_diffs == NULL){
+                                        DEBUG("An error occured while ranging\n");
+                                        break;
+                                    }
+
                                     DEBUG("sampling %d\n",DATA_PER_PKT);
 
                                     if(i == num_iter-1 && remainder == 0){
@@ -272,6 +277,7 @@ static void *_range_rx_thread(void *arg)
                                         i++; 
                                     }
                                     memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * DATA_PER_PKT);
+                                    free(time_diffs);
 
                                     uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*DATA_PER_PKT);
                                     
@@ -281,11 +287,17 @@ static void *_range_rx_thread(void *arg)
 
                                         time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
 
+                                        if(time_diffs == NULL){
+                                            DEBUG("An error occured while ranging\n");
+                                            break;
+                                        }
+
                                         DEBUG("sampling %d\n",remainder);
                                         DEBUG("message complete\n");
-                            
+
                                         range_hdr.last_pkt = 1;
                                         memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * remainder);
+                                        free(time_diffs);
 
                                         uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*remainder);
                                         
@@ -299,11 +311,6 @@ static void *_range_rx_thread(void *arg)
                                 UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
                                 UART1->cc2538_uart_lcrh.LCRH |= FEN;
                                 UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-                                if(time_diffs == NULL){
-                                    DEBUG("An error occured while ranging\n");
-                                    break;
-                                }
                                     
                                     //sending the data back down the hdlc
 
@@ -355,7 +362,7 @@ static void *_range_rx_thread(void *arg)
                                         break;
                                     }
                                 }
-                                free(time_diffs);
+                                
                             }
                         }
                         _set_channel(old_channel);

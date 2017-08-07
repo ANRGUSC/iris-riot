@@ -38,8 +38,8 @@
  * @ingroup     examples
  * @{
  *
- * @file        dac.h
- * @brief       Ultrasound ranging library for localization
+ * @file        dac.c
+ * @brief       DAC library for interfacing with the MCP4921 chip
  *
  * @author      Yutong Gu <yutonggu@usc.edu>
  *
@@ -47,42 +47,47 @@
  */
 
 
-#ifndef DAC_H
-#define DAC_H
+#include "dac.h"
 
-#include "periph/spi.h"
-
-typedef enum {
-	DAC_GAIN_2 = 0,         /**< sets the DAC to a gain of 2 */
-    DAC_GAIN_1 = 1,     /**< sets the DAC to a gain of 1 */
-    
-} DAC_gain_t;
-
-/**
- * @brief      Initializes the appropriate pins for SPI communication with the DAC
- *
- * @param[in]  cs    The chip select pin
- * @param[in]  clk   The clock speed
- *
- * @return     returns 1 if successful, 0 otherwise
- */
-int init_dac(gpio_t cs, spi_clk_t clk);
-
-/**
- * @brief      Converts val to DAC-readable data and sends it over SPI to set voltage
- *
- * @param[in]  val   The value between 0-255
- * @param[in]  gain  The gain
- *
- * @return     1 on success, 0 on fail
- */
-int set_voltage(uint8_t val, DAC_gain_t gain);
+static gpio_t chip_select_pin;
 
 
-/**
- * @brief      Shuts down the DAC line
- */
-void stop_dac(void);
+int init_dac(gpio_t cs, spi_clk_t clk){
+    chip_select_pin = cs;
+    spi_init(SPI_DEV(0));
+    spi_init_cs(SPI_DEV(0), chip_select_pin);
+    return spi_acquire(SPI_DEV(0),chip_select_pin, SPI_MODE_0, clk);
+}
 
-/* DAC_H */
-#endif
+
+int set_voltage(uint8_t val, DAC_gain_t gain){
+    char buff[DAC_DATA_SIZE];
+
+     if( val < 0 || val > 255){
+        //printf("Value must be between 0 and 255");
+        return 0;
+    }
+
+
+    buff[0] = 0;
+    buff[1] = 0;
+
+    if(gain == DAC_GAIN_1){
+        buff[0] |= (1 << DAC_GAIN);
+    }
+
+    buff[0] |= (1 << DAC_ACTIVE);
+
+    buff[0] |= ((val & DAC_DATA_MASK) >> DAC_DATA_OFFSET);
+    buff[1] |= ((val & ~DAC_DATA_MASK) << DAC_DATA_OFFSET);
+
+    spi_transfer_byte(SPI_DEV(0), chip_select_pin, true, buff[0]);
+    spi_transfer_byte(SPI_DEV(0), chip_select_pin, false, buff[1]);
+
+    return 1;
+}
+
+void stop_dac(void){
+    spi_release(SPI_DEV(0));
+    return;
+}

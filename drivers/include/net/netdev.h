@@ -247,19 +247,32 @@ typedef struct netdev_driver {
 #define ULTRSND_RCVD      144
 #define RANGE_DATA_LEN    5
 
+#define MISSED_PIN_MASK     10 
+#define MISSED_PIN_UNMASK   13 
+
+#define RF_MISSED         20
+#define ULTRSND_MISSED    21
+
 /**
  * @brief Structure holding metrics measured by ultrasound ranging
  *
  * This structure is supposed to hold the Time Difference of Arrival
  * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
- * and any an error flag to indicate if a pin had missed a ping.
+ * and a flag to indicate the status of the ranging data.
+ * 
+ * 1  = both pins recieved, pin 1 recieved first
+ * 2  = both pins recieved, pin 2 recieved first
+ * 11 = only pin 1 recieved
+ * 12 = only pin 2 recieved
+ * 20 = RF ping missed
+ * 21 = ultrsnd ping missed
  *
  * It can be extended
  */
 typedef struct __attribute__((packed)) {
     uint16_t tdoa; /**< Time Difference of Arrival */
     uint16_t orient_diff; /**< Orientation Difference (of Arrival) */
-    uint8_t error; /**< error flag to indicate if a pin had missed a ping */    
+    uint8_t status; /**< status flag to indicate which pin recieved a ping first and if a pin had missed a ping */    
 } range_data_t;
 
 /**
@@ -302,11 +315,18 @@ typedef struct gpio_rx_line {
 void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int mode);
 
 /**
- * Always call this function after you attempt to complete a sound ranging 
- * request whether it succeeds or fails. Not thread safe.
+ * Always call this function to stop soundranging and you do not wish to pass along the data. 
+ * Not thread safe.
  * @return  [description]
  */
 void range_rx_stop(void);
+
+/**
+ * Always call this function after you attempt to complete a successful sound ranging 
+ * request. Not thread safe.
+ * @return  [description]
+ */
+void range_rx_successful_stop(void);
 
 /**
  * Not thread safe.
