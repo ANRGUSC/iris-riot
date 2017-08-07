@@ -561,12 +561,7 @@ static void *_mqtt_thread(void *arg)
                             else
                                 DEBUG("mqtt_control_thread: Publish Request Failed\n");
                             break;
-                        /*
-                        case RESET_RIOT:
-                            printf("Resetting RIOT\n");
-                            pm_reboot();
-                            break;
-                            */
+                        
                         default:
                             //error
                             break;
@@ -687,7 +682,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
          * => use temporary variable for output */
         printf("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
                port);               
-        xtimer_usleep(1000000);       
+        xtimer_usleep(500000);       
         return 0;
     }
 }
@@ -719,14 +714,14 @@ static void *_rssi_dump(void *arg)
 
     printf("completed\n" );
     
-    while(rssi_go==0)
+    while (rssi_go == 0)
     {
         msg_receive(&msg);
         switch (msg.type)
         {
             case MQTT_RSSI:
                 DEBUG("rssi: Go message received\n");
-                rssi_go=1;
+                rssi_go = 1;
                 break;
         }
     }
@@ -741,17 +736,13 @@ static void *_rssi_dump(void *arg)
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg.content.ptr;   
                 uart_pkt_parse_hdr(&uart_rcv_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch(uart_rcv_hdr.pkt_type){
-                    case RESET_RIOT:
-                        printf("resetting riot\n");
-                        pm_reboot();
-                        break;
                     case RSSI_SND:
 
                         DEBUG("rssi: received the rssi send message\n");                        
                         memcpy(node_ID,hdlc_rcv_pkt->data+UART_PKT_DATA_FIELD, sizeof(node_ID));
                         DEBUG("(if shows more than 8 characters, it is normal)The node to send to is %s\n", node_ID);
                         while (i<8){
-                            if (c==19)
+                            if (c == 19)
                             {
                                 ipv6_send_addr[c]=':';
                                 c++;

@@ -25,6 +25,8 @@ connected_clients=0
 global rssi_sender_topic
 global send_rssi
 send_rssi=0
+global published_clients
+published_clients=0
 
 #Creating the callback functions 
 
@@ -155,8 +157,9 @@ while (1):
 			for a in range(10000000):
 					pass
 			print ("Sent to hardware address", hwaddr[i])
-		client_req=0;
-	if send_rssi==1:
+		published_clients=1
+		client_req=0
+	if send_rssi==1 and published_clients:
 		print("send the send_rssi command")
 		for i in range(1000000):
 			pass
