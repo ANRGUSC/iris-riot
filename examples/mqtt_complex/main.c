@@ -1,12 +1,13 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
+ * Pradipta Ghosh
+ * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,27 +40,11 @@
  * @{
  *
  * @file
- * @brief       Full-duplex hdlc test using a single thread (run on both sides).
+ * @brief       Full-duplex MQTT test
  *
- * In this test, the main thread and thread2 thread will contend for the same
- * UART line to communicate to another MCU also running a main and thread2 
- * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
- * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
  *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 200000
- * -RETRANSMIT_TIMEO_USEC 50000
- *
- * @author      Jason A. Tran <jasontra@usc.edu>
- *
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * @}
  */
 
@@ -363,6 +348,14 @@ static void *_mqtt_thread(void *arg)
         //if a message has been received 
         while(1)
         { 
+            if (sent_hwaddr == 1)
+            {
+                pub_server[0] = HW_ADDR + '0';//HWADDR
+                for(int i = 0; i < sizeof(EMCUTE_ID);i ++){
+                    pub_server[i + 1] = EMCUTE_ID[i];
+                }
+                auto_pub(TOPIC, pub_server);
+            }
             // DEBUG("In while loop\n");
             if (mqtt_go == 0)
             {   
