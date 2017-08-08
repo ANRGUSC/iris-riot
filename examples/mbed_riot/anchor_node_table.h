@@ -49,4 +49,11 @@
  */
 int anchor_id_lookup(uint8_t *l2_addr, unsigned int l2_addr_len);
 
+/**
+ * @brief      Add an address to a temporary node table that will be checked.
+ *
+ * @param      l2_addr  The l2 address to be added.
+ */
+void update_table(uint8_t *l2_addr);
+
 #endif /* ANCHOR_NODE_TABLE_H */

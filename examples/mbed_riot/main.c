@@ -51,7 +51,6 @@
 #define MAX_ADDR_LEN        (8U)
 #define TX_PIN              GPIO_PIN(3, 2)
 #define MAIN_QUEUE_SIZE     (8)
-#define MAX_TX_POWER         7
 
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
