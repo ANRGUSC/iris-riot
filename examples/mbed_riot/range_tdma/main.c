@@ -106,9 +106,7 @@ int main(void)
     // Miscellaneous
     //------------------------------------------------------------------------//
     bool wait_for_id = true;
-    // go_time is the time to send the signal. Update to xtimer_now + 
-    // (id - incoming id) * tdma_slot_time_msec.
-    xtimer_ticks32_t go_time;
+    xtimer_ticks32_t go_time; // go_time = time at which openmote sends ranging.
     uint32_t id_delay_time;
     uint8_t incoming_rank;
     // NETOPT_ADDRESS; // this device's hw_addr 
