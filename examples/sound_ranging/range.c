@@ -27,7 +27,7 @@
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3)
 #define RX_TWO_PIN                    GPIO_PIN(3, 2)
-#define RX_XOR_PIN                    GPIO_PIN(3, 1)
+#define RX_LOGIC_PIN                    GPIO_PIN(3, 1)
 
 #define TX_PIN                        GPIO_PIN(3, 2) //for usb openmote
 //#define TX_PIN                        GPIO_PIN(3, 0) //for regular openmote
@@ -45,7 +45,7 @@ int range_rx(int argc, char **argv)
         return 1;
     }
     
-    gpio_rx_line_t line = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
+    gpio_rx_line_t line = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
 
     uint32_t maxsamps = 0;
     uint32_t timeout = 500000;
@@ -77,8 +77,12 @@ int range_rx(int argc, char **argv)
             mode = XOR_SENSOR_MODE;
             printf("XOR_SENSOR_MODE:\n");
             break;
+        case 3:
+            mode = OMNI_SENSOR_MODE;
+            printf("OMNI_SENSOR_MODE:\n");
+            break;
         default:
-            printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n");
+            printf("Invalid ranging mode entry\nValid entries are:\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\n");
             return 1;
     }
     
@@ -139,6 +143,9 @@ int range_rx(int argc, char **argv)
 
             case XOR_SENSOR_MODE:
                 printf("range: OD = %d\n", time_diffs->orient_diff);
+                break;
+
+            case OMNI_SENSOR_MODE:
                 break;
         }
         xtimer_usleep(delay);

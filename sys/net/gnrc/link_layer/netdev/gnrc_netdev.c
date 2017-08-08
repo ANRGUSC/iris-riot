@@ -134,7 +134,7 @@ static void _sound_ranging(void)
     time_diffs.tdoa = 0;
     time_diffs.orient_diff = 0;
     time_diffs.status = 0;
-    unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.xor_pin};
+    unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.logic_pin};
 
     while(cnt < max_samps && ranging)
     {
@@ -195,6 +195,15 @@ static void _sound_ranging(void)
                 break;
             }
         }
+        else if(range_sys_flag == OMNI_SENSOR_MODE){
+            sample1 = gpio_read(rx_line_array[2]);
+            DEBUG("%d ",sample1);
+            if(sample1 != 0){   
+                time_diffs.tdoa = xtimer_now_usec() - last;
+                range_rx_successful_stop();
+                break;
+            }
+        }
 
         ++cnt;
     }
@@ -204,7 +213,6 @@ static void _sound_ranging(void)
     }
     //irq_restore(old_state);
 }
-
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
 {
@@ -295,7 +303,7 @@ static void *_gnrc_netdev_thread(void *args)
                 break;
         }
     }
-    /* never reached */`
+    /* never reached */
     return NULL;
 }
 
@@ -330,7 +338,7 @@ void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int 
     rx_line = lines;
     gpio_init(rx_line.one_pin,GPIO_IN);
     gpio_init(rx_line.two_pin,GPIO_IN);
-    gpio_init(rx_line.xor_pin,GPIO_IN);
+    gpio_init(rx_line.logic_pin,GPIO_IN);
     max_samps = max_gpio_samps;
 
     time_diffs.tdoa = 0;

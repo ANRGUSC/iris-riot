@@ -242,6 +242,7 @@ typedef struct netdev_driver {
 #define ONE_SENSOR_MODE       0x60 // 96
 #define TWO_SENSOR_MODE       0x61 // 97
 #define XOR_SENSOR_MODE       0x62 // 98
+#define OMNI_SENSOR_MODE      0x63 // 99
 
 #define RF_RCVD           143
 #define ULTRSND_RCVD      144
@@ -260,6 +261,7 @@ typedef struct netdev_driver {
  * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
  * and a flag to indicate the status of the ranging data.
  * 
+ * 0  = not applicable to this mode
  * 1  = both pins recieved, pin 1 recieved first
  * 2  = both pins recieved, pin 2 recieved first
  * 11 = only pin 1 recieved
@@ -300,7 +302,7 @@ typedef struct __attribute__((packed)) {
 typedef struct gpio_rx_line {
     unsigned int one_pin; /**< gpio_t value of pin connected to sensor 1 output */
     unsigned int two_pin; /**< gpio_t value of pin connected to sensor 2 output */
-    unsigned int xor_pin; /**< gpio_t value of pin connected to XOR  output of sensors 1 and 2 */
+    unsigned int logic_pin; /**< gpio_t value of pin connected to XOR  output of sensors 1 and 2 */
 } gpio_rx_line_t;
 
 /**

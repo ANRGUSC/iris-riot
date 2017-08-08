@@ -47,15 +47,18 @@
  */
 
 #include "range.h"
-#define ENABLE_DEBUG (1)
 #include "debug.h"
+
+#define ENABLE_DEBUG (0)
+#define OMNI_RANGING (0)
 
 #define MAXSAMPLES_ONE_PIN            18000
 #define MAXSAMPLES_TWO_PIN            18000
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
 #define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
-#define RX_XOR_PIN                    GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
+
+#define RX_LOGIC_PIN                  GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
 
 #define TX_PIN                        GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1 //for usb openmote
 //#define TX_PIN                      GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3  //for regular openmote
@@ -64,12 +67,12 @@
 
 static range_data_t* time_diffs;
 
+static gpio_rx_line_t gpio_lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
+
 range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
     // Check correct argument usage.
     uint8_t mode = range_mode;
     uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
-                       //
-    gpio_rx_line_t lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_XOR_PIN};
     
     if(mode == TWO_SENSOR_MODE){
         maxsamps = MAXSAMPLES_TWO_PIN;
@@ -103,7 +106,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     for(i = 0; i < num_samples; i++){
 
 
-        range_rx_init(TX_NODE_ID, thread_getpid(), lines, maxsamps, mode);
+        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, mode);
 
 
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
@@ -145,6 +148,8 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
 
             case XOR_SENSOR_MODE:
                 DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                break;
+            case OMNI_SENSOR_MODE:
                 break;
         }
 
