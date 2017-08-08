@@ -110,7 +110,10 @@ int range_tx_tdma(void)
     // Miscellaneous
     //------------------------------------------------------------------------//
     bool wait_for_id = true;
-    xtimer_ticks32_t start_time, wait_time, go_time;
+    // go_time is the time to send the signal. Update to xtimer_now + 
+    // (id - incoming id) * tdma_slot_time_msec.
+    xtimer_ticks32_t go_time;
+    uint32_t id_delay_time;
     uint8_t incoming_rank;
     // NETOPT_ADDRESS; // this device's hw_addr 
     //------------------------------------------------------------------------//
@@ -165,13 +168,14 @@ int range_tx_tdma(void)
             {
                 // NODE receives ID packet from LEADER.
                 case GNRC_NETAPI_MSG_TYPE_RCV:
-                    DEBUG("Received pkt.\n");
+                    DEBUG("Received RCV pkt.\n");
                     recv_pkt = msg.content.ptr;
 
                     /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
                     if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
                         ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
                     {
+				        DEBUG("Was ID packet.\n");
                         // NODE records its ranking.
                         anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
                         DEBUG("Rank: ");
@@ -192,6 +196,7 @@ int range_tx_tdma(void)
                 case GNRC_NETAPI_MSG_TYPE_SND:
                     /* This thread will get all send l2 send requests, even if it's
                     coming from this thread. Discard it */
+                    DEBUG("Received SND pkt (1).\n");
                     gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                     break;
                 default:
@@ -202,17 +207,15 @@ int range_tx_tdma(void)
             }
         }
         //--------------------------------------------------------------------//
-        DEBUG("Received ID packet.\n");
 
         DEBUG("Waiting to go.\n");
         // NODE A received ID packet from LEADER and is now waiting to go.
         // TODO: check if GNRC_NETAPI_MSG_TYPE_RCV is correct
         //--------------------------------------------------------------------//
-        start_time = xtimer_now();
-        DEBUG("Start time: %u\n", start_time.ticks32);
-        wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
-        go_time.ticks32 = anchor_node_id * tdma_slot_time_msec;
-        while (wait_time.ticks32 < go_time.ticks32)
+        DEBUG("Start time: %u\n", xtimer_now().ticks32);
+        go_time.ticks32 = xtimer_now().ticks32 + anchor_node_id * tdma_slot_time_msec;
+        DEBUG("Go time: %u\n", go_time.ticks32);
+        while (xtimer_now().ticks32 < go_time.ticks32)
         {
             msg_receive(&msg); // make this a thread? or make the timer a thread?
             switch (msg.type)
@@ -223,39 +226,39 @@ int range_tx_tdma(void)
                     if ( ((uint8_t *)recv_pkt->data)[0] == RANGE_FLAG_BYTE0 &&
                          ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
                     {
+	                    DEBUG("Another anchor node ranging packet.\n");
                         incoming_rank = ((uint8_t *)recv_pkt->data)[1];
                         // NODE's rank is 1 and listening for the last NODE.
                         if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1))
                         {
                             DEBUG("last rank to first.\n");
-                            go_time.ticks32 = wait_time.ticks32 + (uint32_t)tdma_slot_time_msec;
+                            go_time.ticks32 = xtimer_now.ticks32 + (uint32_t)tdma_slot_time_msec;
                         }
                         // NODE's rank is higher than the incoming NODE's transmission.
                         if (incoming_rank < anchor_node_id)
                         {
                             DEBUG("lower rank to higher.\n");
-                            go_time.ticks32 = wait_time.ticks32 + (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
+                            id_delay_time = (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
+                            go_time.ticks32 = xtimer_now().ticks32 + id_delay_time;
                         }
                     }
                     break;
                 case GNRC_NETAPI_MSG_TYPE_SND:
                     /* This thread will get all send l2 send requests, even if it's
                     coming from this thread. Discard it */
-                    DEBUG("SND type packet.\n");
+                    DEBUG("Received SND pkt (2).\n");
                     gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                     break;
                 default:
                     DEBUG("Not a ranging packet.\n");
                     break;
             }
-            // Refresh the timer.
-            wait_time.ticks32 = xtimer_now().ticks32 - start_time.ticks32;
         }
         //--------------------------------------------------------------------//
         DEBUG("Waited to go.\n");
 
-        DEBUG("Sending signal.\n");
-        //ACUTALLY SENDING THE SIGNAL GOD FINALLY
+        DEBUG("Sending signal...");
+        // ACUTALLY SENDING THE SIGNAL GOD FINALLY
         // TODO: Modify to not block the interrupts
         //--------------------------------------------------------------------//
         /** Send L2 Packet **/
