@@ -63,6 +63,27 @@
 #include "thread.h"
 #include "msg.h"
 #include "range_param.h"
+#include "hdlc.h"
+#include "uart_pkt.h"
+
+#undef BIT
+#define BIT(n) ( 1 << (n) )
+/* Bit field definitions for the UART Line Control Register: */
+#define FEN   BIT( 4) /**< Enable FIFOs */
+#define UART_CTL_HSE_VALUE    0
+
+#define ULTRSND_TIMEOUT               99000 //usec
+#define RANGE_TIMEO_USEC              250000
+#define MAIN_QUEUE_SIZE               (8)
+#define TRANSMIT_DELAY                100000 //this is 100ms which is the minimum delay between pings
+#define RANGE_PORT          	 	  5678
+
+#define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
+
+typedef struct __attribute__((packed)) {
+    uint8_t         last_pkt;      
+    range_data_t    data[DATA_PER_PKT];                  
+} range_hdr_t;
 
 //Description of ranging modes:
 //ONE_SENSOR_MODE: Uses the RX_ONE_PIN (defined as GPIO_PD3 or DIO0) to listen for pings
@@ -81,6 +102,14 @@
 //				   are facing.
 //				   
 //The circuit diagram can be found at https://docs.google.com/a/usc.edu/document/d/1dAOTpsOR8ieO7aiEL8bq6xvZ6yDooY9ftndhAIMkdJg/edit?usp=sharing
+
+/**
+ * @brief      This function gets the ranging data, packages them into packets, and sends them down the hdlc to the mbed
+ *
+ * @param      params    The ranging parameters
+ * @param[in]  hdlc_pid  The hdlc pid
+ */
+void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid);
 
 /**
  *
