@@ -71,13 +71,10 @@ int range_tx_tdma(void)
     uint8_t buf[3]; // buf is size 6 in master
     uint16_t tdma_slot_time_msec = 0;
     uint8_t total_num_anchors;
-
     gnrc_netreg_entry_t tdma_slave_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
-    
     uint16_t channel = TDMA_BOOTSTRAP_CHANNEL;
     uint16_t tx_power = MAX_TX_POWER;
     gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t)); // check channel
- 
     /* there should be only one network interface on the board */
     if (numof == 1) 
     {
@@ -85,7 +82,6 @@ int range_tx_tdma(void)
     }
     /* register for all l2 packets */
     gnrc_netreg_register(1, &tdma_slave_serv);
-    // ------------------------------------------------------------------
     uint8_t hw_addr[MAX_ADDR_LEN];
     size_t hw_addr_len;
     hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
@@ -110,9 +106,7 @@ int range_tx_tdma(void)
     // Miscellaneous
     //------------------------------------------------------------------------//
     bool wait_for_id = true;
-    // go_time is the time to send the signal. Update to xtimer_now + 
-    // (id - incoming id) * tdma_slot_time_msec.
-    xtimer_ticks32_t go_time;
+    xtimer_ticks32_t go_time; // go_time = time at which openmote sends ranging.
     uint32_t id_delay_time;
     uint8_t incoming_rank;
     // NETOPT_ADDRESS; // this device's hw_addr 
@@ -210,7 +204,6 @@ int range_tx_tdma(void)
 
         DEBUG("Waiting to go.\n");
         // NODE A received ID packet from LEADER and is now waiting to go.
-        // TODO: check if GNRC_NETAPI_MSG_TYPE_RCV is correct
         //--------------------------------------------------------------------//
         DEBUG("Start time: %u\n", xtimer_now().ticks32);
         go_time.ticks32 = xtimer_now().ticks32 + anchor_node_id * tdma_slot_time_msec;
