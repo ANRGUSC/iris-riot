@@ -74,7 +74,7 @@ static gpio_rx_line_t gpio_lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_L
  * @param      params    The ranging parameters
  * @param[in]  hdlc_pid  The hdlc pid
  */
-void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid){
+void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port){
     int i = 0;
     int num_iter = 0;
     int remainder = 0;
@@ -100,8 +100,8 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid){
     for(i = 0; i <= num_iter; i++){
         DEBUG("i= %d\n",i);
         
-        uart_hdr_tx.src_port = RANGE_PORT;
-        uart_hdr_tx.dst_port = RANGE_PORT;
+        uart_hdr_tx.src_port = src_port;
+        uart_hdr_tx.dst_port = mbed_port;
         uart_hdr_tx.pkt_type = SOUND_RANGE_DONE;
         uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr_tx);
 

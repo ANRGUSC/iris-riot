@@ -76,7 +76,6 @@
 #define RANGE_TIMEO_USEC              250000
 #define MAIN_QUEUE_SIZE               (8)
 #define TRANSMIT_DELAY                100000 //this is 100ms which is the minimum delay between pings
-#define RANGE_PORT          	 	  5678
 
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
 
@@ -109,7 +108,7 @@ typedef struct __attribute__((packed)) {
  * @param      params    The ranging parameters
  * @param[in]  hdlc_pid  The hdlc pid
  */
-void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid);
+void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port);
 
 /**
  *

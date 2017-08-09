@@ -68,6 +68,12 @@ typedef struct __attribute__((packed)) {
     uint8_t     pkt_type;                 
 } uart_pkt_hdr_t;
 
+
+typedef enum {
+    HW_ADDR                       =  0,
+    HW_SENT                       =  1
+} server_mqtt;
+
 /**
  * @brief Message types from mbed-os to riot-os
  */

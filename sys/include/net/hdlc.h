@@ -7,7 +7,8 @@
  *
  * Contributors:
  * Jason A. Tran
- *
+ * Pradipta Ghosh
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
@@ -45,7 +46,7 @@
  * implementation is stop & wait.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- *
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * @}
  */
 
@@ -90,6 +91,11 @@ typedef struct {
     unsigned int length;
 } hdlc_pkt_t;
 
+//struct for MQTT_SN
+typedef struct __attribute__((packed)){
+    char topic[16];
+    char data[32];
+} mqtt_pkt_t;
 
 typedef struct hdlc_entry {
     struct hdlc_entry *next;

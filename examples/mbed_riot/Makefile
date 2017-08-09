@@ -25,6 +25,10 @@ INCLUDES += -I$(CURDIR)
 USEMODULE += gnrc_netdev_default
 USEMODULE += auto_init_gnrc_netif
 # Specify the mandatory networking modules for IPv6 and UDP
+USEMODULE += gnrc_sock_udp
+USEMODULE += gnrc_ipv6_default
+# Include MQTT-SN
+USEMODULE += emcute
 USEMODULE += gnrc_ipv6_router_default
 USEMODULE += gnrc_udp
 USEMODULE += csma_sender
@@ -32,6 +36,7 @@ USEMODULE += ps
 USEMODULE += hdlc
 USEMODULE += shell
 USEMODULE += shell_commands
+
 # Additional networking modules that can be dropped if not needed
 # USEMODULE += netstats_l2
 # USEMODULE += netstats_ipv6
@@ -41,10 +46,11 @@ DEFAULT_CHANNEL ?= 25
 CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 CFLAGS += -DRETRANSMIT_TIMEO_USEC=100000
 CFLAGS += -DHDLC_MAX_PKT_SIZE=32
+
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
-CFLAGS += -DDEVELHELP
+CFLAGS += -DDEVELHELP -Wno-error=int-conversion
 WERROR=0
 # Comment this out to join RPL DODAGs even if DIOs do not contain
 # DODAG Configuration Options (see the doc for more info)
@@ -52,5 +58,5 @@ WERROR=0
 
 # Change this to 0 show compiler invocation lines by default:
 QUIET ?= 1
-
 include $(RIOTBASE)/Makefile.include
+

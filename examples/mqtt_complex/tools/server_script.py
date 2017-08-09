@@ -63,7 +63,7 @@ def usr_input(client):
 
 
 
-def on_connect(client, userdata, rc):
+def on_connect(client, userdata, flag, rc):
 	print ("Connected to broker")
 
 # Subscribing in on_connect() ensures that if we lose the connection and
@@ -109,7 +109,7 @@ def on_publish(client,userdata,result):
  
 #Creating an instance and setting up the callbacks 
 
-client = mqtt.Client() #creating an instance 
+client = mqtt.Client("serv") #creating an instance 
 client.on_connect = on_connect	#on_connect callback
 client.on_message = on_message	#on_message callback 
 client.on_publish = on_publish	#on_publish callback	

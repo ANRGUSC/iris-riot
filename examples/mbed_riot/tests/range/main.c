@@ -84,6 +84,7 @@
 #define THREAD2_PRIO            (THREAD_PRIORITY_MAIN)
 
 #define MAIN_THR_PORT       1234
+#define RANGE_PORT          5678
 
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
@@ -193,24 +194,6 @@ static void *_range_rx_thread(void *arg)
                 switch (uart_hdr_rx.pkt_type){
                     case SOUND_RANGE_REQ:
 
-                        switch(range_params->ranging_mode){
-                            case ONE_SENSOR_MODE:
-                                DEBUG("******************ONE SENSOR MODE*******************\n");
-                                break;
-                            case TWO_SENSOR_MODE:
-                                DEBUG("******************TWO SENSOR MODE*******************\n");
-                                break;
-                            case XOR_SENSOR_MODE:
-                                DEBUG("******************XOR SENSOR MODE*******************\n");
-                                break;
-                            case OMNI_SENSOR_MODE:
-                                DEBUG("******************OMNI SENSOR MODE******************\n");
-                                break;
-                        }
-
-                        old_channel = _get_channel();
-                        _set_channel(RSSI_LOCALIZATION_CHAN);
-
                         range_params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
 
                         if(range_params->ranging_mode!= ONE_SENSOR_MODE && 
@@ -220,9 +203,25 @@ static void *_range_rx_thread(void *arg)
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
-                            range_and_send(range_params, hdlc_pid);
+                            switch(range_params->ranging_mode){
+                                case ONE_SENSOR_MODE:
+                                    DEBUG("******************ONE SENSOR MODE*******************\n");
+                                    break;
+                                case TWO_SENSOR_MODE:
+                                    DEBUG("******************TWO SENSOR MODE*******************\n");
+                                    break;
+                                case XOR_SENSOR_MODE:
+                                    DEBUG("******************XOR SENSOR MODE*******************\n");
+                                    break;
+                                case OMNI_SENSOR_MODE:
+                                    DEBUG("******************OMNI SENSOR MODE******************\n");
+                                    break;
+                            }
+                            old_channel = _get_channel();
+                            _set_channel(RSSI_LOCALIZATION_CHAN);
+                            range_and_send(range_params, hdlc_pid, RANGE_PORT, RANGE_PORT);
+                            _set_channel(old_channel);
                         }
-                        _set_channel(old_channel);
                         
                         break;
                     default:
