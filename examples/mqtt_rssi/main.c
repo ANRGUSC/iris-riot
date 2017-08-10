@@ -110,6 +110,7 @@ static msg_t rssi_dump_msg_queue[16];
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];//16896
 static char mqtt_control_thread_stack[THREAD_STACKSIZE_MAIN];//16384
 static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];//16384
+static bool mbed_initialization_flag = 0;
 
 #define EMCUTE_PORT         (1883U)  
 #define MQTT_SN_SERVER      ("fd00:dead:beef::1")
@@ -287,7 +288,7 @@ static int auto_con(char* addr, char* port)
 
     //converts the addr from string and stores it in struct 
     if (ipv6_addr_from_str((ipv6_addr_t *)&gw.addr.ipv6, addr) == NULL) {
-        printf("error parsing IPv6 address\n");
+        DEBUG("error parsing IPv6 address\n");
         return 1;
     }
     //storing the value of the port in the struct.port
@@ -295,20 +296,20 @@ static int auto_con(char* addr, char* port)
 
     //calling the Emcute_con function
     if (emcute_con(&gw, true, topic, message, len, 0) != EMCUTE_OK) {
-        printf("error: unable to connect to [%s]:%i\n", addr, (int)gw.port);
+        DEBUG("error: unable to connect to [%s]:%i\n", addr, (int)gw.port);
         return 1;
     }
     else
     {
-        printf("Successfully connected to gateway at [%s]:%i\n",
+        DEBUG("Successfully connected to gateway at [%s]:%i\n",
                addr, (int)gw.port);
         return 0;
     }    
 }
 
 void reset(void){
-    printf("Haven't connected to broker in 1 minute\n");
-    printf("RESETTING\n");
+    DEBUG("Haven't connected to broker in 1 minute\n");
+    DEBUG("RESETTING\n");
     pm_reboot();
 }
 
@@ -318,7 +319,7 @@ static void *_mqtt_control_thread(void *arg)
     xtimer_t            timer = {.target=0, .long_target = 0, .callback = reset};
     int                 mqtt_go = 1;//not connected state
     int                 mqtt_connected = 1;    
-    int                 sent_hwaddr = 1;//not sent state
+    int                 send_hw_addr = 1;//not sent state
     int                 hdlc_pkt_length;
     //Pointer to the data received from the MQTT thread
     mqtt_pkt_t          *mqtt_data_rcv;
@@ -393,19 +394,30 @@ static void *_mqtt_control_thread(void *arg)
         //if a message has been received 
         while(1)
         { 
-            if (sent_hwaddr == 1)
+            /**
+             * Until no msg was received on the hw specific topic keep on publishing the hw address
+             * The send_hw_addr is the flag used for this purpose. 
+             * As long as send_hw_addr = 1, the node haven't receveid any msg of the HW address topic
+             * This implies that probably the server or other nodes doesn't know about this topic
+             */
+
+            if (send_hw_addr == 1) 
             {
-                pub_server[0]= HW_ADDR + '0';//HWADDR
-                for(int i=0; i<sizeof(EMCUTE_ID);i++){
-                    pub_server[i+1] = EMCUTE_ID[i];
+                pub_server[0] = HW_ADDR + '0';//HWADDR
+                for(int i = 0 ; i < sizeof(EMCUTE_ID) ; i++){
+                    pub_server[i + 1] = EMCUTE_ID[i];
                 }
                 auto_pub(TOPIC, pub_server);
             }
-            // DEBUG("In while loop\n");
+
+            // DEBUG("In while loop\n"); 
             if (mqtt_go == 0)
             {   
                 mqtt_go             = 1;
-                sent_hwaddr         = 0;
+                send_hw_addr        = 0;
+                /**
+                 * Send the MQTT GO Message to the MBED
+                 */
                 uart_hdr.src_port   = THREAD2_PORT; //PORT 170
                 uart_hdr.dst_port   = MBED_PORT; //PORT 200
                 uart_hdr.pkt_type   = MQTT_GO; 
@@ -420,37 +432,20 @@ static void *_mqtt_control_thread(void *arg)
                 else
                     DEBUG("mqtt_control_thread: MQTT GO message has been sent\n");
                 
+                /**
+                 * Send the RSSI GO Message to the RSSI Thread
+                 */
                 msg_rssi.type       = MQTT_RSSI;
-                //msg_rssi.content.ptr = &rssi_send;
-                if(msg_try_send(&msg_rssi, rssi_pid)){
+                if(msg_try_send(&msg_rssi, rssi_pid))
                     DEBUG("mqtt_control_thread: The RSSI GO message was sent\n");
-                }
                 else
                     DEBUG("mqtt_control_thread: The RSSI GO message was not sent\n");
-                //Publishes to init_info to start the request 
-                xtimer_usleep(1000000);
-                //sends a request to the server to get the list of connected clients
-                auto_pub(TOPIC,"1");
-                //sending the MBED the hwaddr of the current node
-                hdlc_snd_pkt.data=send_data;
-                uart_hdr.src_port = THREAD2_PORT; //PORT 170
-                uart_hdr.dst_port = MBED_PORT; //PORT 200
-                uart_hdr.pkt_type = HWADDR_GET; 
-                //adds the uart hdr to the hdlc data
-                uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);                
-                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, &EMCUTE_ID, sizeof(EMCUTE_ID));                
-                msg_snd.type = HDLC_MSG_SND;
-                msg_snd.content.ptr= &hdlc_snd_pkt;
-                //sending the hwaddr of the current node
-                if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                    DEBUG("mqtt_control_thread: the MQTT GO message was not sent to the hdlc thread\n");
-                                    
-                }                 
             }
 
+            DEBUG("Before msg receive\n");
 
             //pub to init_info
-            if (sent_hwaddr == 1)
+            if (send_hw_addr == 1)
                 xtimer_msg_receive_timeout(&msg_rcv, 1000000);            
             else
                 msg_receive(&msg_rcv);
@@ -460,12 +455,16 @@ static void *_mqtt_control_thread(void *arg)
                 case MQTT_MBED:
 
                     mqtt_data_rcv = (mqtt_pkt_t *)msg_rcv.content.ptr;
-                    if (mqtt_go == 1 && sent_hwaddr == 1)
+                    if (mqtt_go == 1 && send_hw_addr == 1)
                     {
                         mqtt_go = 0;
-                        sent_hwaddr = 0;
+                        send_hw_addr = 0;
                         break;
                     }
+
+                    if(!mbed_initialization_flag)
+                        break;
+
                     //Data to be sent to mbed
                     DEBUG("mqtt_control_thread: MQTT dump to mbed\n");
                     uart_hdr.src_port = THREAD2_PORT; //PORT 170
@@ -495,13 +494,7 @@ static void *_mqtt_control_thread(void *arg)
 
                 case HDLC_RESP_SND_SUCC:
                     DEBUG("mqtt_control_thread: the MQTT packet dump SUCCESS\n");
-                    DEBUG("mqtt_control_thread: sent frame_no %d!\n", frame_no); 
-                    // if (frame_no == 75)
-                    // {
-                    //     xtimer_usleep(2944000);
-                    //     printf("RIOT:REBOOTING\n");
-                    //     pm_reboot();
-                    // }                
+                    DEBUG("mqtt_control_thread: sent frame_no %d!\n", frame_no);              
                     exit = 1;
                     break;
 
@@ -524,6 +517,31 @@ static void *_mqtt_control_thread(void *arg)
 
                     switch (uart_rcv_hdr.pkt_type)
                     {
+                        case MQTT_GO_ACK:
+                            DEBUG("mqtt_control_thread: received MQTT_GO_ACK\n");
+                            //Publishes to init_info to start the request 
+                            //sends a request to the server to get the list of connected clients
+                            //sending the MBED the hwaddr of the current node
+                            hdlc_snd_pkt.data = send_data;
+                            uart_hdr.src_port = THREAD2_PORT; //PORT 170
+                            uart_hdr.dst_port = MBED_PORT; //PORT 200
+                            uart_hdr.pkt_type = HWADDR_GET; 
+                            //adds the uart hdr to the hdlc data
+                            uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);                
+                            uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, &EMCUTE_ID, sizeof(EMCUTE_ID));                
+                            msg_snd.type = HDLC_MSG_SND;
+                            msg_snd.content.ptr = &hdlc_snd_pkt;
+                            //sending the hwaddr of the current node
+                            if(!msg_try_send(&msg_snd, hdlc_pid))
+                                DEBUG("mqtt_control_thread: the HWADDR was not sent to the hdlc thread\n");  
+                            break;
+
+                        case HWADDR_ACK:
+                            DEBUG("mqtt_control_thread: received HWADDR_ACK\n");
+                            mbed_initialization_flag = 1;
+                            auto_pub(TOPIC, "1");
+                            break;
+
                         case MQTT_SUB:
                             DEBUG("mqtt_control_thread: Subscribe Request received from mbed on Topic %s\n", mbed_rcv_pkt->topic);
                             if ( auto_sub(mbed_rcv_pkt->topic) == 0 ){
@@ -663,26 +681,26 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
         /* allocate UDP header, set source port := destination port */
         udp = gnrc_udp_hdr_build(payload, port, port);
         if (udp == NULL) {
-            puts("Error: unable to allocate UDP header");
+            DEBUG("Error: unable to allocate UDP header");
             gnrc_pktbuf_release(payload);
             return 1;
         }
         /* allocate IPv6 header */
         ip = gnrc_ipv6_hdr_build(udp, NULL, &addr);
         if (ip == NULL) {
-            puts("Error: unable to allocate IPv6 header");
+            DEBUG("Error: unable to allocate IPv6 header");
             gnrc_pktbuf_release(udp);
             return 1;
         }
         /* send packet */
         if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
-            puts("Error: unable to locate UDP thread");
+            DEBUG("Error: unable to locate UDP thread");
             gnrc_pktbuf_release(ip);
             return 1;
         }
         /* access to `payload` was implicitly given up with the send operation above
          * => use temporary variable for output */
-        printf("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
+        DEBUG("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
                port);               
         xtimer_usleep(500000);       
         return 0;
@@ -692,7 +710,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
 static void *_rssi_dump(void *arg) 
 {
     //hdlc pid
-    char                rssi_data = "hello";
+    char                rssi_data[6] = "hello";
     kernel_pid_t        hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
     msg_t               msg_send_to_rssi_dump;
     msg_t               msg, msg_snd;
@@ -716,7 +734,7 @@ static void *_rssi_dump(void *arg)
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
     hdlc_register(&rssi_dump_thr); 
     
-    printf("rssi_thread: initialization complete\n" );
+    DEBUG("rssi_thread: initialization complete\n" );
     
     while (1)
     {
@@ -876,7 +894,7 @@ int main(void)
     server.demux_ctx  = RSSI_DUMP_PORT;
 
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
-    printf("Success: started UDP server on port %" PRIu16 "\n", server.demux_ctx);
+    DEBUG("Success: started UDP server on port %" PRIu16 "\n", server.demux_ctx);
 
 
     //The main thread DOES NOT send and receive messages in this example
@@ -921,11 +939,11 @@ int main(void)
                 case HDLC_PKT_RDY:
                 /*
                     hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                    printf("The \n packet \n has \n been received\n");  
+                    DEBUG("The \n packet \n has \n been received\n");  
                     main_mbed_rcv_ptr = hdlc_rcv_pkt->data + UART_PKT_DATA_FIELD;
                     main_rcv_pkt = (mqtt_pkt_t *)main_mbed_rcv_ptr;
-                    printf("The data received is %s \n", main_rcv_pkt->data);
-                    printf("The topic received is %s \n", main_rcv_pkt->topic);
+                    DEBUG("The data received is %s \n", main_rcv_pkt->data);
+                    DEBUG("The topic received is %s \n", main_rcv_pkt->topic);
                     break;
                     */
                 default:
