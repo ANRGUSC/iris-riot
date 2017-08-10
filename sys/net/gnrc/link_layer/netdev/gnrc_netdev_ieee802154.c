@@ -19,6 +19,7 @@
 #include "net/l2filter.h"
 #include "net/gnrc.h"
 #include "net/ieee802154.h"
+#include "net/csma_sender.h"
 
 #include "net/gnrc/netdev/ieee802154.h"
 
@@ -221,7 +222,8 @@ static int _send(gnrc_netdev_t *gnrc_netdev, gnrc_pktsnip_t *pkt)
             gnrc_netdev->dev->stats.tx_unicast_count++;
         }
 #endif
-        res = netdev->driver->send(netdev, vector, n);
+        res = csma_sender_csma_ca_send(netdev, vector, n, NULL);
+
     }
     else {
         return -ENOBUFS;
