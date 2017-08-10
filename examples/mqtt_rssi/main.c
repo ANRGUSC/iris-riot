@@ -108,7 +108,7 @@ static msg_t main_msg_queue[16];
 static msg_t rssi_dump_msg_queue[16];
 //creating the stacks
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];//16896
-static char thread2_stack[THREAD_STACKSIZE_MAIN];//16384
+static char mqtt_control_thread_stack[THREAD_STACKSIZE_MAIN];//16384
 static char rssi_dump_stack[THREAD_STACKSIZE_MAIN];//16384
 
 #define EMCUTE_PORT         (1883U)  
@@ -312,10 +312,10 @@ void reset(void){
     pm_reboot();
 }
 
-static void *_mqtt_thread(void *arg)
+static void *_mqtt_control_thread(void *arg)
 {
-    xtimer_ticks32_t ticks;
-    xtimer_t timer = {.target=0, .long_target=0, .callback=reset};
+    xtimer_ticks32_t    ticks;
+    xtimer_t            timer = {.target=0, .long_target = 0, .callback = reset};
     int                 mqtt_go = 1;//not connected state
     int                 mqtt_connected = 1;    
     int                 sent_hwaddr = 1;//not sent state
@@ -360,8 +360,7 @@ static void *_mqtt_thread(void *arg)
 
 
     //automatically connects to the topic init_info and emcute id
-    while (mqtt_go == 1)
-    {
+    while (mqtt_go == 1){
         mqtt_go = auto_sub(EMCUTE_ID);  
     }
     mqtt_go = 1;
@@ -369,49 +368,50 @@ static void *_mqtt_thread(void *arg)
 
     
     //creating a struct to send a message to the rssi thread
-    msg_t msg_rssi;    
+    msg_t           msg_rssi;    
     //creating two message structs 
-    msg_t msg_snd, msg_rcv;
+    msg_t           msg_snd, msg_rcv;
 
     //frame_no check count
-    char frame_no = 0;
+    char            frame_no = 0;
     // create packets with max size
-    char send_data[HDLC_MAX_PKT_SIZE];
+    char            send_data[HDLC_MAX_PKT_SIZE];
     //creating the hdlc send pkt
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
-    hdlc_pkt_t *hdlc_rcv_pkt;
+    hdlc_pkt_t      hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    hdlc_pkt_t      *hdlc_rcv_pkt;
     //creating two uart hdr structs
-    uart_pkt_hdr_t uart_hdr;
-    uart_pkt_hdr_t uart_rcv_hdr;
+    uart_pkt_hdr_t  uart_hdr;
+    uart_pkt_hdr_t  uart_rcv_hdr;
 
     //setting up the header for the packets
 
     //Used as a way to escape the inner loop
-    int exit = 0;
+    int             exit = 0;
+
     while(1)
     {        
         //if a message has been received 
         while(1)
         { 
-            if (sent_hwaddr==1)
+            if (sent_hwaddr == 1)
             {
                 pub_server[0]= HW_ADDR + '0';//HWADDR
                 for(int i=0; i<sizeof(EMCUTE_ID);i++){
-                    pub_server[i+1]=EMCUTE_ID[i];
+                    pub_server[i+1] = EMCUTE_ID[i];
                 }
                 auto_pub(TOPIC, pub_server);
             }
             // DEBUG("In while loop\n");
             if (mqtt_go == 0)
             {   
-                mqtt_go = 1;
-                sent_hwaddr = 0;
-                uart_hdr.src_port = THREAD2_PORT; //PORT 170
-                uart_hdr.dst_port = MBED_PORT; //PORT 200
-                uart_hdr.pkt_type = MQTT_GO; 
+                mqtt_go             = 1;
+                sent_hwaddr         = 0;
+                uart_hdr.src_port   = THREAD2_PORT; //PORT 170
+                uart_hdr.dst_port   = MBED_PORT; //PORT 200
+                uart_hdr.pkt_type   = MQTT_GO; 
                 //adds the uart hdr to the hdlc data
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-                msg_snd.type = HDLC_MSG_SND;
+                msg_snd.type        = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
                     DEBUG("mqtt_control_thread: the MQTT GO message was not sent to the hdlc thread\n");
@@ -419,7 +419,8 @@ static void *_mqtt_thread(void *arg)
                 } 
                 else
                     DEBUG("mqtt_control_thread: MQTT GO message has been sent\n");
-                msg_rssi.type = MQTT_RSSI;
+                
+                msg_rssi.type       = MQTT_RSSI;
                 //msg_rssi.content.ptr = &rssi_send;
                 if(msg_try_send(&msg_rssi, rssi_pid)){
                     DEBUG("mqtt_control_thread: The RSSI GO message was sent\n");
@@ -495,12 +496,12 @@ static void *_mqtt_thread(void *arg)
                 case HDLC_RESP_SND_SUCC:
                     DEBUG("mqtt_control_thread: the MQTT packet dump SUCCESS\n");
                     DEBUG("mqtt_control_thread: sent frame_no %d!\n", frame_no); 
-                    if (frame_no==75)
-                    {
-                        xtimer_usleep(2944000);
-                        printf("RIOT:REBOOTING\n");
-                        pm_reboot();
-                    }                
+                    // if (frame_no == 75)
+                    // {
+                    //     xtimer_usleep(2944000);
+                    //     printf("RIOT:REBOOTING\n");
+                    //     pm_reboot();
+                    // }                
                     exit = 1;
                     break;
 
@@ -605,16 +606,16 @@ static void *_mqtt_thread(void *arg)
 
 static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
 {
-    int snips = 0;
-    int size = 0;
-    uint8_t raw_rssi =0;
-    gnrc_netif_hdr_t *hdr;
-    gnrc_pktsnip_t *snip = pkt;
+    int                 snips = 0;
+    int                 size = 0;
+    uint8_t             raw_rssi =0;
+    gnrc_netif_hdr_t    *hdr;
+    gnrc_pktsnip_t      *snip = pkt;
     while (snip != NULL) {
         if (snip->type == GNRC_NETTYPE_NETIF)
         {
             hdr = (gnrc_netif_hdr_t *) (snip->data);
-            raw_rssi=hdr->rssi;            
+            raw_rssi = hdr->rssi;            
             return raw_rssi;          
         }
         ++snips;
@@ -633,28 +634,29 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
  */
 static int rssi_send(char *addr_str, uint16_t port, char *data)
 {
-    ipv6_addr_t addr;
-    unsigned int num =1;
-
+    ipv6_addr_t     addr;
+    unsigned int    num =1;
+    gnrc_pktsnip_t *payload, *udp, *ip;
+    unsigned payload_size;
+        
     /* parse destination address */
     if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
-        puts("Error: unable to parse destination address");
-        return 1;
+        DEBUG("Error: unable to parse destination address");
+        return -1;
     }
+
     /* parse port */
     if (port == 0) {
-        puts("Error: unable to parse destination port");
-        return 1;
+        DEBUG("Error: unable to parse destination port");
+        return -1;
     }
 
     for (unsigned int i = 0; i < num; i++) {
-        gnrc_pktsnip_t *payload, *udp, *ip;
-        unsigned payload_size;
         /* allocate payload */
         payload = gnrc_pktbuf_add(NULL, data, strlen(data), GNRC_NETTYPE_UNDEF);
         if (payload == NULL) {
-            puts("Error: unable to copy data to packet buffer");
-            return 1;
+            DEBUG("Error: unable to copy data to packet buffer");
+            return -1;
         }
         /* store size for output */
         payload_size = (unsigned)payload->size;
@@ -690,98 +692,91 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
 static void *_rssi_dump(void *arg) 
 {
     //hdlc pid
-    char rssi_data = "hello";
-    kernel_pid_t hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
-    msg_t msg_send_to_rssi_dump;
-    msg_t msg, msg_snd;
-    uint8_t rssi_value;
-    int rssi_go=0;   
-    int i=0; 
-    int c=15;   
-    char send_data[HDLC_MAX_PKT_SIZE];
-    char ipv6_send_addr[24]="fe80::212:4b00:";
+    char                rssi_data = "hello";
+    kernel_pid_t        hdlc_pid = (kernel_pid_t) (uintptr_t) arg;
+    msg_t               msg_send_to_rssi_dump;
+    msg_t               msg, msg_snd;
+    uint8_t             rssi_value;
+    int                 rssi_go = 0;   
+    int                 i = 0; 
+    int                 c = 15;   
+    char                send_data[HDLC_MAX_PKT_SIZE];
+    char                ipv6_send_addr[25]="fe80::212:4b00:0000:0000";
+
     gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                                                                thread_getpid());
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
-    hdlc_pkt_t *hdlc_rcv_pkt;
-    msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
-    hdlc_entry_t rssi_dump_thr = { .next = NULL, .port = RSSI_THREAD_PORT, 
+    hdlc_pkt_t          hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    hdlc_pkt_t          *hdlc_rcv_pkt;
+    hdlc_entry_t        rssi_dump_thr = { .next = NULL, .port = RSSI_THREAD_PORT, 
                                          .pid = thread_getpid() };
-    hdlc_register(&rssi_dump_thr); 
-    uart_pkt_hdr_t uart_hdr;
-    uart_pkt_hdr_t uart_rcv_hdr; 
-    char node_ID[9];  
+    uart_pkt_hdr_t      uart_hdr;
+    uart_pkt_hdr_t      uart_rcv_hdr; 
+    char                rx_node_id[9];  
 
-    printf("completed\n" );
+    msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
+    hdlc_register(&rssi_dump_thr); 
     
-    while (rssi_go == 0)
+    printf("rssi_thread: initialization complete\n" );
+    
+    while (1)
     {
         msg_receive(&msg);
-        switch (msg.type)
-        {
-            case MQTT_RSSI:
-                DEBUG("rssi: Go message received\n");
-                rssi_go = 1;
-                break;
+        if (msg.type == MQTT_RSSI){
+            DEBUG("rssi_thread: GO message received\n");
+            rssi_go = 1;
+            break;
         }
     }
-    while(1)
+
+    while (1)
     {
-        printf("waiting for message\n");
+        // DEBUG("rssi_thread: waiting for message\n");
         msg_receive(&msg);
         switch (msg.type)
         {
             case HDLC_PKT_RDY:
-                DEBUG("rssi: message from hdlc\n"); 
+                DEBUG("rssi_thread: message from hdlc\n"); 
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg.content.ptr;   
                 uart_pkt_parse_hdr(&uart_rcv_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 switch(uart_rcv_hdr.pkt_type){
                     case RSSI_SND:
+                        DEBUG("rssi_thread: received the rssi send message\n");                        
+                        memcpy(rx_node_id, hdlc_rcv_pkt->data + UART_PKT_DATA_FIELD, sizeof(rx_node_id));
+                        DEBUG("rssi_thread: The node to send to is %s\n", rx_node_id);
 
-                        DEBUG("rssi: received the rssi send message\n");                        
-                        memcpy(node_ID,hdlc_rcv_pkt->data+UART_PKT_DATA_FIELD, sizeof(node_ID));
-                        DEBUG("(if shows more than 8 characters, it is normal)The node to send to is %s\n", node_ID);
-                        while (i<8){
-                            if (c == 19)
-                            {
-                                ipv6_send_addr[c]=':';
-                                c++;
-                            }
-                            else{                                
-                                ipv6_send_addr[c]=node_ID[i];
-                                c++;
-                                i++;
-                            }
+                        c = 15;
+                        for (i = 0 ; i < 8 ; i++){
+                            if (c != 19)
+                                ipv6_send_addr[c] = rx_node_id[i];
+                            c = (c == 18) ? (c + 2) : (c + 1);
                         }
-                        ipv6_send_addr[c]='\0';
-                        i=0;
-                        c=15;
-                        DEBUG("The ipv6 is %s\n", ipv6_send_addr); 
+                        DEBUG("rssi_thread: The ipv6 is %s\n", ipv6_send_addr); 
                         //sending to the constructed ipv6 address at port 9000 
                                                                     
-                        if(rssi_send(ipv6_send_addr,RSSI_DUMP_PORT,rssi_data)==0){
-                            printf("udp message sent\n");
-                        } 
-                        
+                        if(rssi_send(ipv6_send_addr, RSSI_DUMP_PORT, rssi_data) == 0)
+                            DEBUG("rssi_thread: udp message sent\n");
+                                                
                         break;  
                 }
                 hdlc_pkt_release(hdlc_rcv_pkt);
                 break;
+
             case HDLC_RESP_RETRY_W_TIMEO:
                 xtimer_usleep(msg.content.value);
-                    //DEBUG("mqtt_control_thread: retrying frame_no %d\n", frame_no);
+                //DEBUG("mqtt_control_thread: retrying frame_no %d\n", frame_no);
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                    DEBUG("mqtt_control_thread: HDLC msg queue full!\n");
+                    DEBUG("rssi_thread: HDLC msg queue full!\n");
                     msg_send_to_self(&msg);
                 }
-                break;                
-            case HDLC_RESP_SND_SUCC:
-                DEBUG("_rssi_dump : sent frame \n");
-               
                 break;
+
+            case HDLC_RESP_SND_SUCC:
+                DEBUG("rssi_thread : sent frame \n");
+                break;
+
             case GNRC_NETAPI_MSG_TYPE_RCV:                
                 rssi_value = rssi_val(msg.content.ptr);                
-                printf("rssi:%d\n", rssi_value);
+                DEBUG("rssi_thread: rssi value %d\n", rssi_value);
                 //sending information to rssi thread on the MBED side                
                 uart_hdr.src_port = RSSI_THREAD_PORT; //PORT 220
                 uart_hdr.dst_port = RSSI_MBED_DUMP_PORT; //PORT 9111
@@ -792,26 +787,25 @@ static void *_rssi_dump(void *arg)
                 msg_snd.type = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;                
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                        DEBUG("rssi: HDLC msg queue full\n");
-                        continue;
-                    } 
-                
+                    DEBUG("rssi_thread: HDLC msg queue full\n");
+                    continue;
+                }               
                 break;
+
             case GNRC_NETAPI_MSG_TYPE_SND:
                 /* just in case */
-                printf("gnrc_pkt send\n");
+                DEBUG("rssi_thread: gnrc_pkt send\n");
                 gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
                 break;
 
             default:
                 /* error */
-                DEBUG("rssi_dump: invalid packet\n");
+                DEBUG("rssi_thread: invalid packet\n");
                 break;
             }
             
         }    
     
-
     /* should be never reached */
     DEBUG("Error: Reached Exit!");
     return NULL;
@@ -819,7 +813,11 @@ static void *_rssi_dump(void *arg)
 
 
 
-
+/**
+ * @brief      Main Thread
+ *
+ * @return     status
+ */
 int main(void)
 {
     /*Getting the hardware address*/
@@ -840,17 +838,17 @@ int main(void)
     gnrc_netif_addr_to_str(hwaddr_long_str, 
             sizeof(hwaddr_long_str), hwaddr_long, res);
     
-    while (count >- 1)
+    while (count >= 0)
     {
-        if (hwaddr_long_str[strlen(hwaddr_long_str)-i]!=':')
+        if (hwaddr_long_str[strlen(hwaddr_long_str) - i ] != ':')
         {
-            EMCUTE_ID[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
+            EMCUTE_ID[count] = hwaddr_long_str[strlen(hwaddr_long_str) - i];
             count--;
         }
         i++;
     }    
     EMCUTE_ID[8]='\0';
-    DEBUG("The Hardware address is %s \n", EMCUTE_ID);
+    DEBUG("main_thr: The Hardware address is %s \n", EMCUTE_ID);
 
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */
@@ -863,9 +861,9 @@ int main(void)
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(1));
     
-    //Creates the thread 2 from the main thread
-    thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
-            THREAD_CREATE_STACKTEST, _mqtt_thread, hdlc_pid, "thread2");
+    //Creates the  2 from the main thread
+    thread_create(mqtt_control_thread_stack, sizeof(mqtt_control_thread_stack), THREAD2_PRIO, 
+            THREAD_CREATE_STACKTEST, _mqtt_control_thread, hdlc_pid, "thread2");
 
     //creates rssi_dump thread
     rssi_pid = thread_create(rssi_dump_stack, sizeof(rssi_dump_stack), RSSI_DUMP_PRIO, NULL,
@@ -874,42 +872,37 @@ int main(void)
     //Initializes and starts the udp server on RSSI_DUMP_PORT
     static gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
                                                                KERNEL_PID_UNDEF);
-    uint32_t port=RSSI_DUMP_PORT;
     server.target.pid = rssi_pid;
-    server.demux_ctx = port;
+    server.demux_ctx  = RSSI_DUMP_PORT;
+
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &server);
-    printf("Success: started UDP server on port %" PRIu16 "\n", port);
+    printf("Success: started UDP server on port %" PRIu16 "\n", server.demux_ctx);
 
 
     //The main thread DOES NOT send and receive messages in this example
     //setting up the two message structs 
-    msg_t msg_snd, msg_rcv;
-    char frame_no = 0;
+    msg_t               msg_snd, msg_rcv;
+    char                frame_no = 0;
+    
     //create packets with max size 
-    char send_data[HDLC_MAX_PKT_SIZE];
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
-    hdlc_pkt_t *hdlc_rcv_pkt;
-    uart_pkt_hdr_t uart_hdr;
-    void *main_mbed_rcv_ptr;
-    mqtt_pkt_t *main_rcv_pkt;
-
-    // hdr for each pkt is the same for this test 
-    uart_hdr.src_port = MAIN_THR_PORT;
-    uart_hdr.dst_port = MBED_PORT;
-    uart_hdr.pkt_type = HWADDR_GET;
+    char                send_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t          hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    hdlc_pkt_t          *hdlc_rcv_pkt;
+    void                *main_mbed_rcv_ptr;
+    mqtt_pkt_t          *main_rcv_pkt;
     
     random_init(xtimer_now().ticks32);
 
     //DEBUG("Main Thread pid is %" PRIkernel_pid "\n", thread_getpid());
 
-    int exit = 0;
+    int                 exit = 0;
 
     while(1)
     {        
         while(1)
         {
             msg_receive(&msg_rcv);
-            DEBUG("Waiting for a message\n");
+            // DEBUG("Waiting for a message\n");
             switch (msg_rcv.type)
             {
                 case HDLC_RESP_SND_SUCC:
