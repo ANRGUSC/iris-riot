@@ -4,7 +4,7 @@
 
 /* RSSI dump thread port number */
 #define RSSI_DUMP_PORT                      9000
-#define RSSI_THREAD_PORT					220
+#define RSSI_RIOT_PORT					220
 #define RSSI_MBED_DUMP_PORT         		9111
 
 #define GET_SET_RANGING_THR_PORT            9100

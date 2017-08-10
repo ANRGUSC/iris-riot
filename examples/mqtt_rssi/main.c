@@ -173,7 +173,7 @@ static void on_pub_mbed(const emcute_topic_t *topic, void *data, size_t data_len
     msg_to_mqtt_control_thread.content.ptr  = &mqtt_snd_pkt;    
 
     if (msg_try_send(&msg_to_mqtt_control_thread, thread2_pid))
-        DEBUG("on_pub_mbed : Successfully sent to the mqtt control thread\n");  
+        DEBUG("on_pub_mbed : Successfully sent topic: %s, Data %s to the mqtt control thread\n",mqtt_snd_pkt.topic,mqtt_snd_pkt.data);  
     else
         DEBUG("on_pub_mbed : Failed to send to to the mqtt control thread\n");
 }
@@ -725,7 +725,7 @@ static void *_rssi_dump(void *arg)
                                                                thread_getpid());
     hdlc_pkt_t          hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     hdlc_pkt_t          *hdlc_rcv_pkt;
-    hdlc_entry_t        rssi_dump_thr = { .next = NULL, .port = RSSI_THREAD_PORT, 
+    hdlc_entry_t        rssi_dump_thr = { .next = NULL, .port = RSSI_RIOT_PORT, 
                                          .pid = thread_getpid() };
     uart_pkt_hdr_t      uart_hdr;
     uart_pkt_hdr_t      uart_rcv_hdr; 
@@ -796,7 +796,7 @@ static void *_rssi_dump(void *arg)
                 rssi_value = rssi_val(msg.content.ptr);                
                 DEBUG("rssi_thread: rssi value %d\n", rssi_value);
                 //sending information to rssi thread on the MBED side                
-                uart_hdr.src_port = RSSI_THREAD_PORT; //PORT 220
+                uart_hdr.src_port = RSSI_RIOT_PORT; //PORT 220
                 uart_hdr.dst_port = RSSI_MBED_DUMP_PORT; //PORT 9111
                 uart_hdr.pkt_type = RSSI_DATA_PKT;
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
