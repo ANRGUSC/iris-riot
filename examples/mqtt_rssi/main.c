@@ -770,9 +770,11 @@ static void *_rssi_dump(void *arg)
                         }
                         DEBUG("rssi_thread: The ipv6 is %s\n", ipv6_send_addr); 
                         //sending to the constructed ipv6 address at port 9000 
-                                                                    
+                        
+                                                                   
                         if(rssi_send(ipv6_send_addr, RSSI_DUMP_PORT, rssi_data) == 0)
                             DEBUG("rssi_thread: udp message sent\n");
+                            
                                                 
                         break;  
                 }
@@ -792,7 +794,8 @@ static void *_rssi_dump(void *arg)
                 DEBUG("rssi_thread : sent frame \n");
                 break;
 
-            case GNRC_NETAPI_MSG_TYPE_RCV:                
+            case GNRC_NETAPI_MSG_TYPE_RCV: 
+                DEBUG("RSSI Value recevied\n");             
                 rssi_value = rssi_val(msg.content.ptr);                
                 DEBUG("rssi_thread: rssi value %d\n", rssi_value);
                 //sending information to rssi thread on the MBED side                
@@ -807,7 +810,8 @@ static void *_rssi_dump(void *arg)
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
                     DEBUG("rssi_thread: HDLC msg queue full\n");
                     continue;
-                }               
+                }     
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);          
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
