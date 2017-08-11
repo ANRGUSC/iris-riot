@@ -5,6 +5,7 @@ APPLICATION = hdlc_sender
 BOARD ?= openmote-cc2538
 
 PROGRAMMER ?= jlink
+USEMODULE += csma_sender
 
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer
