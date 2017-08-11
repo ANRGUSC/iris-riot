@@ -79,8 +79,9 @@ typedef enum {
     MQTT_SUB                = 6,
     MQTT_PUB                = 7,
     RSSI_SND                = 8,
-    RESET                   = 9,
-    MQTT_GO_ACK             = 10
+    RESET_RIOT              = 9,
+    MQTT_GO_ACK             = 10,
+    HWADDR_ACK              = 11
 } mbed_to_riot_t;
 
 /**
@@ -98,11 +99,11 @@ typedef enum  {
     RADIO_FWD_UDP_PKT       = 8,
     MQTT_GO                 = 9,
     MQTT_PKT_TYPE           = 10,
-    MQTT_SUB_ACK            = 11,
-    MQTT_PUB_ACK            = 12,
+    SUB_ACK                 = 11,
+    PUB_ACK                 = 12,
     HWADDR_GET              = 13,
     RSSI_GO                 = 14,
-    RSSI_PUB                = 15
+    RSSI_PUB                = 15    
 } riot_to_mbed_t;
 
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);

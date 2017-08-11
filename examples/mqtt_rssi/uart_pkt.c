@@ -36,7 +36,7 @@
  */
 
 /**
- * @file        uart_pkt.h
+ * @file        uart_pkt.c
  * @brief       Helper library for creating packets to be over UART via hdlc.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
@@ -44,69 +44,58 @@
  * 
  */
 
-#ifndef UART_PKT_H_
-#define UART_PKT_H_
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+#include "uart_pkt.h"
+#include "hdlc.h"
 
-#define UART_PKT_HDR_LEN            5
-#define UART_PKT_TYPE_FIELD         4
-#define UART_PKT_DATA_FIELD         5
+#define ENABLE_DEBUG (1)
+#include "debug.h"
 
-typedef struct __attribute__((packed)) {
-    uint16_t    src_port;      
-    uint16_t    dst_port;      
-    uint8_t     pkt_type;                 
-} uart_pkt_hdr_t;
+void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
+{
+    if (buf_len < UART_PKT_HDR_LEN) {
+        DEBUG("Buffer size too small\n");
+        return NULL;
+    }
 
-
-typedef enum {
-    HW_ADDR                       =  0,
-    HW_SENT                       =  1
-} server_mqtt;
-
-
-
+    memcpy(buf, hdr, sizeof(uart_pkt_hdr_t));
+    return (buf + UART_PKT_DATA_FIELD);
+}
 
 /**
- * @brief Message types from mbed-os to riot-os
+ * Copy data from an array into a uart packet buffer.
+ * @param  buf      destination buffer
+ * @param  buf_len  destination buffer size
+ * @param  data     buffer containing data
+ * @param  data_len size of buffer containing data
+ * @return          total size of packet on success or 0 on failure.
  */
-typedef enum {
-    RADIO_SET_CHAN          = 0,
-    RADIO_SET_POWER         = 1,
-    SOUND_RANGE_REQ         = 2,
-    SOUND_RANGE_X10_REQ     = 3,
-    RSSI_DUMP_START         = 4,
-    RSSI_DUMP_STOP          = 5,
-    MQTT_SUB                = 6,
-    MQTT_PUB                = 7,
-    RSSI_SND                = 8,
-    RESET                   = 9,
-    MQTT_GO_ACK             = 10
-} mbed_to_riot_t;
+size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
+    size_t data_len)
+{
+    if (data_len + 5 > buf_len) {
+        DEBUG("Not enough space in destination buffer\n");
+        return 0;
+    }
 
-/**
- * @brief Message types from riot-os to mbed-os
- */
-typedef enum  {
-    RADIO_SET_CHAN_SUCCESS  = 0,
-    RADIO_SET_CHAN_FAIL     = 1,
-    RADIO_SET_POWER_SUCCESS = 2,
-    RADIO_SET_POWER_FAIL    = 3,
-    SOUND_RANGE_DONE        = 4,
-    RSSI_SCAN_STARTED       = 5,
-    RSSI_SCAN_STOPPED       = 6,
-    RSSI_DATA_PKT           = 7,
-    RADIO_FWD_UDP_PKT       = 8,
-    MQTT_GO                 = 9,
-    MQTT_PKT_TYPE           = 10,
-    MQTT_SUB_ACK            = 11,
-    MQTT_PUB_ACK            = 12,
-    HWADDR_GET              = 13,
-    RSSI_GO                 = 14,
-    RSSI_PUB                = 15
-} riot_to_mbed_t;
+    memcpy(buf + UART_PKT_HDR_LEN, data, data_len);
+    return (UART_PKT_HDR_LEN + data_len);
+}
 
-void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
-size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, size_t data_len);
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src,  size_t src_len);
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
+{
+    if(src_len < 5) {
+        DEBUG("Invalid source buffer size.\n");
+        return -1;
+    }
 
-#endif /* UART_PKT_H_ */
+    memcpy(dst_hdr, src, UART_PKT_HDR_LEN);
+    return 0;
+}
+int mqtt_pkt_parse(mqtt_pkt_t *mqtt_pkt, const void *src, size_t src_len)
+{
+    memcpy(mqtt_pkt, src+UART_PKT_HDR_LEN, src_len);
+    return 0;
+}
