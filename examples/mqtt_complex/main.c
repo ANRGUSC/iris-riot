@@ -540,6 +540,7 @@ int main(void)
         }
         i++;
     }
+    EMCUTE_ID[8] = '\0';
     DEBUG("The Hardware address is %s \n", EMCUTE_ID);
 
     /* we need a message queue for the thread running the shell in order to
