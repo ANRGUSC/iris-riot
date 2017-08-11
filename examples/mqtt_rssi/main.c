@@ -307,16 +307,9 @@ static int auto_con(char* addr, char* port)
     }    
 }
 
-void reset(void){
-    DEBUG("Haven't connected to broker in 1 minute\n");
-    DEBUG("RESETTING\n");
-    pm_reboot();
-}
 
 static void *_mqtt_control_thread(void *arg)
 {
-    xtimer_ticks32_t    ticks;
-    xtimer_t            timer = {.target=0, .long_target = 0, .callback = reset};
     int                 mqtt_go = 1;//not connected state
     int                 mqtt_connected = 1;    
     int                 send_hw_addr = 1;//not sent state
@@ -349,8 +342,6 @@ static void *_mqtt_control_thread(void *arg)
     // start the emcute thread 
     thread_create(stack, sizeof(stack), EMCUTE_PRIO, 0,
                   emcute_thread, thread2_pid, "emcute");
-    ticks = xtimer_ticks_from_usec(RESET_TIMEOUT);
-    xtimer_set(&timer,ticks.ticks32);
     
     //automatically connects to the MQTT-SN server  
     
@@ -365,7 +356,6 @@ static void *_mqtt_control_thread(void *arg)
         mqtt_go = auto_sub(EMCUTE_ID);  
     }
     mqtt_go = 1;
-    xtimer_remove(&timer);
 
     
     //creating a struct to send a message to the rssi thread
@@ -770,9 +760,11 @@ static void *_rssi_dump(void *arg)
                         }
                         DEBUG("rssi_thread: The ipv6 is %s\n", ipv6_send_addr); 
                         //sending to the constructed ipv6 address at port 9000 
-                                                                    
+                        
+                                                                   
                         if(rssi_send(ipv6_send_addr, RSSI_DUMP_PORT, rssi_data) == 0)
                             DEBUG("rssi_thread: udp message sent\n");
+                            
                                                 
                         break;  
                 }
@@ -792,7 +784,8 @@ static void *_rssi_dump(void *arg)
                 DEBUG("rssi_thread : sent frame \n");
                 break;
 
-            case GNRC_NETAPI_MSG_TYPE_RCV:                
+            case GNRC_NETAPI_MSG_TYPE_RCV: 
+                DEBUG("RSSI Value recevied\n");             
                 rssi_value = rssi_val(msg.content.ptr);                
                 DEBUG("rssi_thread: rssi value %d\n", rssi_value);
                 //sending information to rssi thread on the MBED side                
@@ -807,7 +800,8 @@ static void *_rssi_dump(void *arg)
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
                     DEBUG("rssi_thread: HDLC msg queue full\n");
                     continue;
-                }               
+                }     
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);          
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_SND:
