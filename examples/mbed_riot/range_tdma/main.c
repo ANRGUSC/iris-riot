@@ -157,50 +157,48 @@ int main(void)
         msg_receive(&msg);
         switch (msg.type)
         {
-            msg_receive(&msg);
-            switch (msg.type)
-            {
-                // NODE receives ID packet from LEADER.
-                case GNRC_NETAPI_MSG_TYPE_RCV:
-                    DEBUG("Received RCV pkt.\n");
-                    recv_pkt = msg.content.ptr;
+            // NODE receives ID packet from LEADER.
+            case GNRC_NETAPI_MSG_TYPE_RCV:
+                DEBUG("Received RCV pkt.\n");
+                recv_pkt = msg.content.ptr;
 
-                    /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
-                    if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
-                        ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
-                    {
-				        DEBUG("Was ID packet.\n");
-                        // NODE records its ranking.
-                        anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
-                        DEBUG("Rank: ");
-                        DEBUG("%d\n", anchor_node_id);
-                        // NODE syncs with the LEADER.
-                        tdma_slot_time_msec &= 0x00;
-                        tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
-                        tdma_slot_time_msec = tdma_slot_time_msec << 8;
-                        tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
+                /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
+                if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
+                    ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
+                {
+                    DEBUG("Was ID packet.\n");
+                    // NODE records its ranking.
+                    anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
+                    DEBUG("Rank: ");
+                    DEBUG("%d\n", anchor_node_id);
+                    // NODE syncs with the LEADER.
+                    tdma_slot_time_msec &= 0x00;
+                    tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
+                    tdma_slot_time_msec = tdma_slot_time_msec << 8;
+                    tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
 
                     // NODE records total number of nodes (useful for NODE 1).
                     total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
 
-                        // NODE A received the data correctly and now breaks out of the loop.
-                        wait_for_id = false;
-                    }
-                    break;
-                case GNRC_NETAPI_MSG_TYPE_SND:
-                    /* This thread will get all send l2 send requests, even if it's
-                    coming from this thread. Discard it */
-                    DEBUG("Received SND pkt (1).\n");
-                    gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                    break;
-                default:
-                    // pkt received didn't match any of these.
-                    DEBUG("msg.type = %d\n", msg.type);
-                    DEBUG("Waiting for ID packet from LEADER. PKT was none of these.\n");
-                    break;
-            }
+                    // NODE A received the data correctly and now breaks out of the loop.
+                    wait_for_id = false;
+                }
+                gnrc_pktbuf_release(recv_pkt);
+                break;
+            case GNRC_NETAPI_MSG_TYPE_SND:
+                /* This thread will get all send l2 send requests, even if it's
+                coming from this thread. Discard it */
+                DEBUG("Received SND pkt (1).\n");
+                gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                break;
+            default:
+                // pkt received didn't match any of these.
+                DEBUG("msg.type = %d\n", msg.type);
+                DEBUG("Waiting for ID packet from LEADER. PKT was none of these.\n");
+                break;
         }
-        //--------------------------------------------------------------------//
+    }
+    //------------------------------------------------------------------------//
 
 // MAIN LOOP
     while (true)
@@ -222,7 +220,7 @@ int main(void)
                     if ( ((uint8_t *)recv_pkt->data)[0] == RANGE_FLAG_BYTE0 &&
                          ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
                     {
-	                    DEBUG("Another anchor node ranging packet.\n");
+                        DEBUG("Another anchor node ranging packet.\n");
                         incoming_rank = ((uint8_t *)recv_pkt->data)[1];
                         // NODE's rank is 1 and listening for the last NODE.
                         if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1))
