@@ -142,11 +142,12 @@ while 1:
         print ("the rssi topic to send is not", message_queue[0])
         for i in range(clients_connected):
             if client_ID[i] != message_queue[0]:
+                message_queue.pop(0)
                 info = client.publish(client_ID[i],"5")
                 info.wait_for_publish()
                 break;
-            time_wait_ds(3)
-        message_queue.pop(0)
+            time_wait_ds(3)        
         print("count: ",count)
+        time_wait_ds(3)
 
 client.loop_forever() #loop forever
