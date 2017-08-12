@@ -40,9 +40,6 @@
 #include "debug.h"
 #include <stdio.h>
 
-#define TABLE_SIZE      2
-#define MAX_TABLE_SIZE  10
-
 typedef struct {
     uint8_t l2_addr[8];
     int node_id;
@@ -50,7 +47,7 @@ typedef struct {
 
 /* Manually assign the node IDs using this table, but keep the openmote order in 
    alphabetical order. */
-static const anchor_node_t anchor_node_table[TABLE_SIZE] = {
+static const anchor_node_t anchor_node_table[2] = {
     // { {0x36, 0x32, 0x48, 0x33, 0x46, 0xda, 0x9e, 0x72}, 1}, //openmote_a
     // { {0x36, 0x32, 0x48, 0x33, 0x46, 0xda, 0x9e, 0x72}, 2}, //openmote_b
     { {0x00, 0x12, 0x4b, 0x00, 0x06, 0x13, 0x06, 0x22}, 1}, //openmote_c
@@ -60,13 +57,6 @@ static const anchor_node_t anchor_node_table[TABLE_SIZE] = {
     /* extend as needed */
 };
 
-int table_counter = 0;
-
-// about 26 openmotes total
-anchor_node_t temp_table[MAX_TABLE_SIZE] = {
-    { {0x00, 0x12, 0x4b, 0x00, 0x04, 0x33, 0xed, 0x4c}, 3}  //openmote_f - 67:bd
-};
-
 int anchor_id_lookup(uint8_t *l2_addr, unsigned int l2_addr_len)
 {
     if (l2_addr_len != 8) {
@@ -74,30 +64,30 @@ int anchor_id_lookup(uint8_t *l2_addr, unsigned int l2_addr_len)
         return -1;
     }
 
-    for (int i = 0; i < sizeof(d_anchor_node_table); i++) {
-        if (memcmp(d_anchor_node_table[i].l2_addr, l2_addr, 8) == 0) {
+    for (int i = 0; i < sizeof(anchor_node_table); i++) {
+        if (memcmp(anchor_node_table[i].l2_addr, l2_addr, 8) == 0) {
             /* return node ID */
-            return d_anchor_node_table[i].node_id;
+            return anchor_node_table[i].node_id;
         }
     }
 
-    for (int i = 0; i < sizeof(temp_table); i++) {
-        if (memcmp(temp_table[i].l2_addr, l2_addr, 8) == 0) {
-            /* return node ID */
-            return temp_table[i].node_id;
-        }
-    }
+    // for (int i = 0; i < sizeof(temp_table); i++) {
+    //     if (memcmp(temp_table[i].l2_addr, l2_addr, 8) == 0) {
+    //         /* return node ID */
+    //         return temp_table[i].node_id;
+    //     }
+    // }
 
     /* error: entry does not exist */
     return -1;
 }
 
-// assume l2_addr's length is 8
-void update_table(uint8_t *l2_addr)
-{
-    anchor_node_t new_node;
-    memcpy(new_node.l2_addr, l2_addr, sizeof(l2_addr));
-    new_node.node_id = table_counter + TABLE_SIZE;
-    memcpy(temp_table[table_counter], new_node, sizeof(anchor_node_t));
-    table_counter++;
-}
+// // assume l2_addr's length is 8
+// void update_table(uint8_t *l2_addr)
+// {
+//     anchor_node_t new_node;
+//     memcpy(new_node.l2_addr, l2_addr, sizeof(l2_addr));
+//     new_node.node_id = table_counter + TABLE_SIZE;
+//     memcpy(temp_table[table_counter], new_node, sizeof(anchor_node_t));
+//     table_counter++;
+// }
