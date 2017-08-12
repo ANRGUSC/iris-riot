@@ -34,7 +34,7 @@ USEMODULE += gnrc_icmpv6_echo
 # USEMODULE += netstats_ipv6
 
 # Set a custom 802.15.4 channel if needed
-DEFAULT_CHANNEL ?= 21
+DEFAULT_CHANNEL ?= 19
 #very important line of code 
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 

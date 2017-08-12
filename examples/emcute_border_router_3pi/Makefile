@@ -29,7 +29,7 @@ CFLAGS += '-DETHOS_UART=UART_DEV(0)' -DETHOS_BAUDRATE=$(ETHOS_BAUDRATE) -DUSE_ET
 FEATURES_REQUIRED += periph_uart
 endif
                                          # radio is IEEE 802.15.4 2.4 GHz
-DEFAULT_CHANNEL ?= 21
+DEFAULT_CHANNEL ?= 19
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 # SLIP legacy compatibility
@@ -50,6 +50,7 @@ CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 #CFLAGS += -DSLIP_BAUDRATE=$(SLIP_BAUDRATE)
 # Include SLIP package for IP over Serial communication
 #USEMODULE += gnrc_slip
+USEMODULE += csma_sender
 
 # Include packages that pull up and auto-init the link layer.
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
