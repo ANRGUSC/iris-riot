@@ -63,8 +63,8 @@
 #include "thread.h"
 #include "msg.h"
 #include "range_param.h"
-#include "hdlc.h"
-#include "uart_pkt.h"
+#include "net/hdlc.h"
+#include "net/uart_pkt.h"
 
 #undef BIT
 #define BIT(n) ( 1 << (n) )

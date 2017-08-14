@@ -66,7 +66,6 @@
 #include "periph/uart.h"
 #include "net/hdlc.h"
 #include "net/uart_pkt.h"
-
 #include "main-conf.h"
 #include "periph/adc.h"
 
@@ -171,6 +170,7 @@ static void *_rssi_dump(void *arg)
     gnrc_netif_hdr_t *netif_hdr;
     uint8_t *dst_addr;
     gnrc_netreg_entry_t rssi_dump_server = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
+
 
     msg_init_queue(rssi_dump_msg_queue, sizeof(rssi_dump_msg_queue));
 

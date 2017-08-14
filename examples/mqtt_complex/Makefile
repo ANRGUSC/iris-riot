@@ -29,6 +29,8 @@ USEMODULE += ps
 USEMODULE += gnrc_pktdump
 # For testing we also include the ping6 command and some stats
 USEMODULE += gnrc_icmpv6_echo
+USEMODULE += csma_sender
+
 # Additional networking modules that can be dropped if not needed
 # USEMODULE += netstats_l2
 # USEMODULE += netstats_ipv6

@@ -6,7 +6,6 @@
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
  * Pradipta Ghosh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
@@ -36,62 +35,60 @@
  */
 
 /**
- * @file        uart_pkt.c
- * @brief       Helper library for creating packets to be over UART via hdlc.
+ * @ingroup     examples
+ * @{
  *
- * @author      Jason A. Tran <jasontra@usc.edu>
+ * @file
+ * @brief       MQTT Header Files
+ *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
- * 
+ * @}
  */
+#include "mqtt.h"
+#include "utlist.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
-#include "net/uart_pkt.h"
-#include "net/hdlc.h"
+/**
+ * Head of the mqtt topic link list
+ */
+static mqtt_topic_entry_t *mqtt_reg;
 
-#define ENABLE_DEBUG (1)
-#include "debug.h"
-
-void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
+/**
+ * @brief      this function registers a new publishing topic id
+ *
+ * @param      entry  This argument contains the mapping of topic name to id
+ */
+void mqtt_topic_register(mqtt_topic_entry_t *entry)
 {
-    if (buf_len < UART_PKT_HDR_LEN) {
-        DEBUG("Buffer size too small\n");
-        return NULL;
-    }
-
-    memcpy(buf, hdr, sizeof(uart_pkt_hdr_t));
-    return (buf + UART_PKT_DATA_FIELD);
+    LL_PREPEND(mqtt_reg, entry);
 }
 
-size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
-    size_t data_len)
-{
-    if (data_len + 5 > buf_len) {
-        DEBUG("Not enough space in destination buffer\n");
-        return 0;
-    }
 
-    memcpy(buf + UART_PKT_HDR_LEN, data, data_len);
-    return (UART_PKT_HDR_LEN + data_len);
+/**
+ * @brief      this function unregisters a new publishing topic id
+ *
+ * @param      entry  This argument contains the mapping of topic name to id
+ */
+void mqtt_topic_unregister(mqtt_topic_entry_t *entry)
+{
+    LL_DELETE(mqtt_reg, entry);
 }
 
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
-{
-    if(src_len < 5) {
-        DEBUG("Invalid source buffer size.\n");
-        return -1;
-    }
 
-    memcpy(dst_hdr, src, UART_PKT_HDR_LEN);
+/**
+ * @brief      this function search for a topic id
+ *
+ * @param      topic  the topic name
+ */
+uint16_t mqtt_search_scalar (char topic[])
+{
+    mqtt_topic_entry_t *el;
+    for(el = mqtt_reg ; el ; el=(el)->next)
+    {
+        // DEBUG("%s  ::  %s\n", el->topic, topic);
+        if (strcmp(el->topic,topic) == 0)
+        {
+            return (el->id);
+        }
+    }
     return 0;
-}
-
-void *uart_pkt_get_data(void *src, size_t src_len)
-{
-    if (src_len < UART_PKT_HDR_LEN) {
-        DEBUG("Invalid source buffer size.\n");
-        return NULL;
-    }
-    return (src + UART_PKT_HDR_LEN);
 }

@@ -32,6 +32,7 @@ endif
 DEFAULT_CHANNEL ?= 19
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 WERROR = 0
+USEMODULE += csma_sender
 
 # SLIP legacy compatibility
 # Uncomment the lines below if you want to use SLIP with this example and don't

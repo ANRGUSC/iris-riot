@@ -91,12 +91,6 @@ typedef struct {
     unsigned int length;
 } hdlc_pkt_t;
 
-//struct for MQTT_SN
-typedef struct __attribute__((packed)){
-    char topic[16];
-    char data[32];
-} mqtt_pkt_t;
-
 typedef struct hdlc_entry {
     struct hdlc_entry *next;
     uint16_t port;
