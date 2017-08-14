@@ -6,6 +6,9 @@ import time
 broker_address="fd00:dead:beef::1" 
 port = 1886
 
+global count
+count = 0
+
 global clients_connected
 clients_connected = 0
 
@@ -26,6 +29,8 @@ msg_type= { 'HW_ADDR' : '0', 'REQUEST' : '1', 'SEND_RSSI' : '2', 'LEN_CLIENTS_LI
 
 server_mqtt = {'0': 'ACK', '1': 'Do something'}
 
+global message_queue
+message_queue = []
 #Creating the callback functions
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -58,6 +63,7 @@ def on_message(client, userdata, msg):
     global req_clients
     global send_rssi
     global rssi_sender_topic
+    global message_queue
     print ("Data received")
     message = str(msg.payload.decode())
     if message[0] == msg_type['HW_ADDR']:
@@ -81,8 +87,10 @@ def on_message(client, userdata, msg):
 
     elif message[0] == msg_type['SEND_RSSI']:
         print ("*******RSSI_SEND*******")
-        rssi_sender_topic = message[1:]
-        send_rssi = 1
+        message_queue.append(message[1:])
+        print("*********")
+        print(message_queue)
+        print("*********")
 
     else:
         print ("wrong format %d\n" % int(message[0]))
@@ -121,7 +129,7 @@ while 1:
             topic_pub = client_ID[i]
             infoc = client.publish(client_ID[i] , len_data)
             infoc.wait_for_publish()
-        time_wait(2)
+        time.sleep(2)
         for i in range(req_clients):
             for j in range(req_clients):
                 data_pub = msg_type['GET_CLIENTS'] + client_ID[j]
@@ -129,16 +137,21 @@ while 1:
                 print("the topic is", client_ID[i])
                 infop = client.publish(client_ID[i], data_pub)
                 infop.wait_for_publish()
-                time_wait_ds(5)
-            time_wait_ds(5)
+                time.sleep(0.5)
+            time.sleep(0.5)
         req_clients = 0
 
-    if send_rssi == 1:
-        print ("the rssi topic to send is not", rssi_sender_topic)
+    if len(message_queue) != 0:
+        count += 1      
+        print ("the rssi topic to send is not", message_queue[0])
         for i in range(clients_connected):
-            if client_ID[i] != rssi_sender_topic:
+            if client_ID[i] != message_queue[0]:
+                message_queue.pop(0)
                 info = client.publish(client_ID[i], msg_type['UDP_SEND'])
                 info.wait_for_publish()
                 break;
-            time_wait_ds(3)
-        send_rssi = 0
+            time.sleep(0.5)       
+        print("count: ",count)
+        time.sleep(0.5)
+
+client.loop_forever() #loop forever
