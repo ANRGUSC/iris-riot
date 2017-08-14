@@ -115,7 +115,7 @@ while 1:
     if req_clients == 2:
         print(time_wait_ds(1))
     '''
-    if req_clients == 2:
+    if req_clients >= 2:
         for i in range(2):
             len_data = msg_type['LEN_CLIENTS_LIST'] + str(req_clients)
             topic_pub = client_ID[i]
