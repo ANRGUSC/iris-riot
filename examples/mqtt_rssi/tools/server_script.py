@@ -6,6 +6,9 @@ import time
 broker_address="fd00:dead:beef::1" 
 port = 1886
 
+global count
+count = 0
+
 global clients_connected
 clients_connected = 0
 
@@ -24,6 +27,9 @@ client_ID=[]
 topic_sub = "init_info"
 
 server_mqtt = {'0': 'ACK', '1': 'Do something'}
+global message_queue
+
+message_queue=[]
 
 #Creating the callback functions
 
@@ -57,6 +63,7 @@ def on_message(client, userdata, msg):
     global req_clients
     global send_rssi
     global rssi_sender_topic
+    global message_queue
     print ("Data received")
     message = str(msg.payload.decode())
     if msg.topic == topic_sub:        
@@ -79,8 +86,10 @@ def on_message(client, userdata, msg):
             req_clients += 1
         if message[0] == '2':
             print ("*******RSSI_SEND*******")
-            rssi_sender_topic = message[1:]
-            send_rssi = 1
+            message_queue.append(message[1:])
+            print("*********")
+            print(message_queue)
+            print("*********")
                                         
 
 def on_subscribe(mosq, obj, mid, granted_qos):
@@ -128,12 +137,17 @@ while 1:
             time_wait_ds(5)
         req_clients=0
 
-    if send_rssi == 1:
-        print ("the rssi topic to send is not", rssi_sender_topic)
+    if len(message_queue) != 0: 
+        count += 1      
+        print ("the rssi topic to send is not", message_queue[0])
         for i in range(clients_connected):
-            if client_ID[i] != rssi_sender_topic:
+            if client_ID[i] != message_queue[0]:
+                message_queue.pop(0)
                 info = client.publish(client_ID[i],"5")
                 info.wait_for_publish()
                 break;
-            time_wait_ds(3)
-        send_rssi = 0
+            time_wait_ds(3)        
+        print("count: ",count)
+        time_wait_ds(3)
+
+client.loop_forever() #loop forever
