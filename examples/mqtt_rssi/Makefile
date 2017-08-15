@@ -10,6 +10,7 @@ USEMODULE += csma_sender
 
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer
+INCLUDE += -I$(CURDIR)/main-conf.h
 
 # This has to be the absolute path to the RIOT base directory:
 

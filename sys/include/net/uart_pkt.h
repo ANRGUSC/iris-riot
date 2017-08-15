@@ -47,6 +47,11 @@
 #ifndef UART_PKT_H_
 #define UART_PKT_H_
 
+/**
+ * To include app specific parameter values
+ */
+// #include "main-conf.h"
+
 #ifndef UART_PKT_HDR_LEN
     #define UART_PKT_HDR_LEN            5
 #endif
@@ -62,15 +67,6 @@ typedef struct __attribute__((packed)) {
     uint16_t    dst_port;      
     uint8_t     pkt_type;                 
 } uart_pkt_hdr_t;
-
-
-typedef enum {
-    HW_ADDR                       =  0,
-    HW_SENT                       =  1
-} server_mqtt;
-
-
-
 
 /**
  * @brief Message types from mbed-os to riot-os
@@ -120,8 +116,45 @@ typedef enum  {
     RSSI_PUB                = 15
 } riot_to_mbed_t;
 
+/**
+ * @brief      Inserts the oacket header in the packetbuffer
+ *
+ * @param      buf      The packet buffer
+ * @param[in]  buf_len  The available buffer length
+ * @param[in]  hdr      The packet header
+ *
+ * @return              pointer to the data section of the packet
+ */
 void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr);
+/**
+ * @brief  Copy data from an array into a uart packet buffer.
+ * 
+ * @param  buf      destination buffer
+ * @param  buf_len  destination buffer size
+ * @param  data     buffer containing data
+ * @param  data_len size of buffer containing data
+ * 
+ * @return          total size of packet on success or 0 on failure.
+ */
 size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, size_t data_len);
-int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src,  size_t src_len);
+/**
+ * @brief      parse the received packet for validity and returns the header
+ *
+ * @param      dst_hdr  The destination header
+ * @param[in]  src      The received packet
+ * @param[in]  src_len  The received packet length
+ *
+ * @return     Status
+ */
+int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr,  const void *src,  size_t src_len);
+/**
+ * @brief      returns pointer to the data section of the received packet
+ *
+ * @param      src      received packet
+ * @param[in]  src_len  received packet length/size
+ *
+ * @return              description_of_the_return_value
+ */
+void *uart_pkt_get_data(void *src, size_t src_len);
 
 #endif /* UART_PKT_H_ */

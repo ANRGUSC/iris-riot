@@ -103,6 +103,7 @@ static char stack[THREAD_STACKSIZE_DEFAULT];
 static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];
 static kernel_pid_t thread2_pid;
+static bool mbed_initialization_flag = 0;
 
 //Global variables 
 char send_data[32];
@@ -350,7 +351,7 @@ static void *_mqtt_thread(void *arg)
         { 
             if (sent_hwaddr == 1)
             {
-                pub_server[0] = HW_ADDR + '0';//HWADDR
+                pub_server[0] = '0';//HWADDR
                 for(int i = 0; i < sizeof(EMCUTE_ID);i ++){
                     pub_server[i + 1] = EMCUTE_ID[i];
                 }
@@ -391,6 +392,9 @@ static void *_mqtt_thread(void *arg)
                         sent_hwaddr = 0;
                         break;
                     }
+
+                    if(!mbed_initialization_flag)
+                        break;
                     //Data to be sent to mbed
                     DEBUG("mqtt_control_thread: MQTT dump to mbed\n");
                     uart_hdr.src_port = THREAD2_PORT; //PORT 170
@@ -443,6 +447,11 @@ static void *_mqtt_thread(void *arg)
 
                     switch (uart_rcv_hdr.pkt_type)
                     {
+                        case MQTT_GO_ACK:
+                            DEBUG("mqtt_control_thread: received MQTT_GO_ACK\n");
+                            mbed_initialization_flag = 1;
+                            break;
+
                         case MQTT_SUB:
                             DEBUG("mqtt_control_thread: Subscribe Request received from mbed on Topic %s\n", mbed_rcv_pkt->topic);
                             if ( auto_sub(mbed_rcv_pkt->topic) == 0 ){
