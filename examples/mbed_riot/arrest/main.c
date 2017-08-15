@@ -80,6 +80,8 @@
 #define DISPATCHER_PRIO         (THREAD_PRIORITY_MAIN - 1)
 #define RSSI_DUMP_PRIO          (THREAD_PRIORITY_MAIN - 1) 
 
+/* TODO: WARNING, code is outdated and incompatible with the new changes */
+
 /* from CC2538's uart.c */
 #undef BIT
 #define BIT(n) ( 1 << (n) )

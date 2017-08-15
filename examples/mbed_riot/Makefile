@@ -1,8 +1,8 @@
-# name of your application
-APPLICATION = hdlc_sender
-
 # If no BOARD is found in the environment, use this default:
 BOARD ?= openmote-cc2538
+
+# Select the app based on the subfolder name here
+APP_SELECT ?= tests/hdlc_txvr
 
 PROGRAMMER ?= jlink
 
@@ -12,6 +12,14 @@ FEATURES_REQUIRED += periph_timer
 # This has to be the absolute path to the RIOT base directory:
 RIOTBASE ?= $(CURDIR)/../..
 
+# add app directory, add module, and generate app name
+DIRS += $(APP_SELECT)
+USEMODULE += $(shell basename $(APP_SELECT))
+APPLICATION = $(shell basename $(APP_SELECT))
+
+# add top directory of this example into include path
+INCLUDES += -I$(CURDIR)
+
 # Include packages that pull up and auto-init the link layer.
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
 USEMODULE += gnrc_netdev_default
@@ -19,8 +27,6 @@ USEMODULE += auto_init_gnrc_netif
 # Specify the mandatory networking modules for IPv6 and UDP
 USEMODULE += gnrc_ipv6_router_default
 USEMODULE += gnrc_udp
-# This application dumps received packets to STDIO using the pktdump module
-USEMODULE += gnrc_pktdump
 USEMODULE += csma_sender
 USEMODULE += ps
 USEMODULE += hdlc
