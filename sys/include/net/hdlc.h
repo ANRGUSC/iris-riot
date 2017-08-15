@@ -65,8 +65,13 @@ extern "C" {
 #include "board.h"
 #include "periph/uart.h"
 
-#define RTRY_TIMEO_USEC         200000
-#define RETRANSMIT_TIMEO_USEC   50000
+#ifndef RTRY_TIMEO_USEC
+    #define RTRY_TIMEO_USEC         200000
+#endif /* RTRY_TIMEO_USEC */
+
+#ifndef RETRANSMIT_TIMEO_USEC
+    #define RETRANSMIT_TIMEO_USEC   50000
+#endif /* RETRANSMIT_TIMEO_USEC */
 
 #ifndef HDLC_MAX_PKT_SIZE
 #define HDLC_MAX_PKT_SIZE       64

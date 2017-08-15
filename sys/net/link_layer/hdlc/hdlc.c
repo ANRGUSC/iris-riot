@@ -67,7 +67,9 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
-#define UART_BUFSIZE            (512U)
+#ifndef UART_BUFSIZE
+    #define UART_BUFSIZE            (1024U)
+#endif
 
 static msg_t _hdlc_msg_queue[16];
 

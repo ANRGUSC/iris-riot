@@ -21,7 +21,9 @@ USEMODULE += gnrc_ipv6_router_default
 USEMODULE += gnrc_udp
 # This application dumps received packets to STDIO using the pktdump module
 USEMODULE += gnrc_pktdump
+USEMODULE += csma_sender
 USEMODULE += ps
+USEMODULE += hdlc
 USEMODULE += shell
 USEMODULE += shell_commands
 # Additional networking modules that can be dropped if not needed
@@ -31,7 +33,8 @@ USEMODULE += shell_commands
 # Set a custom 802.15.4 channel if needed
 DEFAULT_CHANNEL ?= 25
 CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
-
+CFLAGS += -DRETRANSMIT_TIMEO_USEC=100000
+CFLAGS += -DHDLC_MAX_PKT_SIZE=32
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:

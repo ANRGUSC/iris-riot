@@ -73,8 +73,8 @@
 #include "random.h"
 #include "xtimer.h"
 #include "periph/uart.h"
-#include "hdlc.h"
-#include "uart_pkt.h"
+#include "net/hdlc.h"
+#include "net/uart_pkt.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
