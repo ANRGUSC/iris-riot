@@ -29,12 +29,13 @@ USEMODULE += shell_commands
 USEMODULE += ps
 # For testing we also include the ping6 command and some stats
 USEMODULE += gnrc_icmpv6_echo
+USEMODULE += csma_sender
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
 CFLAGS += -DDEVELHELP
-DEFAULT_CHANNEL ?= 21
+DEFAULT_CHANNEL ?= 19
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 # Comment this out to join RPL DODAGs even if DIOs do not contain

@@ -47,8 +47,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
-#include "uart_pkt.h"
-#include "hdlc.h"
+#include "net/uart_pkt.h"
+#include "net/hdlc.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
@@ -94,8 +94,12 @@ int uart_pkt_parse_hdr(uart_pkt_hdr_t *dst_hdr, const void *src, size_t src_len)
     memcpy(dst_hdr, src, UART_PKT_HDR_LEN);
     return 0;
 }
-int mqtt_pkt_parse(mqtt_pkt_t *mqtt_pkt, const void *src, size_t src_len)
+
+void *uart_pkt_get_data(void *src, size_t src_len)
 {
-    memcpy(mqtt_pkt, src+UART_PKT_HDR_LEN, src_len);
-    return 0;
+    if (src_len < UART_PKT_HDR_LEN) {
+        DEBUG("Invalid source buffer size.\n");
+        return NULL;
+    }
+    return (src + UART_PKT_HDR_LEN);
 }

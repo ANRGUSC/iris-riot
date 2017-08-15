@@ -1,12 +1,12 @@
 # name of your application
-APPLICATION = hdlc_sender
+APPLICATION = mqtt_complex
 
 # If no BOARD is found in the environment, use this default:
 BOARD ?= openmote-cc2538
 
 PROGRAMMER ?= jlink
 USEMODULE += csma_sender
-
+USEMODULE += hdlc
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer
 
@@ -34,7 +34,7 @@ USEMODULE += gnrc_icmpv6_echo
 # USEMODULE += netstats_ipv6
 
 # Set a custom 802.15.4 channel if needed
-DEFAULT_CHANNEL ?= 21
+DEFAULT_CHANNEL ?= 19
 #very important line of code 
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 

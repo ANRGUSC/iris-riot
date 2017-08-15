@@ -27,7 +27,15 @@
 
 #ifndef YAHDLC_H
 #define YAHDLC_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+/* this file does not provide anything on it's own */
+
+#ifdef __cplusplus
+}
+#endif
 #include <errno.h>
 
 /** HDLC start/end flag sequence */

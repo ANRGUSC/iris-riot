@@ -77,15 +77,14 @@
 #include "random.h"
 #include "xtimer.h"
 #include "periph/uart.h"
-#include "hdlc.h"
-#include "uart_pkt.h"
+#include "net/hdlc.h"
+#include "net/uart_pkt.h"
 
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
 #include <stdlib.h>
 #include "net/emcute.h"
 #include "net/ipv6/addr.h"
-#include "uart_pkt.h"
 #include "main-conf.h"
 #include "mqtt.h"
 
@@ -97,9 +96,6 @@
 #define RSSI_DUMP_PRIO          (THREAD_PRIORITY_MAIN - 1)
 //setting the port of the main thread
 //setting the port of thread2 
-#define MAIN_THR_PORT   165
-#define THREAD2_PORT    170
-#define MBED_PORT       200
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 //setting the message queue with message structs
@@ -285,6 +281,7 @@ static int auto_con(char* addr, char* port)
     char        *topic = NULL;
     char        *message = NULL;
     size_t      len = 0;
+    emcute_discon();
 
     //converts the addr from string and stores it in struct 
     if (ipv6_addr_from_str((ipv6_addr_t *)&gw.addr.ipv6, addr) == NULL) {
@@ -328,7 +325,7 @@ static void *_mqtt_control_thread(void *arg)
     msg_init_queue(thread2_msg_queue, 32);  
 
     //Initializing the thread2 to the HDLC   
-    hdlc_entry_t thread2 = { NULL, THREAD2_PORT, thread_getpid() };
+    hdlc_entry_t thread2 = { NULL, RIOT_MQTT_PORT, thread_getpid() };
     //Registering the thread to the list of threads
     hdlc_register(&thread2);
 
@@ -393,7 +390,7 @@ static void *_mqtt_control_thread(void *arg)
 
             if (send_hw_addr == 1) 
             {
-                pub_server[0] = HW_ADDR + '0';//HWADDR
+                pub_server[0] = '0';//HWADDR
                 for(int i = 0 ; i < sizeof(EMCUTE_ID) ; i++){
                     pub_server[i + 1] = EMCUTE_ID[i];
                 }
@@ -408,8 +405,8 @@ static void *_mqtt_control_thread(void *arg)
                 /**
                  * Send the MQTT GO Message to the MBED
                  */
-                uart_hdr.src_port   = THREAD2_PORT; //PORT 170
-                uart_hdr.dst_port   = MBED_PORT; //PORT 200
+                uart_hdr.src_port   = RIOT_MQTT_PORT; //PORT 170
+                uart_hdr.dst_port   = MBED_MQTT_PORT; //PORT 200
                 uart_hdr.pkt_type   = MQTT_GO; 
                 //adds the uart hdr to the hdlc data
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
@@ -457,8 +454,8 @@ static void *_mqtt_control_thread(void *arg)
 
                     //Data to be sent to mbed
                     DEBUG("mqtt_control_thread: MQTT dump to mbed\n");
-                    uart_hdr.src_port = THREAD2_PORT; //PORT 170
-                    uart_hdr.dst_port = MBED_PORT; //PORT 200
+                    uart_hdr.src_port = RIOT_MQTT_PORT; //PORT 170
+                    uart_hdr.dst_port = MBED_MQTT_PORT; //PORT 200
                     uart_hdr.pkt_type = MQTT_PKT_TYPE; 
                     uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
 
@@ -512,9 +509,10 @@ static void *_mqtt_control_thread(void *arg)
                             //Publishes to init_info to start the request 
                             //sends a request to the server to get the list of connected clients
                             //sending the MBED the hwaddr of the current node
+                            xtimer_usleep(10000);       
                             hdlc_snd_pkt.data = send_data;
-                            uart_hdr.src_port = THREAD2_PORT; //PORT 170
-                            uart_hdr.dst_port = MBED_PORT; //PORT 200
+                            uart_hdr.src_port = RIOT_MQTT_PORT; //PORT 170
+                            uart_hdr.dst_port = MBED_MQTT_PORT; //PORT 200
                             uart_hdr.pkt_type = HWADDR_GET; 
                             //adds the uart hdr to the hdlc data
                             uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);                
@@ -535,9 +533,9 @@ static void *_mqtt_control_thread(void *arg)
                         case MQTT_SUB:
                             DEBUG("mqtt_control_thread: Subscribe Request received from mbed on Topic %s\n", mbed_rcv_pkt->topic);
                             if ( auto_sub(mbed_rcv_pkt->topic) == 0 ){
-                                uart_hdr.src_port = THREAD2_PORT; //PORT 170
-                                uart_hdr.dst_port = MBED_PORT; //PORT 200
-                                uart_hdr.pkt_type = SUB_ACK; 
+                                uart_hdr.src_port = RIOT_MQTT_PORT; //PORT 170
+                                uart_hdr.dst_port = MBED_MQTT_PORT; //PORT 200
+                                uart_hdr.pkt_type = MQTT_SUB_ACK; 
                                 //adds the uart hdr to the hdlc data
                                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                                 msg_snd.type = HDLC_MSG_SND;
@@ -555,9 +553,9 @@ static void *_mqtt_control_thread(void *arg)
                         case MQTT_PUB:
                             DEBUG("mqtt_control_thread: Mqtt Publish Request Received from MBED with topic: %s and data: %s \n", mbed_rcv_pkt->topic, mbed_rcv_pkt->data);
                             if (auto_pub(mbed_rcv_pkt->topic, mbed_rcv_pkt->data) == 0){
-                                uart_hdr.src_port = THREAD2_PORT; //PORT 170
-                                uart_hdr.dst_port = MBED_PORT; //PORT 200
-                                uart_hdr.pkt_type = PUB_ACK; 
+                                uart_hdr.src_port = RIOT_MQTT_PORT; //PORT 170
+                                uart_hdr.dst_port = MBED_MQTT_PORT; //PORT 200
+                                uart_hdr.pkt_type = MQTT_PUB_ACK; 
                                 //adds the uart hdr to the hdlc data
                                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                                 msg_snd.type = HDLC_MSG_SND;
@@ -619,12 +617,29 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
     uint8_t             raw_rssi =0;
     gnrc_netif_hdr_t    *hdr;
     gnrc_pktsnip_t      *snip = pkt;
+    udp_hdr_t           *udp;
+    ipv6_hdr_t           *ip;
+
+
     while (snip != NULL) {
-        if (snip->type == GNRC_NETTYPE_NETIF)
-        {
-            hdr = (gnrc_netif_hdr_t *) (snip->data);
-            raw_rssi = hdr->rssi;            
-            return raw_rssi;          
+        switch (snip->type){
+            case GNRC_NETTYPE_NETIF:
+                hdr = (gnrc_netif_hdr_t *) (snip->data);
+                raw_rssi = hdr->rssi;            
+                return raw_rssi;
+
+            case GNRC_NETTYPE_UDP:
+                udp = (udp_hdr_t *) (snip->data);
+                // udp_hdr_print (udp);
+                break;
+
+            case GNRC_NETTYPE_IPV6:
+                ip = (ipv6_hdr_t *) (snip->data);
+                // ipv6_hdr_print (ip);
+                break;
+
+            default:
+                break;
         }
         ++snips;
         size += snip->size;
@@ -692,7 +707,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
          * => use temporary variable for output */
         DEBUG("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
                port);               
-        xtimer_usleep(500000);       
+        xtimer_usleep(10000);       
         return 0;
     }
 }
@@ -759,13 +774,10 @@ static void *_rssi_dump(void *arg)
                             c = (c == 18) ? (c + 2) : (c + 1);
                         }
                         DEBUG("rssi_thread: The ipv6 is %s\n", ipv6_send_addr); 
-                        //sending to the constructed ipv6 address at port 9000 
-                        
-                                                                   
+                        //sending to the constructed ipv6 address at port 9000                                                                                          
                         if(rssi_send(ipv6_send_addr, RSSI_DUMP_PORT, rssi_data) == 0)
                             DEBUG("rssi_thread: udp message sent\n");
                             
-                                                
                         break;  
                 }
                 hdlc_pkt_release(hdlc_rcv_pkt);
@@ -785,7 +797,7 @@ static void *_rssi_dump(void *arg)
                 break;
 
             case GNRC_NETAPI_MSG_TYPE_RCV: 
-                DEBUG("RSSI Value recevied\n");             
+                DEBUG("rssi_thread: RSSI packet received\n");             
                 rssi_value = rssi_val(msg.content.ptr);                
                 DEBUG("rssi_thread: rssi value %d\n", rssi_value);
                 //sending information to rssi thread on the MBED side                

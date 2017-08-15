@@ -25,8 +25,8 @@
  * 
 */
 
-#include "fcs16.h"
-#include "yahdlc.h"
+#include "net/fcs16.h"
+#include "net/yahdlc.h"
 
 // HDLC Control field bit positions
 #define YAHDLC_CONTROL_S_OR_U_FRAME_BIT 0

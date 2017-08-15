@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+
 /**
  * This structure is used for locally storing the mqtt topic to id mapping
  */
