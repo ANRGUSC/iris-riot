@@ -58,15 +58,15 @@
 #include "random.h"
 #include "xtimer.h"
 #include "periph/uart.h"
-#include "hdlc.h"
-#include "uart_pkt.h"
+#include "net/hdlc.h"
+#include "net/uart_pkt.h"
 
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
 #include <stdlib.h>
 #include "net/emcute.h"
 #include "net/ipv6/addr.h"
-#include "uart_pkt.h"
+
 #include "mqtt.h"
 
 #define ENABLE_DEBUG (1)

@@ -7,8 +7,7 @@
  *
  * Contributors:
  * Jason A. Tran
- * Pradipta Ghosh
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
@@ -46,7 +45,6 @@
  * implementation is stop & wait.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- * @author      Pradipta Ghosh <pradiptg@usc.edu>
  *
  * @}
  */
@@ -56,14 +54,14 @@
 #include <string.h>
 #include <inttypes.h>
 
-#include "hdlc.h"
+#include "net/hdlc.h"
 #include "utlist.h"
-#include "uart_pkt.h"
+#include "net/uart_pkt.h"
 
 #include "msg.h"
 #include "xtimer.h"
 #include "ringbuffer.h"
-#include "yahdlc.h"
+#include "net/yahdlc.h"
 #include "periph/uart.h"
 
 #define ENABLE_DEBUG (0)

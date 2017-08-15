@@ -77,15 +77,14 @@
 #include "random.h"
 #include "xtimer.h"
 #include "periph/uart.h"
-#include "hdlc.h"
-#include "uart_pkt.h"
+#include "net/hdlc.h"
+#include "net/uart_pkt.h"
 
 #include "net/gnrc.h"
 #include "net/gnrc/netapi.h"
 #include <stdlib.h>
 #include "net/emcute.h"
 #include "net/ipv6/addr.h"
-#include "uart_pkt.h"
 #include "main-conf.h"
 #include "mqtt.h"
 
@@ -536,7 +535,7 @@ static void *_mqtt_control_thread(void *arg)
                             if ( auto_sub(mbed_rcv_pkt->topic) == 0 ){
                                 uart_hdr.src_port = RIOT_MQTT_PORT; //PORT 170
                                 uart_hdr.dst_port = MBED_MQTT_PORT; //PORT 200
-                                uart_hdr.pkt_type = SUB_ACK; 
+                                uart_hdr.pkt_type = MQTT_SUB_ACK; 
                                 //adds the uart hdr to the hdlc data
                                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                                 msg_snd.type = HDLC_MSG_SND;
@@ -556,7 +555,7 @@ static void *_mqtt_control_thread(void *arg)
                             if (auto_pub(mbed_rcv_pkt->topic, mbed_rcv_pkt->data) == 0){
                                 uart_hdr.src_port = RIOT_MQTT_PORT; //PORT 170
                                 uart_hdr.dst_port = MBED_MQTT_PORT; //PORT 200
-                                uart_hdr.pkt_type = PUB_ACK; 
+                                uart_hdr.pkt_type = MQTT_PUB_ACK; 
                                 //adds the uart hdr to the hdlc data
                                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                                 msg_snd.type = HDLC_MSG_SND;

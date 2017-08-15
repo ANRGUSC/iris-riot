@@ -1,12 +1,12 @@
 # name of your application
-APPLICATION = hdlc_sender
+APPLICATION = mqtt_complex
 
 # If no BOARD is found in the environment, use this default:
 BOARD ?= openmote-cc2538
 
 PROGRAMMER ?= jlink
 USEMODULE += csma_sender
-
+USEMODULE += hdlc
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer
 
