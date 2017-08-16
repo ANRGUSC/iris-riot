@@ -91,10 +91,10 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                         if(RANGE_FLAG_BYTE0 == ((uint8_t *) pkt->data)[0] && 
                             RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1])
                         {
+                            ranging_complete.type = RF_RCVD;
+                            ranging_complete.content.value = ((uint8_t *) pkt->data)[2];
+                            msg_send(&ranging_complete,ranging_pid);
                             if(_tx_node_id == -1 || _tx_node_id == ((uint8_t *) pkt->data)[2]){
-                                ranging_complete.type = RF_RCVD;
-                                ranging_complete.content.value = ((uint8_t *) pkt->data)[2];
-                                msg_send(&ranging_complete,ranging_pid);
                                 _sound_ranging(((uint8_t *) pkt->data)[2]);
                             }
                         }
@@ -138,7 +138,7 @@ static void _sound_ranging(uint8_t node_id)
 
     while(ranging)
     {
-        switch(range_sys_flag)
+        switch(range_sys_flag){
             case ONE_SENSOR_MODE:
                 sample1 = gpio_read(rx_line_array[0]);
                 DEBUG("%d ",sample1);
@@ -180,27 +180,30 @@ static void _sound_ranging(uint8_t node_id)
                     exit = 1;
                 } 
                 break;
-        }
-        else if(range_sys_flag == XOR_SENSOR_MODE){
-            sample1 = gpio_read(rx_line_array[2]);
-            DEBUG("%d ",sample1);
-            if(sample1 != 0){
-                last2 = xtimer_now_usec();
-                while(gpio_read(rx_line_array[2]) != 0);
-                time_diffs.orient_diff = xtimer_now_usec() - last2;
-                time_diffs.tdoa = last2 - last;
-                range_rx_successful_stop();
+            case XOR_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[2]);
+                DEBUG("%d ",sample1);
+                if(sample1 != 0){
+                    last2 = xtimer_now_usec();
+                    while(gpio_read(rx_line_array[2]) != 0);
+                    time_diffs.orient_diff = xtimer_now_usec() - last2;
+                    time_diffs.tdoa = last2 - last;
+                    range_rx_successful_stop();
+                    exit = 1;
+                }
                 break;
-            }
-        }
-        else if(range_sys_flag == OMNI_SENSOR_MODE){
-            sample1 = gpio_read(rx_line_array[2]);
-            DEBUG("%d ",sample1);
-            if(sample1 != 0){   
-                time_diffs.tdoa = xtimer_now_usec() - last;
-                range_rx_successful_stop();
+            case OMNI_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[2]);
+                DEBUG("%d ",sample1);
+                if(sample1 != 0){   
+                    time_diffs.tdoa = xtimer_now_usec() - last;
+                    range_rx_successful_stop();
+                    exit = 1;
+                }
                 break;
-            }
+            default:
+                exit = 1;
+                break;
         }
 
         if(exit == 1){
@@ -325,7 +328,7 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, int mode, int node_id)
+void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, int mode, int8_t node_id)
 {
     //puts("started");
     range_sys_flag = mode;
@@ -340,6 +343,7 @@ void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, int mode, int
     time_diffs.tdoa = 0;
     time_diffs.orient_diff = 0;
     time_diffs.status = 0;
+    time_diffs.node_id = 0;
 
     DEBUG("ranging initialized!\n");
 }
