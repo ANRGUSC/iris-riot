@@ -51,9 +51,6 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
-#define MAXSAMPLES_ONE_PIN            18000
-#define MAXSAMPLES_TWO_PIN            18000
-
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
 #define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
 
@@ -209,16 +206,11 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     DEBUG("Exiting range_and_send\n");
 }
 
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
+
+
+range_data_t range_rx(uint32_t timeout_usec, uint8_t range_mode, uint8_t node_id){ 
     // Check correct argument usage.
     uint8_t mode = range_mode;
-    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
-    
-    if(mode == TWO_SENSOR_MODE){
-        maxsamps = MAXSAMPLES_TWO_PIN;
-    } else {
-        maxsamps = MAXSAMPLES_ONE_PIN;
-    }
 
     if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
         DEBUG("Error initializing GPIO_PIN.\n");
@@ -227,10 +219,9 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     // clearing output for the ultrasonic sensor
     gpio_clear(TX_PIN);
 
-    time_diffs = malloc(sizeof(range_data_t)*num_samples);
+    range_data_t time_diffs;
     
-    uint32_t timeout = timeout_usec;
-    if(timeout <= 0){
+    if(timeout_usec <= 0){
         DEBUG("timeout must be greater than 0");
         return NULL;
     }
@@ -241,59 +232,48 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     /* setup the message queue */
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
+    range_rx_init(node_id, thread_getpid(), gpio_lines, mode, node_id);
 
-    int i;
-    for(i = 0; i < num_samples; i++){
+    if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
+        DEBUG("RF ping missed\n");
+        range_rx_stop();
+        time_diffs = (range_data_t) {0, 0, RF_MISSED};
+        return time_diffs;
+    }
 
-
-        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, mode);
-
-
-        if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("RF ping missed\n");
+    if(msg.type == RF_RCVD){
+        if(xtimer_msg_receive_timeout(&msg, ULTRSND_TIMEOUT) < 0){
+            DEBUG("Ultrsnd ping missed\n");
             range_rx_stop();
-            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED};
-            continue;
+            time_diffs = (range_data_t) {0, 0, ULTRSND_MISSED};
+            return time_diffs;
+        }
+        if(msg.type == ULTRSND_RCVD){
+            time_diffs = *(range_data_t*) msg.content.ptr;
+        } else{
+            range_rx_stop();
         }
 
-        if(msg.type == RF_RCVD){
-            if(xtimer_msg_receive_timeout(&msg, ULTRSND_TIMEOUT) < 0){
-                DEBUG("Ultrsnd ping missed\n");
-                range_rx_stop();
-                time_diffs[i] = (range_data_t) {0, 0, ULTRSND_MISSED};
-                continue;
-            }
-            if(msg.type == ULTRSND_RCVD){
-                time_diffs[i] = *(range_data_t*) msg.content.ptr;
+    }
+
+    DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
+    switch (range_mode){
+        case ONE_SENSOR_MODE:
+            break;
+
+        case TWO_SENSOR_MODE:
+            if(time_diffs.status > 2){
+                DEBUG("range: Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs.status);
             } else{
-                range_rx_stop();
-                i--;
-                continue;
+                DEBUG("range: OD = %d\n", time_diffs.orient_diff);
             }
+            break;
 
-        }
-
-        DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
-        switch (range_mode){
-            case ONE_SENSOR_MODE:
-                break;
-
-            case TWO_SENSOR_MODE:
-                if(time_diffs[i].status > 2){
-                    DEBUG("range: Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs[i].status);
-                } else{
-                    DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
-                }
-                break;
-
-            case XOR_SENSOR_MODE:
-                DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
-                break;
-            case OMNI_SENSOR_MODE:
-                break;
-        }
-
-
+        case XOR_SENSOR_MODE:
+            DEBUG("range: OD = %d\n", time_diffs.orient_diff);
+            break;
+        case OMNI_SENSOR_MODE:
+            break;
     }
 
     return time_diffs;
