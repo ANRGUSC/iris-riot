@@ -23,4 +23,12 @@
 
 #define RANGE_REQ_TIMEO_USEC                1000000
 
-#endif
+/* TDMA Localization Settings */
+/* sent in network byte order (big-endian) */
+#define TDMA_ANCHOR_ID_REQ_U16_FLAG         0x5444  /* 'T' and 'D' for TDma */
+#define TDMA_ANCHOR_ID_RESP_U16_FLAG        0x4d41  /* 'M' and 'A' for tdMA */
+#define TDMA_SLOT_TIME_USEC                 100000
+#define TDMA_BOOTSTRAP_CHANNEL              11
+#define TDMA_TOTAL_ANCHOR_NODES             3       /* experiment specific */
+
+#endif /* RANGE_PARAM_H */

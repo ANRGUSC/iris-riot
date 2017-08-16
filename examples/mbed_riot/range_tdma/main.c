@@ -49,7 +49,7 @@
 #include "debug.h"
 
 #define MAX_ADDR_LEN        (8U)
-#define TX_PIN              GPIO_PD3
+#define TX_PIN              GPIO_PIN(3, 2)
 #define MAIN_QUEUE_SIZE     (8)
 #define MAX_TX_POWER         7
 
@@ -101,7 +101,6 @@ int main(void)
     }
     // Clearing output for the ultrasonic sensor.
     gpio_clear(TX_PIN);
-    range_tx_init(TX_PIN);
     //------------------------------------------------------------------------//
     
     // Miscellaneous
@@ -287,16 +286,30 @@ int main(void)
         nethdr->flags = flags;
         /* ready to send */
         
+        // change channel to 26 for the receiving node.
+        channel = 26;
+        gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
+
+        // initializing the ultrasonic speaker
+        range_tx_init(TX_PIN);
+
         //make sure no packets are to be sent!!
         if (gnrc_netapi_send(ifs[0], send_pkt) < 1) {
             DEBUG("error: unable to send\n");
             gnrc_pktbuf_release(send_pkt);
             return 1;
         }   
-        range_tx_off(); //turn off just in case
-        DEBUG("RF and ultrasound pings sent\n");  
+        DEBUG("RF and ultrasound pings sent\n");
+        xtimer_usleep(100000); // Delay window of 100 ms ()
+        /*
+  [Node 1 RF]          [Node 1 ping]                           [Node 1 ping end]
+        |--------------------|----------------------------------------|----------...
+        |--------------------|----------------------------------------|----------...|
+                20 ms                           45 ms                      55 ms     (100 ms total)
+        */
         //--------------------------------------------------------------------//
     }
+    range_tx_off(); //turn off just in case
     //end of while loop, code should never reach here, etc.
     return 0;
 }
