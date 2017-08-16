@@ -71,7 +71,7 @@
 #include "dac.h"
 #include "main-conf.h"
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 //setting the priority of the hdlc and thread2
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
@@ -174,7 +174,7 @@ static void on_pub_mbed(const emcute_topic_t *topic, void *data, size_t data_len
     memcpy((char *)&send_topic, topic->name, topic_len);
     send_topic[topic_len]='\0';
 
-    printf("data: %s\n", send_data);
+    DEBUG("data: %s\n", send_data);
     /* TO DO: add a mutex */
 
     strncpy(mqtt_snd_pkt.topic, send_topic, topic_len);
@@ -309,7 +309,7 @@ static int auto_con(char* addr, char* port)
 
     //converts the addr from string and stores it in struct 
     if (ipv6_addr_from_str((ipv6_addr_t *)&gw.addr.ipv6, addr) == NULL) {
-        printf("error parsing IPv6 address\n");
+        DEBUG("error parsing IPv6 address\n");
         return 1;
     }
     //storing the value of the port in the struct.port
@@ -317,13 +317,13 @@ static int auto_con(char* addr, char* port)
     error_msg = emcute_con(&gw, true, topic, message, len, 0);
     //calling the Emcute_con function
     if (error_msg != EMCUTE_OK) {
-        printf("error: unable to connect to [%s]:%i\n", addr, (int)gw.port);
-        printf("error message: %d\n", error_msg);
+        DEBUG("error: unable to connect to [%s]:%i\n", addr, (int)gw.port);
+        DEBUG("error message: %d\n", error_msg);
         return 1;
     }
     else
     {
-        printf("Successfully connected to gateway at [%s]:%i\n",
+        DEBUG("Successfully connected to gateway at [%s]:%i\n",
                addr, (int)gw.port);
         return 0;
     }    
@@ -432,7 +432,7 @@ static void *_mqtt_thread(void *arg)
                     DEBUG("mqtt_control_thread: MQTT GO message has been sent\n");
             }
 
-            printf("************************waiting for a message\n");
+            DEBUG("************************waiting for a message\n");
 
             //pub to init_info
             if (sent_hwaddr == 1){
@@ -442,7 +442,7 @@ static void *_mqtt_thread(void *arg)
                 msg_receive(&msg_rcv);
             }
 
-            printf("************************got a message\n");
+            DEBUG("************************got a message\n");
             
             switch (msg_rcv.type)
             {
@@ -659,7 +659,7 @@ int main(void)
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
+                                      "hdlc", UART_DEV(0));
 
     
     //Creates the thread 2 from the main thread
@@ -714,11 +714,11 @@ int main(void)
                 case HDLC_PKT_RDY:
                 /*
                     hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                    printf("The \n packet \n has \n been received\n");  
+                    DEBUG("The \n packet \n has \n been received\n");  
                     main_mbed_rcv_ptr = hdlc_rcv_pkt->data + UART_PKT_DATA_FIELD;
                     main_rcv_pkt = (mqtt_pkt_t *)main_mbed_rcv_ptr;
-                    printf("The data received is %s \n", main_rcv_pkt->data);
-                    printf("The topic received is %s \n", main_rcv_pkt->topic);
+                    DEBUG("The data received is %s \n", main_rcv_pkt->data);
+                    DEBUG("The topic received is %s \n", main_rcv_pkt->topic);
                     break;
                     */
                 default:
