@@ -316,7 +316,7 @@ typedef struct gpio_rx_line {
  * @param[in]  max_gpio_samps  The maximum gpio samps
  * @param[in]  mode            The mode to range in
  */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, int mode);
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode);
 
 /**
  * Always call this function to stop soundranging and you do not wish to pass along the data. 

@@ -126,7 +126,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
  * 				 (if applicable) and an error value to indicate if a pin missed an
  * 				 ultrasonic ping }
  */
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples, int8_t node_id);
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id);
 
 
 /**

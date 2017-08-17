@@ -88,7 +88,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     msg_t msg_snd, msg_rcv;
 
     UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, DATA_PER_PKT);
+    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, params->node_id);
     UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
     UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
     UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
@@ -247,7 +247,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
     while(exit == 0){
-        range_rx_init(node_id, thread_getpid(), gpio_lines, mode, node_id);
+        range_rx_init(node_id, thread_getpid(), gpio_lines, mode);
         if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
             DEBUG("rx_loop timed out\n");
             range_rx_stop();
@@ -287,7 +287,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
                         break;
 
                     case TWO_SENSOR_MODE:
-                        if(time_diffs.status > 2){
+                        if(time_diffs[i].status > 2){
                             DEBUG("range: Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs[i].status);
                         } else{
                             DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);

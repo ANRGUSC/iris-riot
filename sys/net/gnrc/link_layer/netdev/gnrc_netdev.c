@@ -41,7 +41,7 @@
 #define NETDEV_NETAPI_MSG_QUEUE_SIZE 8
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
-static void _sound_ranging(void);
+static void _sound_ranging(int8_t node_id);
 
 /* sound ranging */
 #include "periph/adc.h"
@@ -121,7 +121,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 }
 
 
-static void _sound_ranging(uint8_t node_id)
+static void _sound_ranging(int8_t node_id)
 {
     //unsigned old_state = irq_disable();
 
@@ -328,7 +328,7 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, int mode, int8_t node_id)
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode)
 {
     //puts("started");
     range_sys_flag = mode;

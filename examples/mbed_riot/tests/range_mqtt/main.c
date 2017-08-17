@@ -44,6 +44,7 @@
  *
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * @}
  */
