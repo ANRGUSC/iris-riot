@@ -45,7 +45,7 @@
  * @}
  */
 
- #ifndef _MQTT_H_
+#ifndef _MQTT_H_
 #define _MQTT_H_
 #include <stdio.h>
 #include <string.h>

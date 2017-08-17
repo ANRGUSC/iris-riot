@@ -2,6 +2,13 @@
  * All macros for network addresses
  */
 
+/* MQTT Related Ports */
+#define MBED_MQTT_PORT                      200
+#define RIOT_MQTT_PORT                      170
+#define MAIN_THR_PORT                       165
+#define NULL_PKT_TYPE                       0xFF
+
+
 /* RSSI dump thread port number */
 #define RSSI_DUMP_PORT                      9000
 
