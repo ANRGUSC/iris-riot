@@ -58,9 +58,12 @@ def usr_input(client):
             usrmessage=usrmessage+message_to_be_pubbed
         elif c==3:
             clientnum = int(raw_input("Enter the number of the openmote you want to send a normal message to\t"))
+            node_id = int(raw_input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
+            if node_id == -1:
+                node_id += 256
             usrtopic=hwaddr[clientnum]
             usrmessage="0"
-            usrmessage+=range_req_msg
+            usrmessage= usrmessage + str(chr(node_id)) + range_req_msg
         elif c==4:
             print("***********************************")
             print("Clients:")
