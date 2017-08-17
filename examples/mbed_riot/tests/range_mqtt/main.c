@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Pradipta Ghosh
+ * Yutong Gu
  * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
@@ -72,7 +73,7 @@
 #include "dac.h"
 #include "main-conf.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 //setting the priority of the hdlc and thread2
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
@@ -642,7 +643,7 @@ int main(void)
     while (count > -1)
     {
         if (hwaddr_long_str[strlen(hwaddr_long_str)-i]!=':')
-        {
+        { 
             EMCUTE_ID[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
             count--;
         }
@@ -660,7 +661,7 @@ int main(void)
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(0));
+                                      "hdlc", UART_DEV(1));
 
     
     //Creates the thread 2 from the main thread

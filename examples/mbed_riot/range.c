@@ -47,7 +47,7 @@
  */
 
 #include "range.h"
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
@@ -103,6 +103,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
         num_entries++;
     }
 
+
     num_iter = num_entries / DATA_PER_PKT;
     remainder = num_entries % DATA_PER_PKT;
     DEBUG("num_entries = %d\n",num_entries);
@@ -148,6 +149,12 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
                 uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*remainder);
                 
             } 
+            else{
+                DEBUG("Packaging 0\n");
+                hdlc_snd_pkt.length = UART_PKT_HDR_LEN + sizeof(uint8_t);
+                range_hdr.last_pkt = 1;
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t));
+            }
         }
         
         

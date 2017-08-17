@@ -73,7 +73,7 @@
 #define UART_CTL_HSE_VALUE    0
 
 #define ULTRSND_TIMEOUT               99000 //usec
-#define RANGE_TIMEO_USEC              250000
+#define RANGE_TIMEO_USEC              150000
 #define MAIN_QUEUE_SIZE               (8)
 #define TRANSMIT_DELAY                100000 //this is 100ms which is the minimum delay between pings
 
