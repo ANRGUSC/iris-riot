@@ -1,14 +1,13 @@
 /**
- * Copyright (c) 2016, Autonomous Networks Research Group. All rights reserved.
+ * Copyright (c) 2017, Autonomous Networks Research Group. All rights reserved.
  * Developed by:
  * Autonomous Networks Research Group (ANRG)
  * University of Southern California
  * http://anrg.usc.edu/
  *
  * Contributors:
- * Jason A. Tran
  * Pradipta Ghosh
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
@@ -40,86 +39,47 @@
  * @{
  *
  * @file
- * @brief       Full duplex hdlc implementation.
+ * @brief       MQTT Header Files
  *
- * This implementation leverages yahdlc, an open source library. The current 
- * implementation is stop & wait.
- *
- * @author      Jason A. Tran <jasontra@usc.edu>
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * @}
  */
 
-#ifndef HDLC_H_
-#define HDLC_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
+ #ifndef _MQTT_H_
+#define _MQTT_H_
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+#include <stdlib.h>
 
-/* this file does not provide anything on it's own */
+/**
+ * This structure is used for locally storing the mqtt topic to id mapping
+ */
+typedef struct mqtt_topic_entry {
+    struct mqtt_topic_entry *next;
+    uint16_t id;
+    char topic[16];
+} mqtt_topic_entry_t;
 
+/**
+ * @brief      this function registers a new publishing topic id
+ *
+ * @param      entry  This argument contains the mapping of topic name to id
+ */
+void mqtt_topic_register(mqtt_topic_entry_t *entry);
 
-#include "net/netdev.h"
-#include "net/yahdlc.h"
-#include "mutex.h"
-#include "thread.h"
-#include "board.h"
-#include "periph/uart.h"
+/**
+ * @brief      this function unregisters a new publishing topic id
+ *
+ * @param      entry  This argument contains the mapping of topic name to id
+ */
+void mqtt_topic_unregister(mqtt_topic_entry_t *entry);
 
-#ifndef RTRY_TIMEO_USEC
-    #define RTRY_TIMEO_USEC         200000
-#endif /* RTRY_TIMEO_USEC */
+/**
+ * @brief      this function search for a topic id
+ *
+ * @param      topic  the topic name
+ */
+uint16_t mqtt_search_scalar (char topic[]);
 
-#ifndef RETRANSMIT_TIMEO_USEC
-    #define RETRANSMIT_TIMEO_USEC   50000
-#endif /* RETRANSMIT_TIMEO_USEC */
-
-#ifndef HDLC_MAX_PKT_SIZE
-#define HDLC_MAX_PKT_SIZE       64
-#endif
-
-typedef struct {
-    yahdlc_control_t control;
-    char *data;
-    unsigned int length;
-    mutex_t mtx;
-} hdlc_buf_t;
-
-/* struct for other threads to pass to hdlc thread via IPC */
-typedef struct {
-    char *data;
-    unsigned int length;
-} hdlc_pkt_t;
-
-typedef struct hdlc_entry {
-    struct hdlc_entry *next;
-    uint16_t port;
-    kernel_pid_t pid;
-} hdlc_entry_t;
-
-/* HDLC thread messages */
-//Added MQTT_SN
-enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY,
-    MQTT_MBED,
-    MQTT_RSSI,
-    MQTT_SN
-};
-
-void hdlc_register(hdlc_entry_t *entry);
-void hdlc_unregister(hdlc_entry_t *entry);
-int hdlc_pkt_release(hdlc_pkt_t *buf);
-int hdlc_send_pkt(hdlc_pkt_t *pkt);
-kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *name, uart_t dev);
-
-#ifdef __cplusplus
-}
-#endif
-#endif /* HDLC_H */
+#endif /* _MQTT_H_ */

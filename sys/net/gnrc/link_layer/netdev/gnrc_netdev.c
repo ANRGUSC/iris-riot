@@ -26,6 +26,7 @@
 #include "net/gnrc.h"
 #include "net/gnrc/nettype.h"
 #include "net/netdev.h"
+#include "periph/gpio.h"
 
 #include "net/gnrc/netdev.h"
 #include "net/ethernet/hdr.h"

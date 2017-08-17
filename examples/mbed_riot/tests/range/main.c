@@ -86,19 +86,6 @@
 #define MAIN_THR_PORT       1234
 #define RANGE_PORT          5678
 
-#define PKT_FROM_MAIN_THR   0
-
-#define RANGE_TIMEO_USEC    250000
-#define MAIN_QUEUE_SIZE     (8)
-#define TRANSMIT_DELAY      100000 //this is 100ms which is the minimum delay between pings
-
-#define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
-
-#undef BIT
-#define BIT(n) ( 1 << (n) )
-/* Bit field definitions for the UART Line Control Register: */
-#define FEN   BIT( 4) /**< Enable FIFOs */
-#define UART_CTL_HSE_VALUE    0
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
@@ -110,11 +97,6 @@ static char range_stack[THREAD_STACKSIZE_MAIN];
 static const shell_command_t shell_commands[] = {
     { NULL, NULL, NULL }
 };
-
-typedef struct __attribute__((packed)) {
-    uint8_t         last_pkt;      
-    range_data_t    data[DATA_PER_PKT];                  
-} range_hdr_t;
 
 /**
  * Set channel of radio. Works only if one netif exists.
@@ -151,150 +133,17 @@ static uint16_t _get_channel(void)
 }
 
 static void *_range_tx_thread(void *arg){
+    uint16_t old_channel;
     while(1){
+        old_channel = _get_channel();
+        _set_channel(RSSI_LOCALIZATION_CHAN);
+
         range_tx();
+
+        _set_channel(old_channel);
         xtimer_usleep(TRANSMIT_DELAY);
     }
     return 0;
-}
-
-/**
- * @brief      This function gets the ranging data, packages them into packets, and sends them down the hdlc to the mbed
- *
- * @param      params    The ranging parameters
- * @param[in]  hdlc_pid  The hdlc pid
- */
-static void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid){
-    int i = 0;
-    int num_iter = 0;
-    int remainder = 0;
-    int exit = 0;
-    range_hdr_t range_hdr;
-    uart_pkt_hdr_t uart_hdr_tx;
-    int pkt_size = RANGE_DATA_LEN * DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-    char send_data[pkt_size];
-    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
-    hdlc_pkt_t *hdlc_rcv_pkt;
-    range_data_t* time_diffs;
-    msg_t msg_snd, msg_rcv;
-
-    num_iter = params->num_samples / DATA_PER_PKT;
-    remainder = params->num_samples % DATA_PER_PKT;
-    DEBUG("num_samples = %d\n",params->num_samples);
-    DEBUG("num_iter = %d\n",num_iter);
-    DEBUG("remainder = %d\n",remainder);
-    DEBUG("data_per_pkt = %d\n", DATA_PER_PKT);
-
-    range_hdr.last_pkt = 0;
-
-    for(i = 0; i <= num_iter; i++){
-        DEBUG("i= %d\n",i);
-        
-        uart_hdr_tx.src_port = RANGE_PORT;
-        uart_hdr_tx.dst_port = RANGE_PORT;
-        uart_hdr_tx.pkt_type = SOUND_RANGE_DONE;
-        uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr_tx);
-
-        UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-
-        if(i <= num_iter-1){
-
-            hdlc_snd_pkt.length = RANGE_DATA_LEN*DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-
-            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, DATA_PER_PKT);
-            DEBUG("sampling %d\n",DATA_PER_PKT);
-
-            if(i == num_iter-1 && remainder == 0){
-                DEBUG("message complete\n");
-                range_hdr.last_pkt = 1;
-                i++; 
-            }
-            memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * DATA_PER_PKT);
-
-            uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*DATA_PER_PKT);
-            
-        } else{
-            if(remainder != 0){ 
-                hdlc_snd_pkt.length = RANGE_DATA_LEN * remainder + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-
-                time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
-
-                DEBUG("sampling %d\n",remainder);
-                DEBUG("message complete\n");
-    
-                range_hdr.last_pkt = 1;
-                memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * remainder);
-
-                uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*remainder);
-                
-            } 
-        }
-        
-        UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-        UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-        UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-        UART1->cc2538_uart_dr.ECR = 0xFF;
-        UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-        UART1->cc2538_uart_lcrh.LCRH |= FEN;
-        UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-        if(time_diffs == NULL){
-            DEBUG("An error occured while ranging\n");
-            break;
-        }
-            
-            //sending the data back down the hdlc
-
-        DEBUG("Sending data back down hdlc\n");
-        
-
-        msg_snd.type = HDLC_MSG_SND;
-        msg_snd.content.ptr = &hdlc_snd_pkt;
-        if(!msg_try_send(&msg_snd, hdlc_pid)) {
-            /* TODO: use xtimer_msg_receive_timeout() instead */
-            /* this is where applications can decide on a timeout */
-            DEBUG("HDLC busy retrying...\n");
-            msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-            msg_rcv.content.value = RTRY_TIMEO_USEC;
-            msg_send_to_self(&msg_rcv);
-        }
-
-        while(1)
-        {
-            msg_receive(&msg_rcv);
-
-            switch (msg_rcv.type)
-            {
-                case HDLC_RESP_SND_SUCC:
-                    DEBUG("Successfully sent pkt\n");
-                    exit = 1;
-                    break;
-                case HDLC_RESP_RETRY_W_TIMEO:
-                    xtimer_usleep(msg_rcv.content.value);
-                    DEBUG("Range thread: retrying\n");
-                    if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                        DEBUG("Range thread: HDLC msg queue full!\n");
-                        msg_send_to_self(&msg_rcv);
-                    }
-                    break;
-                case HDLC_PKT_RDY:
-                    hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
-                    DEBUG("Range thread: received pkt while trying to send\n");
-                    hdlc_pkt_release(hdlc_rcv_pkt);
-                    break;
-                default:
-                    /* error */
-                    LED3_ON;
-                    break;
-            }
-
-            if(exit) {
-                exit = 0;
-                break;
-            }
-        }
-        free(time_diffs);
-    }
 }
 
 static void *_range_rx_thread(void *arg)
@@ -345,24 +194,6 @@ static void *_range_rx_thread(void *arg)
                 switch (uart_hdr_rx.pkt_type){
                     case SOUND_RANGE_REQ:
 
-                        switch(range_params->ranging_mode){
-                            case ONE_SENSOR_MODE:
-                                DEBUG("******************ONE SENSOR MODE*******************\n");
-                                break;
-                            case TWO_SENSOR_MODE:
-                                DEBUG("******************TWO SENSOR MODE*******************\n");
-                                break;
-                            case XOR_SENSOR_MODE:
-                                DEBUG("******************XOR SENSOR MODE*******************\n");
-                                break;
-                            case OMNI_SENSOR_MODE:
-                                DEBUG("******************OMNI SENSOR MODE******************\n");
-                                break;
-                        }
-
-                        old_channel = _get_channel();
-                        _set_channel(RSSI_LOCALIZATION_CHAN);
-
                         range_params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
 
                         if(range_params->ranging_mode!= ONE_SENSOR_MODE && 
@@ -372,10 +203,25 @@ static void *_range_rx_thread(void *arg)
                             DEBUG("Recieved an invalid ranging mode\n");
                             break;
                         } else{
-
-                            range_and_send(range_params, hdlc_pid);
+                            switch(range_params->ranging_mode){
+                                case ONE_SENSOR_MODE:
+                                    DEBUG("******************ONE SENSOR MODE*******************\n");
+                                    break;
+                                case TWO_SENSOR_MODE:
+                                    DEBUG("******************TWO SENSOR MODE*******************\n");
+                                    break;
+                                case XOR_SENSOR_MODE:
+                                    DEBUG("******************XOR SENSOR MODE*******************\n");
+                                    break;
+                                case OMNI_SENSOR_MODE:
+                                    DEBUG("******************OMNI SENSOR MODE******************\n");
+                                    break;
+                            }
+                            old_channel = _get_channel();
+                            _set_channel(RSSI_LOCALIZATION_CHAN);
+                            range_and_send(range_params, hdlc_pid, RANGE_PORT, RANGE_PORT);
+                            _set_channel(old_channel);
                         }
-                        _set_channel(old_channel);
                         
                         break;
                     default:
