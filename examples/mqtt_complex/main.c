@@ -98,7 +98,7 @@ static char thread2_stack[THREAD_STACKSIZE_MAIN];//16384
 #define NUMOFSUBS           (16U)  //Define the maximum number of subscriptions
 #define TOPIC_MAXLEN        (16U)
 
-static char EMCUTE_ID[9];
+static char EMCUTE_ID[8];
 static char stack[THREAD_STACKSIZE_DEFAULT];
 static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];

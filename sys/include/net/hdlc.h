@@ -122,4 +122,4 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
 #ifdef __cplusplus
 }
 #endif
-#endif /* MUTEX_H_ */
+#endif /* HDLC_H */

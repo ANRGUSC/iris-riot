@@ -15,7 +15,6 @@ BOARD_INSUFFICIENT_MEMORY := arduino-duemilanove arduino-mega2560 arduino-uno \
                              stm32f0discovery telosb waspmote-pro weio wsn430-v1_3b \
                              wsn430-v1_4 z1
 
-
 WERROR = 0
 
 # Include packages that pull up and auto-init the link layer.
@@ -39,11 +38,7 @@ USEMODULE += csma_sender
 # which is not needed in a production environment but helps in the
 # development process:
 CFLAGS += -DDEVELHELP
-<<<<<<< cc300d3140085e7b7b4945b20d6867b131d3544a
 DEFAULT_CHANNEL ?= 19
-=======
-DEFAULT_CHANNEL ?= 25
->>>>>>> modified code to be more modularized
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 # Comment this out to join RPL DODAGs even if DIOs do not contain
