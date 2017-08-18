@@ -434,7 +434,7 @@ static void *_mqtt_thread(void *arg)
                     DEBUG("mqtt_control_thread: MQTT GO message has been sent\n");
             }
 
-            DEBUG("************************waiting for a message\n");
+            DEBUG("mqtt_control_thread: waiting for a message\n");
 
             //pub to init_info
             if (sent_hwaddr == 1){
@@ -444,7 +444,7 @@ static void *_mqtt_thread(void *arg)
                 msg_receive(&msg_rcv);
             }
 
-            DEBUG("************************got a message\n");
+            DEBUG("mqtt_control_thread: got a message\n");
             
             switch (msg_rcv.type)
             {

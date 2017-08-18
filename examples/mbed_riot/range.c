@@ -59,6 +59,7 @@
 //#define TX_PIN                      GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3  //for regular openmote
 
 static range_data_t* time_diffs;
+static num_entries;
 
 static gpio_rx_line_t gpio_lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
 
@@ -75,7 +76,6 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     int i = 0;
     int num_iter = 0;
     int remainder = 0;
-    int num_entries = 0;
     int exit = 0;
     range_hdr_t range_hdr;
     uart_pkt_hdr_t uart_hdr_tx;
@@ -83,7 +83,6 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     char send_data[pkt_size];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
     hdlc_pkt_t *hdlc_rcv_pkt;
-    range_data_t* time_diffs;
     range_data_t* ptr;
     msg_t msg_snd, msg_rcv;
 
@@ -96,13 +95,6 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
     UART1->cc2538_uart_lcrh.LCRH |= FEN;
     UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-    ptr = time_diffs;
-    while(ptr != NULL){
-        ptr++;
-        num_entries++;
-    }
-
 
     num_iter = num_entries / DATA_PER_PKT;
     remainder = num_entries % DATA_PER_PKT;
@@ -227,8 +219,9 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
     int i = 0;
     int exit = 0;
     int8_t first_node = -1;
+    num_entries = 0;
 
-    if(node_id = -1){
+    if(node_id == -1){
         DEBUG("Discovery mode\n");
     }
 
@@ -258,12 +251,13 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
         if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
             DEBUG("rx_loop timed out\n");
             range_rx_stop();
-            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED};
+            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, -1};
             return time_diffs;
         }
 
         switch(msg.type){
             case RF_RCVD:
+                DEBUG("RF ping rcvd\n");
                 if(first_node == msg.content.value){
                     DEBUG("TDMA has completed full loop\n");
                     range_rx_stop();
@@ -272,21 +266,15 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
                 }
                 if(first_node == -1){
                     first_node = msg.content.value;
+                    DEBUG("First node is %d\n", first_node);
                 }
                 break;
             case ULTRSND_RCVD:
-                if(node_id == -1){
-                    time_diffs[i] = *(range_data_t*) msg.content.ptr;
-                    i++;
-                    if(i > MAX_NUM_ANCHORS){
-                        DEBUG("Too many anchors detected\n");
-                        exit = 1;
-                    }
-                }
-                else{
-                    time_diffs[i] = *(range_data_t*) msg.content.ptr;
-                    exit = 1;
-                }
+                DEBUG("Ultrasound ping rcvd\n");
+                
+                time_diffs[i] = *(range_data_t*) msg.content.ptr;
+                num_entries++;
+
                 DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
                 DEBUG("range: Node = %d\n", time_diffs[i].node_id);
                 switch (range_mode){
@@ -307,6 +295,18 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
                     case OMNI_SENSOR_MODE:
                         break;
                 }
+                
+                if(node_id == -1){
+                    i++;
+                    if(i > MAX_NUM_ANCHORS){
+                        DEBUG("Too many anchors detected\n");
+                        exit = 1;
+                    }
+                }
+                else{
+                    exit = 1;
+                }
+               
                 break;
             default:
                 break;

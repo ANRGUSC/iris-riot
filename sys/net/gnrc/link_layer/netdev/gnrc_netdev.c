@@ -48,7 +48,7 @@ static void _sound_ranging(int8_t node_id);
 #include "xtimer.h"
 static int sample1;
 static int sample2;
-static uint8_t _tx_node_id      = 0;
+static int8_t _tx_node_id      = 0;
 static gpio_rx_line_t rx_line;
 static int range_sys_flag       = 0;
 int ranging_on           = 0;
@@ -57,7 +57,7 @@ static int ranging_pid;
 
 static uint32_t last            = 0;
 static uint32_t last2           = 0;
-static range_data_t time_diffs;
+static range_data_t time_diffs = {0,0,0,0};
 int ranging                     = 0;
 
 /**
@@ -94,8 +94,8 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                             ranging_complete.type = RF_RCVD;
                             ranging_complete.content.value = ((uint8_t *) pkt->data)[2];
                             msg_send(&ranging_complete,ranging_pid);
-                            if(_tx_node_id == -1 || _tx_node_id == ((uint8_t *) pkt->data)[2]){
-                                _sound_ranging(((uint8_t *) pkt->data)[2]);
+                            if((_tx_node_id == -1) || (_tx_node_id == ((uint8_t *) pkt->data)[2])){
+                                _sound_ranging(((int8_t *) pkt->data)[2]);
                             }
                         }
                     }
@@ -124,7 +124,6 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 static void _sound_ranging(int8_t node_id)
 {
     //unsigned old_state = irq_disable();
-
     int first = 2;
     int second = 2;
     ranging = 1;
@@ -339,11 +338,6 @@ void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode)
     gpio_init(rx_line.one_pin,GPIO_IN);
     gpio_init(rx_line.two_pin,GPIO_IN);
     gpio_init(rx_line.logic_pin,GPIO_IN);
-
-    time_diffs.tdoa = 0;
-    time_diffs.orient_diff = 0;
-    time_diffs.status = 0;
-    time_diffs.node_id = 0;
 
     DEBUG("ranging initialized!\n");
 }
