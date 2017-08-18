@@ -42,8 +42,9 @@ USEMODULE += shell_commands
 # USEMODULE += netstats_ipv6
 
 # Set a custom 802.15.4 channel if needed
-DEFAULT_CHANNEL ?= 25
-CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
+
+DEFAULT_CHANNEL ?= 26
+CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 
 # Comment this out to disable code in RIOT that does safety checking

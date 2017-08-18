@@ -98,10 +98,10 @@ static char thread2_stack[THREAD_STACKSIZE_MAIN];//16384
 #define NUMOFSUBS           (16U)  //Define the maximum number of subscriptions
 #define TOPIC_MAXLEN        (16U)
 
-static char EMCUTE_ID[8];
+static char emcute_id[8];
 static char stack[THREAD_STACKSIZE_DEFAULT];
-static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];
+static emcute_sub_t subscriptions[NUMOFSUBS];
 static kernel_pid_t thread2_pid;
 static bool mbed_initialization_flag = 0;
 
@@ -115,7 +115,7 @@ static void *emcute_thread(void *arg)
 {
     DEBUG("Starting  MQTT thread \n ");
     thread2_pid = (kernel_pid_t)arg;
-    emcute_run(EMCUTE_PORT, EMCUTE_ID);
+    emcute_run(EMCUTE_PORT, emcute_id);
     return NULL;    /* should never be reached */
 }
 
@@ -126,12 +126,11 @@ static void *emcute_thread(void *arg)
  * @param      data      The data
  * @param[in]  data_len  The data length0
  */
-static void on_pub_mbed(const emcute_topic_t *topic, void *data, size_t data_len)
+static void on_mqtt_data_recv(const emcute_topic_t *topic, void *data, size_t data_len)
 {
-    int         topic_len;
-    topic_len = strlen(topic->name);
+    int topic_len = strlen(topic->name);
 
-    msg_t       msg_to_mqtt_control_thread;
+    msg_t msg_to_mqtt_control_thread= {};
 
     memcpy((void *)&send_data, data, data_len);
     send_data[data_len]='\0';
@@ -142,15 +141,16 @@ static void on_pub_mbed(const emcute_topic_t *topic, void *data, size_t data_len
 
     strncpy(mqtt_snd_pkt.topic, send_topic, topic_len);
     strncpy(mqtt_snd_pkt.data, send_data, data_len);
+
     msg_to_mqtt_control_thread.type         = MQTT_MBED;    
     mqtt_snd_pkt.topic[topic_len]           = '\0';
     mqtt_snd_pkt.data[data_len]             = '\0';
     msg_to_mqtt_control_thread.content.ptr  = &mqtt_snd_pkt;    
 
     if (msg_try_send(&msg_to_mqtt_control_thread, thread2_pid))
-        DEBUG("on_pub_mbed : Successfully sent to the mqtt control thread\n");  
+        DEBUG("on_mqtt_data_recv : Successfully sent to the mqtt control thread, topic %s\n",topic->name);  
     else
-        DEBUG("on_pub_mbed : Failed to send to to the mqtt control thread\n");
+        DEBUG("on_mqtt_data_recv : Failed to send to to the mqtt control thread, topic %s\n",topic->name);
 }
     
 /**
@@ -231,7 +231,7 @@ static int auto_sub(char* sub_topic)
 
     /* cb is a function used in the emcute_sub_t that reads the data
     @ref emcute.h line 216   */
-    subscriptions[i].cb = on_pub_mbed;  // This is the call back function upon receiving some data
+    subscriptions[i].cb = on_mqtt_data_recv;  // This is the call back function upon receiving some data
     strcpy(topics[i], sub_topic);
     subscriptions[i].topic.name = topics[i];
     
@@ -324,7 +324,7 @@ static void *_mqtt_thread(void *arg)
     mqtt_go = 1;
 
     //automatically connects to the topic init_info and emcute id
-    auto_sub(EMCUTE_ID);
+    auto_sub(emcute_id);
     auto_sub(TOPIC_CONT);
     //creating two message structs 
     msg_t msg_snd, msg_rcv;
@@ -352,8 +352,8 @@ static void *_mqtt_thread(void *arg)
             if (sent_hwaddr == 1)
             {
                 pub_server[0] = '0';//HWADDR
-                for(int i = 0; i < sizeof(EMCUTE_ID);i ++){
-                    pub_server[i + 1] = EMCUTE_ID[i];
+                for(int i = 0; i < sizeof(emcute_id);i ++){
+                    pub_server[i + 1] = emcute_id[i];
                 }
                 auto_pub(TOPIC, pub_server);
             }
@@ -544,13 +544,13 @@ int main(void)
     {
         if (hwaddr_long_str[strlen(hwaddr_long_str)-i]!=':')
         {
-            EMCUTE_ID[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
+            emcute_id[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
             count--;
         }
         i++;
     }
-    EMCUTE_ID[8] = '\0';
-    DEBUG("The Hardware address is %s \n", EMCUTE_ID);
+    emcute_id[8] = '\0';
+    DEBUG("The Hardware address is %s \n", emcute_id);
 
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */
