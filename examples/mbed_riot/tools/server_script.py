@@ -17,6 +17,23 @@ server_mqtt = {'0': 'ACK', '1': 'Do something'}
 hwaddr=[]
 client_ID=[]
 
+def parse_msg(msg):
+    temp = []
+    nodedict = {}
+    i = 0
+    splitmsg = msg.split(";")
+    for data in splitmsg:
+        data = data.strip();
+        if data != "":
+            temp = data.split(",")
+            if int(temp[0]) != 0:
+                nodedict[int(temp[1])]=int(temp[0])
+            else:
+                print("No data available; ping missed")
+        i = i+1
+
+    return nodedict
+
 #Creating the callback functions 
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -106,12 +123,8 @@ def on_message(client, userdata, msg):
             #when a message is received, the message is published to another topic
             client.publish(topic_pub,server_mqtt[message[0]])   
     elif msg.topic==range_sub:
-        info = message.split(",")
-        dist = float(info[0])
-        if(dist == -1):
-            print("Data is unavailable")
-        else:
-            print("mbed is "+info[0] + " from node "+info[1])
+        data = parse_msg(message);
+        print(data)
       
 def on_subscribe(mosq, obj, mid, granted_qos):
     print("Subscribed to all topics ")

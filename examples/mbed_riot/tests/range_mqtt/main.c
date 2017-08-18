@@ -73,7 +73,7 @@
 #include "dac.h"
 #include "main-conf.h"
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 //setting the priority of the hdlc and thread2
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
@@ -661,7 +661,7 @@ int main(void)
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
+                                      "hdlc", UART_DEV(0));
 
     
     //Creates the thread 2 from the main thread
