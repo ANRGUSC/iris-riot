@@ -90,13 +90,15 @@ static char thread2_stack[THREAD_STACKSIZE_MAIN];//16384
 #define MQTT_SN_SERVER      ("fd00:dead:beef::1")
 #define MQTT_SN_PORT        ("8888")
 #define TOPIC               ("init_info")
+#define TOPIC_CONT          ("common")
+
 
 #define EMCUTE_PRIO         (THREAD_PRIORITY_MAIN - 1)
 
 #define NUMOFSUBS           (16U)  //Define the maximum number of subscriptions
 #define TOPIC_MAXLEN        (16U)
 
-static char emcute_id[8];
+static char EMCUTE_ID[8];
 static char stack[THREAD_STACKSIZE_DEFAULT];
 static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];
@@ -113,7 +115,7 @@ static void *emcute_thread(void *arg)
 {
     DEBUG("Starting  MQTT thread \n ");
     thread2_pid = (kernel_pid_t)arg;
-    emcute_run(EMCUTE_PORT, emcute_id);
+    emcute_run(EMCUTE_PORT, EMCUTE_ID);
     return NULL;    /* should never be reached */
 }
 
@@ -322,8 +324,8 @@ static void *_mqtt_thread(void *arg)
     mqtt_go = 1;
 
     //automatically connects to the topic init_info and emcute id
-    auto_sub(emcute_id);
-
+    auto_sub(EMCUTE_ID);
+    auto_sub(TOPIC_CONT);
     //creating two message structs 
     msg_t msg_snd, msg_rcv;
 
@@ -350,8 +352,8 @@ static void *_mqtt_thread(void *arg)
             if (sent_hwaddr == 1)
             {
                 pub_server[0] = '0';//HWADDR
-                for(int i = 0; i < sizeof(emcute_id);i ++){
-                    pub_server[i + 1] = emcute_id[i];
+                for(int i = 0; i < sizeof(EMCUTE_ID);i ++){
+                    pub_server[i + 1] = EMCUTE_ID[i];
                 }
                 auto_pub(TOPIC, pub_server);
             }
@@ -542,13 +544,13 @@ int main(void)
     {
         if (hwaddr_long_str[strlen(hwaddr_long_str)-i]!=':')
         {
-            emcute_id[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
+            EMCUTE_ID[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
             count--;
         }
         i++;
     }
-    emcute_id[8] = '\0';
-    DEBUG("The Hardware address is %s \n", emcute_id);
+    EMCUTE_ID[8] = '\0';
+    DEBUG("The Hardware address is %s \n", EMCUTE_ID);
 
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */

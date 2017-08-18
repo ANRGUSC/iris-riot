@@ -407,7 +407,7 @@ static void *_mqtt_thread(void *arg)
         { 
             if (sent_hwaddr == 1)
             {
-                pub_server[0] = HW_ADDR + '0';//HWADDR
+                pub_server[0] = '0';//HWADDR
                 for(int i = 0; i < sizeof(EMCUTE_ID);i ++){
                     pub_server[i + 1] = EMCUTE_ID[i];
                 }

@@ -2,8 +2,7 @@
 BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
-APP_SELECT ?= mqtt_rssi
-
+APP_SELECT ?= mqtt_path_cpy
 PROGRAMMER ?= jlink
 
 USEMODULE += xtimer
@@ -44,8 +43,7 @@ USEMODULE += shell_commands
 # Set a custom 802.15.4 channel if needed
 DEFAULT_CHANNEL ?= 25
 CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
-CFLAGS += -DRETRANSMIT_TIMEO_USEC=100000
-CFLAGS += -DHDLC_MAX_PKT_SIZE=32
+
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
