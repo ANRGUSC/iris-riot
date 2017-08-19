@@ -41,7 +41,7 @@
  * @{
  *
  * @file
- * @brief       Full-duplex MQTT test
+ * @brief       Full-duplex MQTT test for ranging and localization
  *
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
