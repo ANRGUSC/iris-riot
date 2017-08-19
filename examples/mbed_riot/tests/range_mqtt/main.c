@@ -662,7 +662,6 @@ int main(void)
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(0));
-
     
     //Creates the thread 2 from the main thread
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
