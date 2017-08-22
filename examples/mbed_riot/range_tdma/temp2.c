@@ -51,7 +51,6 @@
 #define MAX_ADDR_LEN        (8U)
 #define TX_PIN              GPIO_PIN(3, 2)
 #define MAIN_QUEUE_SIZE     (8)
-#define MAX_TX_POWER         7
 
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
@@ -70,7 +69,7 @@ int main(void)
     uint8_t anchor_node_id = 1;
     // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
     uint8_t buf[3]; // buf is size 6 in master
-    uint16_t tdma_slot_time_msec = 0;
+    uint16_t tdma_slot_time_msec = 100;
     uint8_t total_num_anchors = 1;
     gnrc_netreg_entry_t tdma_slave_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
     uint16_t channel = TDMA_BOOTSTRAP_CHANNEL;
@@ -148,7 +147,7 @@ int main(void)
     //------------------------------------------------------------------------//
     DEBUG("Done.\n");
 
-    DEBUG("Waiting for ID packet...\n");
+    DEBUG("Waiting for ID packet...");
     // NODE A waits for ID packet from LEADER.
     //------------------------------------------------------------------------//
     wait_for_id = true;
@@ -159,22 +158,23 @@ int main(void)
         {
             // NODE receives ID packet from LEADER.
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                DEBUG("Received RCV pkt.\n");
+                // DEBUG("Received RCV pkt.\n");
                 recv_pkt = msg.content.ptr;
 
                 /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
                 if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
                     ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
                 {
-                    DEBUG("Was ID packet.\n");
+                    // DEBUG("Was ID packet.\n");
+                    DEBUG("Done.\n");
                     // NODE records its ranking.
                     anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
                     DEBUG("Rank: %d\n", anchor_node_id);
                     // NODE syncs with the LEADER.
-                    tdma_slot_time_msec &= 0x00;
-                    tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
-                    tdma_slot_time_msec = tdma_slot_time_msec << 8;
-                    tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
+                    // tdma_slot_time_msec &= 0x00;
+                    // tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
+                    // tdma_slot_time_msec = tdma_slot_time_msec << 8;
+                    // tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
 
                     // NODE records total number of nodes (useful for NODE 1).
                     total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
@@ -201,23 +201,36 @@ int main(void)
     //------------------------------------------------------------------------//
 
 // change channel to 26 for the receiving node.
-        channel = 26;
+        channel = 15;
         gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
 
         // initializing the ultrasonic speaker
         range_tx_init(TX_PIN);
-
+//*********************************************************************************FIX ME***************
+int x = 0;
 // MAIN LOOP
     while (true)
     {
+        DEBUG("Run: %d\n", x);
+        x++;
         DEBUG("Waiting to go.\n");
         // NODE A received ID packet from LEADER and is now waiting to go.
         //--------------------------------------------------------------------//
-        go_time.ticks32 = xtimer_now().ticks32 + anchor_node_id * tdma_slot_time_msec;
-        // DEBUG("Go time: %u\n", go_time.ticks32);
-        while (xtimer_now().ticks32 < go_time.ticks32)
+        go_time.ticks32 = xtimer_now().ticks32 + (anchor_node_id * tdma_slot_time_msec * 1000);
+        DEBUG("entering while\n");
+        while (true)
         {
+            DEBUG("checking go time\n");
+
+            if ( (xtimer_now().ticks32 >= go_time.ticks32) )
+            {
+                DEBUG("Done waiting (break).\n");
+                break;
+            }
+            DEBUG("Wait 9.993 sec for some reason...");
             msg_receive(&msg); // make this a thread? or make the timer a thread?
+            DEBUG("done.\n");
+            DEBUG("*************received msg*** *********\n");
             switch (msg.type)
             {
                 case GNRC_NETAPI_MSG_TYPE_RCV:
@@ -227,35 +240,38 @@ int main(void)
                          ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
                     {
                         DEBUG("Another anchor node ranging packet.\n");
-                        incoming_rank = ((uint8_t *)recv_pkt->data)[1];
+                        incoming_rank = ((uint8_t *)recv_pkt->data)[2];
                         
                         DEBUG("Incoming rank: %d\n", incoming_rank);
 
                         // NODE's rank is 1 and listening for the last NODE.
                         if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1) )
                         {
-                            DEBUG("last rank to first.\n");
+                            DEBUG("Wraparound\n");
                             go_time.ticks32 = xtimer_now().ticks32 + (uint32_t)tdma_slot_time_msec;
                         }
                         // NODE's rank is higher than the incoming NODE's transmission.
                         if (incoming_rank < anchor_node_id)
                         {
-                            DEBUG("lower rank to higher.\n");
+                            DEBUG("Progression\n");
                             id_delay_time = (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
                             go_time.ticks32 = xtimer_now().ticks32 + id_delay_time;
                         }
                     }
                     gnrc_pktbuf_release(recv_pkt);
+                    DEBUG("************Release***********\n");
                     break;
                 case GNRC_NETAPI_MSG_TYPE_SND:
                     /* This thread will get all send l2 send requests, even if it's
                     coming from this thread. Discard it */
                     DEBUG("Received SND pkt (2).\n");
                     gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                    DEBUG("************Release***********\n");
                     break;
                 default:
                     DEBUG("Not a ranging packet.\n");
                     gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                    DEBUG("************Release***********\n");
                     break;
             }
         }
@@ -263,9 +279,6 @@ int main(void)
         DEBUG("Waited to go.\n");
 
         DEBUG("Sending signal...\n");
-        DEBUG("Anchor node id: %d\n", anchor_node_id);
-        DEBUG("tdma_slot time msec: %d\n", tdma_slot_time_msec);
-        DEBUG("total num anchors: %d\n", total_num_anchors);
         // ACUTALLY SENDING THE SIGNAL GOD FINALLY
         // TODO: Modify to not block the interrupts
         //--------------------------------------------------------------------//
@@ -306,7 +319,8 @@ int main(void)
             return 1;
         }   
         DEBUG("RF and ultrasound pings sent\n");
-        xtimer_usleep(100000); // Delay window of 100 ms
+        // xtimer_usleep(1000000); // Delay window of 100 ms
+        xtimer_sleep(1); // Delay window of 100 ms
         /*
   [Node 1 RF]          [Node 1 ping]                           [Node 1 ping end]
         |--------------------|----------------------------------------|----------...
@@ -315,6 +329,7 @@ int main(void)
         */
         //--------------------------------------------------------------------//
     }
+//**************************************************************************************************
     range_tx_off(); //turn off just in case
     //end of while loop, code should never reach here, etc.
     return 0;
