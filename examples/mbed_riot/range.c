@@ -47,32 +47,23 @@
  */
 
 #include "range.h"
-
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
-#define MAXSAMPLES_ONE_PIN            18000
-#define MAXSAMPLES_TWO_PIN            18000
-
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
 #define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
-
 #define RX_LOGIC_PIN                  GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
-
 #define TX_PIN                        GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1 //for usb openmote
+
+#define MAX_NUM_ANCHORS               10
 //#define TX_PIN                      GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3  //for regular openmote
 
 static range_data_t* time_diffs;
+static num_entries;
 
 static gpio_rx_line_t gpio_lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
 
 
-/**
- * @brief      This function gets the ranging data, packages them into packets, and sends them down the hdlc to the mbed
- *
- * @param      params    The ranging parameters
- * @param[in]  hdlc_pid  The hdlc pid
- */
 void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port){
     DEBUG("Starting to range and send function\n");
     DEBUG("src_port: %d, dst_port: %d\n", src_port, mbed_port);
@@ -86,12 +77,22 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     char send_data[pkt_size];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = pkt_size};
     hdlc_pkt_t *hdlc_rcv_pkt;
-    range_data_t* time_diffs;
+    range_data_t* ptr;
     msg_t msg_snd, msg_rcv;
 
-    num_iter = params->num_samples / DATA_PER_PKT;
-    remainder = params->num_samples % DATA_PER_PKT;
-    DEBUG("num_samples = %d\n",params->num_samples);
+    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
+    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, params->node_id);
+    UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+    UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+    UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+    UART1->cc2538_uart_dr.ECR = 0xFF;
+    UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+    UART1->cc2538_uart_lcrh.LCRH |= FEN;
+    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+
+    num_iter = num_entries / DATA_PER_PKT;
+    remainder = num_entries % DATA_PER_PKT;
+    DEBUG("num_entries = %d\n",num_entries);
     DEBUG("num_iter = %d\n",num_iter);
     DEBUG("remainder = %d\n",remainder);
     DEBUG("data_per_pkt = %d\n", DATA_PER_PKT);
@@ -106,48 +107,43 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
         uart_hdr_tx.pkt_type = SOUND_RANGE_DONE;
         uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr_tx);
 
-        UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-
         if(i <= num_iter-1){
 
-            hdlc_snd_pkt.length = RANGE_DATA_LEN*DATA_PER_PKT + sizeof(uint8_t) + UART_PKT_HDR_LEN;
-
-            time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, DATA_PER_PKT);
-            DEBUG("sampling %d\n",DATA_PER_PKT);
+            hdlc_snd_pkt.length = UART_PKT_HDR_LEN + sizeof(uint8_t) + RANGE_DATA_LEN * DATA_PER_PKT;
+            
+            DEBUG("Packaging %d\n",DATA_PER_PKT);
 
             if(i == num_iter-1 && remainder == 0){
                 DEBUG("message complete\n");
                 range_hdr.last_pkt = 1;
                 i++; 
             }
-            memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * DATA_PER_PKT);
+            memcpy(&range_hdr.data, time_diffs + (i * DATA_PER_PKT) , RANGE_DATA_LEN * DATA_PER_PKT);
 
             uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*DATA_PER_PKT);
             
         } else{
             if(remainder != 0){ 
-                hdlc_snd_pkt.length = RANGE_DATA_LEN * remainder + sizeof(uint8_t) + UART_PKT_HDR_LEN;
+                hdlc_snd_pkt.length = UART_PKT_HDR_LEN + sizeof(uint8_t) + RANGE_DATA_LEN * remainder ;
 
-                time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, remainder);
-
-                DEBUG("sampling %d\n",remainder);
+                DEBUG("Packaging %d\n",remainder);
                 DEBUG("message complete\n");
     
                 range_hdr.last_pkt = 1;
-                memcpy(&range_hdr.data, time_diffs, RANGE_DATA_LEN * remainder);
+                memcpy(&range_hdr.data, time_diffs + (i * DATA_PER_PKT), RANGE_DATA_LEN * remainder);
 
                 uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t) + RANGE_DATA_LEN*remainder);
                 
             } 
+            else{
+                DEBUG("Packaging 0\n");
+                hdlc_snd_pkt.length = UART_PKT_HDR_LEN + sizeof(uint8_t);
+                range_hdr.last_pkt = 1;
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t));
+            }
         }
         
-        UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-        UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-        UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-        UART1->cc2538_uart_dr.ECR = 0xFF;
-        UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-        UART1->cc2538_uart_lcrh.LCRH |= FEN;
-        UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+        
 
         if(time_diffs == NULL){
             DEBUG("An error occured while ranging\n");
@@ -204,20 +200,21 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
                 break;
             }
         }
-        free(time_diffs);
     }
+    free(time_diffs);
     DEBUG("Exiting range_and_send\n");
 }
 
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples){ 
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id){ 
     // Check correct argument usage.
     uint8_t mode = range_mode;
-    uint32_t maxsamps; //number of iterations in the gpio polling loop before calling it a timeout
-    
-    if(mode == TWO_SENSOR_MODE){
-        maxsamps = MAXSAMPLES_TWO_PIN;
-    } else {
-        maxsamps = MAXSAMPLES_ONE_PIN;
+    int i = 0;
+    int exit = 0;
+    int8_t first_node = -1;
+    num_entries = 0;
+
+    if(node_id == -1){
+        DEBUG("Discovery mode\n");
     }
 
     if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
@@ -227,10 +224,10 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     // clearing output for the ultrasonic sensor
     gpio_clear(TX_PIN);
 
-    time_diffs = malloc(sizeof(range_data_t)*num_samples);
+    range_data_t* time_diffs=malloc(sizeof(range_data_t)*(MAX_NUM_ANCHORS+1));
+    memset(time_diffs, 0, sizeof(range_data_t)*(MAX_NUM_ANCHORS+1));
     
-    uint32_t timeout = timeout_usec;
-    if(timeout <= 0){
+    if(timeout_usec <= 0){
         DEBUG("timeout must be greater than 0");
         return NULL;
     }
@@ -241,59 +238,71 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_s
     /* setup the message queue */
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
-
-    int i;
-    for(i = 0; i < num_samples; i++){
-
-
-        range_rx_init(TX_NODE_ID, thread_getpid(), gpio_lines, maxsamps, mode);
-
-
-        if(xtimer_msg_receive_timeout(&msg,timeout)<0){
-            DEBUG("RF ping missed\n");
+    while(exit == 0){
+        range_rx_init(node_id, thread_getpid(), gpio_lines, mode);
+        if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
+            DEBUG("rx_loop timed out\n");
             range_rx_stop();
-            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED};
-            continue;
+            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, -1};
+            return time_diffs;
         }
 
-        if(msg.type == RF_RCVD){
-            if(xtimer_msg_receive_timeout(&msg, ULTRSND_TIMEOUT) < 0){
-                DEBUG("Ultrsnd ping missed\n");
-                range_rx_stop();
-                time_diffs[i] = (range_data_t) {0, 0, ULTRSND_MISSED};
-                continue;
-            }
-            if(msg.type == ULTRSND_RCVD){
-                time_diffs[i] = *(range_data_t*) msg.content.ptr;
-            } else{
-                range_rx_stop();
-                i--;
-                continue;
-            }
-
-        }
-
-        DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
-        switch (range_mode){
-            case ONE_SENSOR_MODE:
-                break;
-
-            case TWO_SENSOR_MODE:
-                if(time_diffs[i].status > 2){
-                    DEBUG("range: Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs[i].status);
-                } else{
-                    DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+        switch(msg.type){
+            case RF_RCVD:
+                DEBUG("RF ping rcvd\n");
+                if(first_node == msg.content.value){
+                    DEBUG("TDMA has completed full loop\n");
+                    range_rx_stop();
+                    exit = 1;
+                    break;
+                }
+                if(first_node == -1){
+                    first_node = msg.content.value;
+                    DEBUG("First node is %d\n", first_node);
                 }
                 break;
+            case ULTRSND_RCVD:
+                DEBUG("Ultrasound ping rcvd\n");
+                
+                time_diffs[i] = *(range_data_t*) msg.content.ptr;
+                num_entries++;
 
-            case XOR_SENSOR_MODE:
-                DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                DEBUG("range: TDoA = %d\n", time_diffs[i].tdoa);
+                DEBUG("range: Node = %d\n", time_diffs[i].node_id);
+                switch (range_mode){
+                    case ONE_SENSOR_MODE:
+                        break;
+
+                    case TWO_SENSOR_MODE:
+                        if(time_diffs[i].status > 2){
+                            DEBUG("range: Missed pin %d\n", MISSED_PIN_UNMASK - time_diffs[i].status);
+                        } else{
+                            DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                        }
+                        break;
+
+                    case XOR_SENSOR_MODE:
+                        DEBUG("range: OD = %d\n", time_diffs[i].orient_diff);
+                        break;
+                    case OMNI_SENSOR_MODE:
+                        break;
+                }
+                
+                if(node_id == -1){
+                    i++;
+                    if(i > MAX_NUM_ANCHORS){
+                        DEBUG("Too many anchors detected\n");
+                        exit = 1;
+                    }
+                }
+                else{
+                    exit = 1;
+                }
+               
                 break;
-            case OMNI_SENSOR_MODE:
+            default:
                 break;
         }
-
-
     }
 
     return time_diffs;

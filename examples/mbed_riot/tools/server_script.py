@@ -17,6 +17,23 @@ server_mqtt = {'0': 'ACK', '1': 'Do something'}
 hwaddr=[]
 client_ID=[]
 
+def parse_msg(msg):
+    temp = []
+    nodedict = {}
+    i = 0
+    splitmsg = msg.split(";")
+    for data in splitmsg:
+        data = data.strip();
+        if data != "":
+            temp = data.split(",")
+            if int(temp[0]) != 0:
+                nodedict[int(temp[1])]=int(temp[0])
+            else:
+                print("No data available; ping missed")
+        i = i+1
+
+    return nodedict
+
 #Creating the callback functions 
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -49,7 +66,7 @@ def usr_input(client):
             usrmessage=usrmessage+raw_input("Enter the topic you want the openmote to sub to\t")
         elif c==2:
             print("This will pub a normal message to the other message")
-            clientnum = int(raw_input("Enter the Client ID of the openmote that will send the pub message\t"))
+            clientnum = int(raw_input("Enter the number of the openmote that will send the pub message\t"))
             usrtopic=hwaddr[clientnum]
             usrmessage="2"
             temp=raw_input("Enter the topic that the openmote will pub to\t")
@@ -57,10 +74,15 @@ def usr_input(client):
             message_to_be_pubbed=raw_input("Enter the message that you want the openmote to publish\t")
             usrmessage=usrmessage+message_to_be_pubbed
         elif c==3:
-            clientnum = int(raw_input("Enter the number of the openmote you want to send a normal message to\t"))
+            clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
+            node_id = int(raw_input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
+            node_id += ord('0')
+            print("Select ranging mode:")
+            ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
+            ranging_mode += 96 #this is the offset for ranging_mode values
             usrtopic=hwaddr[clientnum]
             usrmessage="0"
-            usrmessage+=range_req_msg
+            usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
         elif c==4:
             print("***********************************")
             print("Clients:")
@@ -104,12 +126,8 @@ def on_message(client, userdata, msg):
             #when a message is received, the message is published to another topic
             client.publish(topic_pub,server_mqtt[message[0]])   
     elif msg.topic==range_sub:
-        info = message.split(",")
-        dist = float(info[0])
-        if(dist == -1):
-            print("Data is unavailable")
-        else:
-            print("mbed is "+info[0] + " from node "+info[1])
+        data = parse_msg(message);
+        print(data)
       
 def on_subscribe(mosq, obj, mid, granted_qos):
     print("Subscribed to all topics ")

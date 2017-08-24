@@ -7,6 +7,7 @@
  *
  * Contributors:
  * Pradipta Ghosh
+ * Yutong Gu
  * Daniel Dsouza
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
@@ -40,10 +41,11 @@
  * @{
  *
  * @file
- * @brief       Full-duplex MQTT test
+ * @brief       Full-duplex MQTT test for ranging and localization
  *
  *
  * @author      Pradipta Ghosh <pradiptg@usc.edu>
+ * @author      Yutong Gu <yutonggu@usc.edu>
  * @author      Daniel Dsouza <dmdsouza@usc.edu>
  * @}
  */
@@ -432,7 +434,7 @@ static void *_mqtt_thread(void *arg)
                     DEBUG("mqtt_control_thread: MQTT GO message has been sent\n");
             }
 
-            DEBUG("************************waiting for a message\n");
+            DEBUG("mqtt_control_thread: waiting for a message\n");
 
             //pub to init_info
             if (sent_hwaddr == 1){
@@ -442,7 +444,7 @@ static void *_mqtt_thread(void *arg)
                 msg_receive(&msg_rcv);
             }
 
-            DEBUG("************************got a message\n");
+            DEBUG("mqtt_control_thread: got a message\n");
             
             switch (msg_rcv.type)
             {
@@ -641,7 +643,7 @@ int main(void)
     while (count > -1)
     {
         if (hwaddr_long_str[strlen(hwaddr_long_str)-i]!=':')
-        {
+        { 
             EMCUTE_ID[count]=hwaddr_long_str[strlen(hwaddr_long_str)-i];
             count--;
         }
@@ -660,7 +662,6 @@ int main(void)
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(0));
-
     
     //Creates the thread 2 from the main thread
     thread_create(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 

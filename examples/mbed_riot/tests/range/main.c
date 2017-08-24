@@ -41,13 +41,13 @@
  * @file        
  * @brief       Ultrasound ranging test using packets passed over hdlc
  * 
- * In this test, the mbed will repeated send packets to a dedicated thread for 
- * ranging on the openmote requesting range data. The packets sent will contain 
- * information on the mode to range with. Available options are ONE_SENSOR_MODE, 
- * TWO_SENSOR_MODE, and XOR_SENSOR_MODE. The loop will alternate through all 
- * three options, taking a specified sample number, SAMPS_PER_MODE, at a delay 
- * of LOOP_DELAY. The fastest this system can range at is 100 ms and this is due 
- * to the hardware limitations of the ultrasound sensors.
+ * In this test, the openmote is set up to listen for a range request from the 
+ * mbed The packets sent will contain information on the mode to range with. 
+ * Available options are ONE_SENSOR_MODE, TWO_SENSOR_MODE, and XOR_SENSOR_MODE. 
+ * The loop will alternate through all three options, taking a specified sample
+ * number, SAMPS_PER_MODE, at a delay of LOOP_DELAY. The fastest this system 
+ * can range at is 100 ms and this is due to the hardware limitations of the 
+ * ultrasound sensors.
  * 
  * @author      Yutong Gu <yutonggu@usc.edu>
  *

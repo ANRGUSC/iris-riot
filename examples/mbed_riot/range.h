@@ -120,13 +120,14 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
  * @param[in]  range_mode    The range mode. Available options are ONE_SENSOR_MODE, 
  * 							 TWO_SENSOR_MODE, or XOR_SENSOR_MODE.
  * @param[in]  num_samples   The number of samples to take
+ * @param[in]  node_id       The node identifier (if it's -1 return the first node recieved)
  *
  * @return     { A pointer to the array of range_data_t with size num_samples. 
  * 				 Range_data_t consists of the TDoA and the delay between two sensors 
  * 				 (if applicable) and an error value to indicate if a pin missed an
  * 				 ultrasonic ping }
  */
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples);
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id);
 
 
 /**

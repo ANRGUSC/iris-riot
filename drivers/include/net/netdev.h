@@ -246,7 +246,8 @@ typedef struct netdev_driver {
 
 #define RF_RCVD           143
 #define ULTRSND_RCVD      144
-#define RANGE_DATA_LEN    5
+
+#define RANGE_DATA_LEN    6
 
 #define MISSED_PIN_MASK     10 
 #define MISSED_PIN_UNMASK   13 
@@ -274,7 +275,8 @@ typedef struct netdev_driver {
 typedef struct __attribute__((packed)) {
     uint16_t tdoa; /**< Time Difference of Arrival */
     uint16_t orient_diff; /**< Orientation Difference (of Arrival) */
-    uint8_t status; /**< status flag to indicate which pin recieved a ping first and if a pin had missed a ping */    
+    uint8_t status; /**< status flag to indicate which pin recieved a ping first and if a pin had missed a ping */   
+    int8_t node_id; 
 } range_data_t;
 
 /**
@@ -286,7 +288,7 @@ typedef struct __attribute__((packed)) {
  * It can be extended
  */
 typedef struct __attribute__((packed)) {
-    uint16_t num_samples; /**< Number of samples to take in a single call */
+    int8_t node_id; /**< Number of samples to take in a single call */
     uint8_t ranging_mode; /**< Mode to range in */
     // add more options in the future?
 } range_params_t;
@@ -314,7 +316,7 @@ typedef struct gpio_rx_line {
  * @param[in]  max_gpio_samps  The maximum gpio samps
  * @param[in]  mode            The mode to range in
  */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int mode);
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode);
 
 /**
  * Always call this function to stop soundranging and you do not wish to pass along the data. 
