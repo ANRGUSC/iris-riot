@@ -3,8 +3,7 @@ BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
 
-APP_SELECT ?= tests/range_mqtt
-
+APP_SELECT ?= mqtt_modular
 PROGRAMMER ?= jlink
 
 USEMODULE += xtimer
@@ -43,8 +42,10 @@ USEMODULE += shell_commands
 # USEMODULE += netstats_ipv6
 
 # Set a custom 802.15.4 channel if needed
-DEFAULT_CHANNEL ?= 25
+
+DEFAULT_CHANNEL ?= 26
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
+
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
