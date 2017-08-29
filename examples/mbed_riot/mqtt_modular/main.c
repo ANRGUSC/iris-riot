@@ -101,7 +101,7 @@ int main(void)
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
+                                      "hdlc", UART_DEV(0));
     
     kernel_pid_t mqtt_pid = mqtt_thread_init(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
                                       "thread2", (void*) hdlc_pid);
