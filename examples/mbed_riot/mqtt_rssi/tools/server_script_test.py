@@ -48,9 +48,9 @@ def rssi_ping_pong(client):
                     info.wait_for_publish()
                     break;
             
-                time.sleep(0.5)       
+                # time.sleep(0.5)       
             print("count: ",count)
-            time.sleep(0.5)
+        time.sleep(0.5)
 
 
 def on_connect(client, userdata, rc):
@@ -145,7 +145,7 @@ while 1:
                 time.sleep(0.5)
             time.sleep(0.5)
         req_clients = 0
-
+    time.sleep(0.5)
     
 
 client.loop_forever() #loop forever

@@ -1,5 +1,6 @@
 import paho.mqtt.client as mqtt
 import time
+from threading import Thread
 
 #initializing the variables
 #Change the following according to your system 
@@ -7,7 +8,6 @@ broker_address="fd00:dead:beef::1"
 port = 1886
 
 global count
-count = 0
 
 global clients_connected
 clients_connected = 0
@@ -35,6 +35,23 @@ message_queue = []
 
 # The callback for when the client receives a CONNACK response from the server.
 # The callback function when client is connected to the broker.
+def rssi_ping_pong(client):
+    count = 0
+    while(1):
+        if len(message_queue) != 0 and len(client_ID) >=2 :
+            print ("the rssi topic to send is", message_queue[0])
+            for i in range(clients_connected):
+                if client_ID[i] == message_queue[0]:
+                    count += 1      
+                    message_queue.pop(0)
+                    info = client.publish(client_ID[i], msg_type['UDP_SEND'])
+                    info.wait_for_publish()
+                    break;
+            
+                # time.sleep(0.5)       
+            print("count: ",count)
+        time.sleep(0.5)
+
 
 def on_connect(client, userdata, rc):
     print ("Connected to broker")
@@ -101,6 +118,11 @@ client.connect(broker_address, port)    #connecting to broker
 client.subscribe(topic_sub)
 data_pub = ""
 client.loop_start()
+turn = 0;
+
+t = Thread(target=rssi_ping_pong, args=(client,))
+t.start()   
+
 while 1:
     '''
     if req_clients == 2:
@@ -123,18 +145,7 @@ while 1:
                 time.sleep(0.5)
             time.sleep(0.5)
         req_clients = 0
-
-    if len(message_queue) != 0:
-        print ("the rssi topic to send is not", message_queue[0])
-        for i in range(clients_connected):
-            if client_ID[i] != message_queue[0]:
-      	        count += 1      
-                message_queue.pop(0)
-                info = client.publish(client_ID[i], msg_type['UDP_SEND'])
-                info.wait_for_publish()
-                break;
-            time.sleep(0.5)       
-        print("count: ",count)
-        time.sleep(0.5)
+    time.sleep(0.5)
+    
 
 client.loop_forever() #loop forever
