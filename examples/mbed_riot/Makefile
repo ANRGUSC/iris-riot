@@ -3,7 +3,7 @@ BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
 
-APP_SELECT ?= mqtt_rssi
+APP_SELECT ?= mqtt_rssi_modular
 PROGRAMMER ?= jlink
 
 USEMODULE += xtimer
