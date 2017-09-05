@@ -155,16 +155,16 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
  */
 static int rssi_send(char *addr_str, uint16_t port, char *data)
 {
-    ipv6_addr_t     addr;
+    ipv6_addr_t     addr = IPV6_ADDR_ALL_NODES_LINK_LOCAL;
     unsigned int    num =1;
     gnrc_pktsnip_t *payload, *udp, *ip;
     unsigned payload_size;
         
-    /* parse destination address */
-    if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
-        DEBUG("Error: unable to parse destination address");
-        return -1;
-    }
+    // /* parse destination address */
+    // if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
+    //     DEBUG("Error: unable to parse destination address");
+    //     return -1;
+    // }
 
     /* parse port */
     if (port == 0) {
@@ -214,7 +214,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
 
 
 /**
- * @brief      Main Thread
+ * @brief      Maint Thread
  *
  * @return     status
  */
@@ -264,8 +264,6 @@ int main(void)
     char ipv6_send_addr[25]="fe80::212:4b00:0000:0000";
     char rx_node_id[9];  
 
-    gnrc_netreg_entry_t server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
-                                                               thread_getpid());
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
     hdlc_pkt_t *hdlc_rcv_pkt;
     uart_pkt_hdr_t uart_hdr;

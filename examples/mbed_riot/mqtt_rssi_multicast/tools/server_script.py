@@ -50,7 +50,7 @@ def rssi_ping_pong(client):
             
                 # time.sleep(0.5)       
             print("count: ",count)
-        time.sleep(0.5)
+        time.sleep(0.25)
 
 
 def on_connect(client, userdata, rc):
