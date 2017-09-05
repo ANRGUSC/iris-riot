@@ -3,7 +3,7 @@ BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
 
-APP_SELECT ?= mqtt_rssi_modular
+APP_SELECT ?= mqtt_rmt_ctrl
 PROGRAMMER ?= jlink
 
 USEMODULE += xtimer
@@ -43,7 +43,7 @@ USEMODULE += shell_commands
 
 # Set a custom 802.15.4 channel if needed
 
-DEFAULT_CHANNEL ?= 26
+DEFAULT_CHANNEL ?= 21
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 
