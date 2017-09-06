@@ -81,7 +81,7 @@
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 //setting the message queue with message structs
-static msg_t main_msg_queue[16];
+static msg_t main_msg_queue[HDLC_MSG_QUEUE_SIZE];
 //creating the stacks
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];//16896
 static char thread2_stack[THREAD_STACKSIZE_MAIN];//16384
@@ -94,14 +94,14 @@ int main(void)
     
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */
-    msg_init_queue(main_msg_queue, 16);
+    msg_init_queue(main_msg_queue, HDLC_MSG_QUEUE_SIZE);
     //intializing the port and pid 
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
     //registering the main_thr to the list 
     hdlc_register(&main_thr);
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(0));
+                                      "hdlc", UART_DEV(1));
     
     kernel_pid_t mqtt_pid = mqtt_thread_init(thread2_stack, sizeof(thread2_stack), THREAD2_PRIO, 
                                       "thread2", (void*) hdlc_pid);

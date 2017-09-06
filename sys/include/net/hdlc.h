@@ -78,6 +78,10 @@ extern "C" {
 #define HDLC_MAX_PKT_SIZE       64
 #endif
 
+#ifndef HDLC_MSG_QUEUE_SIZE
+    #define HDLC_MSG_QUEUE_SIZE       128 
+#endif
+    
 typedef struct {
     yahdlc_control_t control;
     char *data;

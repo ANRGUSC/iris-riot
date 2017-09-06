@@ -75,7 +75,7 @@
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 //setting the message queue with message structs
-static msg_t mqtt_msg_queue[32];
+static msg_t mqtt_msg_queue[HDLC_MSG_QUEUE_SIZE];
 //creating the stacks
 
 #define EMCUTE_PORT         (1883U)  
@@ -278,7 +278,7 @@ static void *_mqtt_thread(void *arg)
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
 
     //intializing the message queue for the thread
-    msg_init_queue(mqtt_msg_queue, 32);  
+    msg_init_queue(mqtt_msg_queue, HDLC_MSG_QUEUE_SIZE);  
 
     //Initializing the thread2 to the HDLC   
     hdlc_entry_t thread2 = { NULL, RIOT_MQTT_PORT, thread_getpid() };

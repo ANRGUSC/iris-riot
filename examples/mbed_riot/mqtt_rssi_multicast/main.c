@@ -76,6 +76,7 @@
 #include "app-conf.h"
 #include "mqtt_thread.h"
 
+char src_rssi_addr[IPV6_ADDR_MAX_STR_LEN];    
 
 
 #define ENABLE_DEBUG (1)
@@ -133,7 +134,8 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
 
             case GNRC_NETTYPE_IPV6:
                 ip = (ipv6_hdr_t *) (snip->data);
-                // ipv6_hdr_print (ip);
+                ipv6_addr_to_str(src_rssi_addr, &ip->src, sizeof(src_rssi_addr));
+                DEBUG("Address %s\n",src_rssi_addr);
                 break;
 
             default:
@@ -230,7 +232,7 @@ int main(void)
 
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));  
+                                      "hdlc", UART_DEV(0));  
     kernel_pid_t mqtt_pid = mqtt_thread_init(mqtt_control_thread_stack, sizeof(mqtt_control_thread_stack), MQTT_CONTOL_PRIO, 
                                       "mqtt_control", (void*) hdlc_pid);
 
@@ -269,6 +271,8 @@ int main(void)
     uart_pkt_hdr_t uart_hdr;
     uart_pkt_hdr_t uart_rcv_hdr; 
     
+    char rssi_data_arr[sizeof(src_rssi_addr) + 2];
+
     while (get_mqtt_state() != MQTT_MBED_INIT_DONE)
         xtimer_usleep(100000);
 
@@ -322,14 +326,19 @@ int main(void)
 
             case GNRC_NETAPI_MSG_TYPE_RCV: 
                 DEBUG("rssi_thread: RSSI packet received\n");             
-                rssi_value = rssi_val(msg.content.ptr);                
-                DEBUG("rssi_thread: rssi value %d\n", rssi_value);
+                rssi_value = rssi_val(msg.content.ptr);
+
+                rssi_data_arr[0] = rssi_value;
+                memcpy(rssi_data_arr + 1, src_rssi_addr, sizeof(src_rssi_addr));
+                rssi_data_arr[sizeof(src_rssi_addr) + 1] = '\n';
+
+                DEBUG("rssi_thread: rssi value %d from %s\n", rssi_value, src_rssi_addr);
                 //sending information to rssi thread on the MBED side                
                 uart_hdr.src_port = RSSI_RIOT_PORT; //PORT 220
                 uart_hdr.dst_port = RSSI_MBED_DUMP_PORT; //PORT 9111
                 uart_hdr.pkt_type = RSSI_DATA_PKT;
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, &rssi_value, sizeof(rssi_value));  
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, &rssi_data_arr, sizeof(rssi_data_arr));  
 
                 msg_snd.type = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;                
