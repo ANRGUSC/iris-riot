@@ -87,7 +87,7 @@ static msg_t mqtt_msg_queue[HDLC_MSG_QUEUE_SIZE];
 #define TOPIC_CONT          ("common")
 
 
-#define EMCUTE_PRIO         (THREAD_PRIORITY_MAIN )
+#define EMCUTE_PRIO         (THREAD_PRIORITY_MAIN - 1 )
 
 #define NUMOFSUBS           (16U)  //Define the maximum number of subscriptions
 #define TOPIC_MAXLEN        (16U)
@@ -104,7 +104,7 @@ int   mqtt_mbed_state = MQTT_DISCON;
 //Global variables 
 char pub_server[32];
 
-#define MAX_MQTT_BUFF_SIZE  10
+#define MAX_MQTT_BUFF_SIZE  5
 
 typedef struct {
     mbox_t mbox;
@@ -112,7 +112,7 @@ typedef struct {
 } mqtt_mbox_t;
 
 mqtt_mbox_t mqtt_mbox;
-mqtt_pkt_t mqtt_snd_pkt_buf[MAX_MQTT_BUFF_SIZE];
+mqtt_pkt_dup_t mqtt_snd_pkt_buf[MAX_MQTT_BUFF_SIZE];
 static int mqtt_buf_cnt = 0;
 
 static void *emcute_thread(void *arg)
@@ -142,7 +142,7 @@ static void on_mqtt_data_recv(const emcute_topic_t *topic, void *data, size_t da
     msg_to_mqtt_control_thread.type         = MQTT_MBED;    
     msg_to_mqtt_control_thread.content.ptr  = &mqtt_snd_pkt_buf[mqtt_buf_cnt];    
     
-    strcpy(mqtt_snd_pkt_buf[mqtt_buf_cnt].topic, topic->name);
+    mqtt_snd_pkt_buf[mqtt_buf_cnt].topic = topic->name;
     strncpy(mqtt_snd_pkt_buf[mqtt_buf_cnt].data, data, data_len);
     mqtt_snd_pkt_buf[mqtt_buf_cnt].data[data_len] = '\0';
 
@@ -304,7 +304,7 @@ static int mqtt_sn_try_connect(char* addr, char* port)
 
 static void *_mqtt_thread(void *arg)
 {
-    mqtt_pkt_t  *mbed_rcv_pkt;
+    mqtt_pkt_dup_t  *mbed_rcv_pkt;
     //Pointer to the hdlc data packet(Starting from the UART_PKT_HDR_LEN) in the mbed received pkt
 
     //getting the hdlc_pid from the arg
@@ -379,7 +379,7 @@ static void *_mqtt_thread(void *arg)
             switch (msg_to_prc.type)
             {
                 case MQTT_MBED:
-                    mbed_rcv_pkt = (mqtt_pkt_t *)msg_to_prc.content.ptr;
+                    mbed_rcv_pkt = (mqtt_pkt_dup_t *)msg_to_prc.content.ptr;
                     //Data to be sent to mbed
                     DEBUG("mqtt_control_thread: MQTT dump to mbed\n");
                     uart_hdr.src_port   = RIOT_MQTT_PORT; //PORT 170
@@ -389,7 +389,8 @@ static void *_mqtt_thread(void *arg)
                     uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                     DEBUG("mqtt_control_thread: The MQTT topic %s and data %s \n",
                                             mbed_rcv_pkt->topic, mbed_rcv_pkt->data);   
-                    uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, mbed_rcv_pkt, sizeof(mqtt_pkt_t));  
+                    uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, mbed_rcv_pkt->topic, 16);  
+                    uart_pkt_cpy_data(hdlc_snd_pkt.data + 16, HDLC_MAX_PKT_SIZE, mbed_rcv_pkt->data, 32);
                     
                     msg_snd.type        = HDLC_MSG_SND;
                     msg_snd.content.ptr = &hdlc_snd_pkt;         
@@ -441,7 +442,7 @@ static void *_mqtt_thread(void *arg)
             switch (msg_rcv.type)
             {
                 case MQTT_MBED:
-                    mbed_rcv_pkt = (mqtt_pkt_t *)msg_rcv.content.ptr;
+                    mbed_rcv_pkt = (mqtt_pkt_dup_t *)msg_rcv.content.ptr;
                     if (mqtt_mbed_state <= MQTT_CON_MQTT_GO_WAIT){
                         mqtt_mbed_state = MQTT_CON_MQTT_GO;
                         break;

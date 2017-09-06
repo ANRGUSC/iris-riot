@@ -108,7 +108,7 @@ extern "C" {
  *
  * The overall buffer size used by emCute is this value time two (Rx + Tx).
  */
-#define EMCUTE_BUFSIZE          (512U)
+#define EMCUTE_BUFSIZE          (1024U)
 #endif
 
 #ifndef EMCUTE_ID_MAXLEN

@@ -74,8 +74,8 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 //setting the priority of the hdlc and thread2
-#define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 2)
-#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN -1)
+#define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 3)
+#define THREAD2_PRIO            (THREAD_PRIORITY_MAIN -2)
 //setting the port of the main thread
 //setting the port of thread2 
 
