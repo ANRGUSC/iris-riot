@@ -104,17 +104,17 @@ typedef struct hdlc_entry {
 /* HDLC thread messages */
 //Added MQTT_SN
 enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY,
-    MQTT_MBED,
-    MQTT_RSSI,
-    MQTT_SN
+    HDLC_MSG_REG_DISPATCHER = 0,
+    HDLC_MSG_RECV           = 1,
+    HDLC_MSG_SND            = 2,
+    HDLC_MSG_RESEND         = 3,
+    HDLC_MSG_SND_ACK        = 4,
+    HDLC_RESP_RETRY_W_TIMEO = 5,
+    HDLC_RESP_SND_SUCC      = 6,
+    HDLC_PKT_RDY            = 7,
+    MQTT_MBED               = 8,
+    MQTT_RSSI               = 9,
+    MQTT_SN                 = 10
 };
 
 void hdlc_register(hdlc_entry_t *entry);
