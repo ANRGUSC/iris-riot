@@ -43,6 +43,24 @@ static int mqtt_pub(char* addr, char* port);
  * @return     status
  */
 static int mqtt_sub(char* sub_topic);
+/**
+ * @brief      Gets the mqtt state.
+ *
+ * @return     The mqtt state.
+ */
+int get_mqtt_state (void);
 
+/**
+ * @brief      Sets the mqtt state.
+ *
+ * @param[in]  state  The state
+ */
+void set_mqtt_state (int state);
+/**
+ * @brief      Gets the node identifier.
+ *
+ * @param      ret   The ret
+ */
+void get_node_id (char *ret);
 
 #endif /*  _MQTT_THREAD_H */ 
