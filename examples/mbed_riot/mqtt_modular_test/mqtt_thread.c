@@ -72,7 +72,7 @@
 #include "mbox.h"
 
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
@@ -157,7 +157,7 @@ static void on_mqtt_data_recv(const emcute_topic_t *topic, void *data, size_t da
         else
             DEBUG("on_mqtt_data_recv : Failed to send to to the mqtt control thread, topic %s\n",topic->name);  
     }
-    else
+    else //Before the initalization is done, use the normal mails
     {
         if (msg_try_send(&msg_to_mqtt_control_thread, mqtt_thread_pid)){
             DEBUG("on_mqtt_data_recv : Successfully sent to the mqtt control thread %d, topic %s, count %d\n",mqtt_thread_pid, topic->name, mqtt_buf_cnt);  
@@ -291,12 +291,12 @@ static int mqtt_sn_try_connect(char* addr, char* port)
 
     //calling the Emcute_con function
     if (emcute_con(&gw, true, topic, message, len, 0) != EMCUTE_OK) {
-        printf("error: unable to connect to [%s]:%i\n", addr, (int)gw.port);
+        DEBUG("error: unable to connect to [%s]:%i\n", addr, (int)gw.port);
         return 1;
     }
     else
     {
-        printf("Successfully connected to gateway at [%s]:%i\n",
+        DEBUG("Successfully connected to gateway at [%s]:%i\n",
                addr, (int)gw.port);
         return 0;
     }    
@@ -381,13 +381,13 @@ static void *_mqtt_thread(void *arg)
                 case MQTT_MBED:
                     mbed_rcv_pkt = (mqtt_pkt_dup_t *)msg_to_prc.content.ptr;
                     //Data to be sent to mbed
-                    DEBUG("mqtt_control_thread: MQTT dump to mbed\n");
+                    // DEBUG("mqtt_control_thread: MQTT dump to mbed\n");
                     uart_hdr.src_port   = RIOT_MQTT_PORT; //PORT 170
                     uart_hdr.dst_port   = MBED_MQTT_PORT; //PORT 200
                     uart_hdr.pkt_type   = MQTT_PKT_TYPE;
                     hdlc_snd_pkt.length = UART_PKT_HDR_LEN + sizeof(mqtt_pkt_t);
                     uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-                    DEBUG("mqtt_control_thread: The MQTT topic %s and data %s \n",
+                    DEBUG("mqtt_control_thread: MQTT dump to mbed. Topic %s and data %s \n",
                                             mbed_rcv_pkt->topic, mbed_rcv_pkt->data);   
                     uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, mbed_rcv_pkt->topic, 16);  
                     uart_pkt_cpy_data(hdlc_snd_pkt.data + 16, HDLC_MAX_PKT_SIZE, mbed_rcv_pkt->data, 32);
@@ -442,7 +442,6 @@ static void *_mqtt_thread(void *arg)
             switch (msg_rcv.type)
             {
                 case MQTT_MBED:
-                    mbed_rcv_pkt = (mqtt_pkt_dup_t *)msg_rcv.content.ptr;
                     if (mqtt_mbed_state <= MQTT_CON_MQTT_GO_WAIT){
                         mqtt_mbed_state = MQTT_CON_MQTT_GO;
                         break;
@@ -450,7 +449,7 @@ static void *_mqtt_thread(void *arg)
                     break;
 
                 case HDLC_RESP_SND_SUCC:
-                    DEBUG("mqtt_control_thread: the MQTT packet dump SUCCESS\n");
+                    // DEBUG("mqtt_control_thread: the MQTT packet dump SUCCESS\n");
                     DEBUG("mqtt_control_thread: sent frame_no %d!\n", frame_no);                    
                     exit = 1;
                     break;
@@ -497,6 +496,7 @@ static void *_mqtt_thread(void *arg)
 
                         case HWADDR_ACK:
                             DEBUG("mqtt_control_thread: received HWADDR_ACK\n");
+                            printf("mqtt_control_thread: initialization done\n");
                             mqtt_mbed_state = MQTT_MBED_INIT_DONE;
                             exit = 1;
 
