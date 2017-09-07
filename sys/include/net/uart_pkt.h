@@ -94,6 +94,11 @@ typedef struct __attribute__((packed)){
     char data[32];
 } mqtt_pkt_t;
 
+typedef struct __attribute__((packed)){
+    char *topic;
+    char data[32];
+} mqtt_pkt_dup_t;
+
 /**
  * @brief Message types from riot-os to mbed-os
  */
