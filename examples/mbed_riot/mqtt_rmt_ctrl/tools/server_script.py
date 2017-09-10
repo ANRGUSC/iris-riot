@@ -5,7 +5,7 @@ import curses
 #initializing the variables
 #Change the following according to your system 
 broker_address="fd00:dead:beef::1" 
-port = 1886
+port = 9000
 
 global count
 
