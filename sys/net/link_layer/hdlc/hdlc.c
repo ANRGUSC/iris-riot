@@ -321,7 +321,7 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
     }
 
     ringbuffer_init(&(ctx.rx_buf), ctx.rx_mem, UART_BUFSIZE);
-    uart_init(dev, 576000, rx_cb, (void *) dev);
+    uart_init(dev, 115200, rx_cb, (void *) dev);
     // DEBUG("mutex is (%d)\n", recv_pkt_mutex.queue.next);
 
     res = thread_create(stack, stacksize,
