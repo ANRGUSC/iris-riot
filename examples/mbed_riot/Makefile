@@ -3,7 +3,7 @@ BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
 
-APP_SELECT ?= mqtt_modular_test
+APP_SELECT ?= mqtt_modular
 
 PROGRAMMER ?= jlink
 

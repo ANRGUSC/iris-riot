@@ -72,7 +72,7 @@
 #include "mbox.h"
 
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
@@ -371,7 +371,8 @@ static void *_mqtt_thread(void *arg)
     }
     
     /**
-     * This postion contains initialization of the mbed for the overlay network
+     * The follwing while loop code snippet contains initialization
+     * of the mbed for the MQTT overlay network
      */
     while(1)
     { 
@@ -487,10 +488,10 @@ static void *_mqtt_thread(void *arg)
         }  
         frame_no++;
     }
-    //control transmission rate via interpacket intervals 
-    // xtimer_usleep(1000000);
-
-    // At this point all the intialization of the mbed and the openmote should be done.
+    /**
+     * At this point all the intialization of the mbed and
+     * the openmote should be done.
+     */
     // 
     printf("mqtt_control_thread: initialization done\n");
 
@@ -691,7 +692,6 @@ static mutex_t state_mutex;
 
 int get_mqtt_state (void){
     mutex_lock(&state_mutex);
-    // DEBUG("get state\n");
     int state = mqtt_state;
     mutex_unlock(&state_mutex);
     return state;
