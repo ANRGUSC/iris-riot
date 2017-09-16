@@ -43,7 +43,7 @@ USEMODULE += shell_commands
 
 # Set a custom 802.15.4 channel if needed
 
-DEFAULT_CHANNEL ?= 21
+DEFAULT_CHANNEL ?= 26
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 
