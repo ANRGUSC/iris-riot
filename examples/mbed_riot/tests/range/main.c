@@ -219,7 +219,7 @@ static void *_range_rx_thread(void *arg)
                             }
                             old_channel = _get_channel();
                             _set_channel(RSSI_LOCALIZATION_CHAN);
-                            range_and_send(range_params, hdlc_pid, RANGE_PORT, RANGE_PORT);
+                            range_and_reply(range_params, hdlc_pid, RANGE_PORT, RANGE_PORT);
                             _set_channel(old_channel);
                         }
                         

@@ -64,7 +64,9 @@ static num_entries;
 static gpio_rx_line_t gpio_lines = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
 
 
-void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port){
+void range_and_reply(range_params_t *params, kernel_pid_t hdlc_pid, 
+                    uint16_t src_port, uint16_t mbed_port)
+{
     DEBUG("Starting to range and send function\n");
     DEBUG("src_port: %d, dst_port: %d\n", src_port, mbed_port);
     int i = 0;
@@ -90,7 +92,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     UART1->cc2538_uart_lcrh.LCRH |= FEN;
     UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
 
-    num_iter = num_entries / DATA_PER_PKT;
+    int num_iter = num_entries / DATA_PER_PKT;
     remainder = num_entries % DATA_PER_PKT;
     DEBUG("num_entries = %d\n",num_entries);
     DEBUG("num_iter = %d\n",num_iter);
@@ -142,8 +144,6 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
                 uart_pkt_cpy_data(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &range_hdr, sizeof(uint8_t));
             }
         }
-        
-        
 
         if(time_diffs == NULL){
             DEBUG("An error occured while ranging\n");
@@ -187,6 +187,8 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
                 case HDLC_PKT_RDY:
                     hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;
                     DEBUG("Range thread: received pkt while trying to send\n");
+                    LED1_ON;
+                    /* TODO: WARNING this will cause packet drops */
                     hdlc_pkt_release(hdlc_rcv_pkt);
                     break;
                 default:
@@ -202,7 +204,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
         }
     }
     free(time_diffs);
-    DEBUG("Exiting range_and_send\n");
+    DEBUG("Exiting range_and_reply\n");
 }
 
 range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id, uint32_t max_iter){ 

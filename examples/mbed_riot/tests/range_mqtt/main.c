@@ -571,7 +571,7 @@ static void *_mqtt_thread(void *arg)
                                 old_channel = _get_channel();
                                 DEBUG("Switching from channel %d to %d\n",old_channel, RSSI_LOCALIZATION_CHAN);
                                 _set_channel(RSSI_LOCALIZATION_CHAN);
-                                range_and_send(range_params, hdlc_pid, THREAD2_PORT, uart_rcv_hdr.src_port);
+                                range_and_reply(range_params, hdlc_pid, THREAD2_PORT, uart_rcv_hdr.src_port);
                                 _set_channel(old_channel);
                                 DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);
                                 DEBUG("******************RANGING COMPLETED******************\n");

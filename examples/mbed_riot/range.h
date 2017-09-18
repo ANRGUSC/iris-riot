@@ -108,7 +108,7 @@ typedef struct __attribute__((packed)) {
  * @param      params    The ranging parameters
  * @param[in]  hdlc_pid  The hdlc pid
  */
-void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port);
+void range_and_reply(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port);
 
 /**
  *
