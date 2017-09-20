@@ -92,8 +92,8 @@ static const timer_conf_t timer_config[] = {
 #define UART_1_IRQ          UART1_IRQn
 #define UART_1_ISR          isr_uart1
 /* UART 1 pin configuration */
-#define UART_1_TX_PIN       GPIO_PA2
-#define UART_1_RX_PIN       GPIO_PA3
+#define UART_1_TX_PIN       GPIO_PA2        /* AD4/DIO4 pin*/
+#define UART_1_RX_PIN       GPIO_PA3        /* CTS/DIO7 pin*/
 /** @} */
 
 /**

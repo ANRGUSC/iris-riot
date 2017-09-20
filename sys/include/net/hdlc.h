@@ -58,7 +58,6 @@ extern "C" {
 
 /* this file does not provide anything on it's own */
 
-
 #include "net/netdev.h"
 #include "net/yahdlc.h"
 #include "mutex.h"
@@ -66,20 +65,20 @@ extern "C" {
 #include "board.h"
 #include "periph/uart.h"
 
-#ifndef RTRY_TIMEO_USEC
-    #define RTRY_TIMEO_USEC         200000
-#endif /* RTRY_TIMEO_USEC */
+#ifndef HDLC_RTRY_TIMEO_USEC
+    #define HDLC_RTRY_TIMEO_USEC         200000
+#endif 
 
-#ifndef RETRANSMIT_TIMEO_USEC
-    #define RETRANSMIT_TIMEO_USEC   50000
-#endif /* RETRANSMIT_TIMEO_USEC */
+#ifndef HDLC_RETRANS_TIMEO_USEC
+    #define HDLC_RETRANS_TIMEO_USEC   50000
+#endif 
 
 #ifndef HDLC_MAX_PKT_SIZE
-#define HDLC_MAX_PKT_SIZE       64
+    #define HDLC_MAX_PKT_SIZE       64
 #endif
 
 #ifndef HDLC_MSG_QUEUE_SIZE
-    #define HDLC_MSG_QUEUE_SIZE       128 
+    #define HDLC_MSG_QUEUE_SIZE       32 
 #endif
     
 typedef struct {

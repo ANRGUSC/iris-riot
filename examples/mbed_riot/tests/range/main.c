@@ -75,7 +75,7 @@
 #include "dac.h"
 #include "shell.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #define TX_MODE      (0) //TOGGLE THIS TO SET UP OPENMOTE AS RECEIVER OR TRANSMITTER
 
 #include "debug.h"
