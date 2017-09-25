@@ -29,7 +29,7 @@ topic_sub = "init_info"
 topic_rmt = "test/trial"
 
 toggle_client = []
-toggle_client_value = [True] * 5
+toggle_client_value = [True] * 1
 
 msg_type= { 'HW_ADDR' : '0', 'REQUEST' : '1', 'SEND_RSSI' : '2', 'LEN_CLIENTS_LIST' : '3', 'GET_CLIENTS' : '4', 'UDP_SEND' : '5'}
 
@@ -57,7 +57,7 @@ def main(stdscr):
             # print numeric value
             if str(c) == "97": #value of a
                 #if all nodes are active send to shared topic
-                if (toggle_client_value == [True] * 5):
+                if (toggle_client_value == [True] * 1):
                     client.publish(topic_rmt,"8a")
                 #sending to a subset of nodes(active)
                 else :
@@ -68,7 +68,7 @@ def main(stdscr):
 
             elif str(c) =="115": #value of s
                 #if all nodes are active send to shared topic
-                if (toggle_client_value == [True] * 5):
+                if (toggle_client_value == [True] * 1):
                     client.publish(topic_rmt,"8s")
                 #sending to a subset of nodes(active)
                 else :
@@ -79,7 +79,7 @@ def main(stdscr):
 
             elif str(c) =="100": #value of d
                 #if all nodes are active send to shared topic
-                if (toggle_client_value == [True] * 5):
+                if (toggle_client_value == [True] * 1):
                     client.publish(topic_rmt,"8d")
                 #sending to a subset of nodes(active)
                 else :
@@ -90,7 +90,7 @@ def main(stdscr):
 
             elif str(c) == "119": #value of w
                 #if all nodes are active send to shared topic
-                if (toggle_client_value == [True] * 5):
+                if (toggle_client_value == [True] * 1):
                     client.publish(topic_rmt,"8w")
                 #sending to a subset of nodes(active) 
                 else :
@@ -180,7 +180,7 @@ client.connect(broker_address, port)    #connecting to broker
 
 #Setting up the subscribe 
 client.subscribe(topic_sub)
-data_pub = ""
+
 
 client.loop_start() 
 
@@ -191,7 +191,7 @@ t.start()
 
 while 1:
 
-    if (clients_connected == 5 and rmt_ctrl_start):
+    if (clients_connected == 1 and rmt_ctrl_start):
         time.sleep(2)
         print ("Ready to start")
         for i in range(clients_connected):
