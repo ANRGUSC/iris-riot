@@ -123,7 +123,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 
 static void _sound_ranging(int8_t node_id)
 {
-    unsigned old_state = irq_disable();
+    //unsigned old_state = irq_disable();
     int first = 2;
     int second = 2;
     ranging = 1;
@@ -210,7 +210,7 @@ static void _sound_ranging(int8_t node_id)
         }
 
     }
-    irq_restore(old_state);
+    //irq_restore(old_state);
 }
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)

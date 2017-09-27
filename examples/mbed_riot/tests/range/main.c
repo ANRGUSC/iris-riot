@@ -137,7 +137,7 @@ static void *_range_tx_thread(void *arg){
     while(1){
         old_channel = _get_channel();
         _set_channel(RSSI_LOCALIZATION_CHAN);
-
+        
         range_tx();
 
         _set_channel(old_channel);

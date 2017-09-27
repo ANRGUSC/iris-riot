@@ -377,7 +377,7 @@ int range_tx( void )
         return 1;
     }   
     
-    range_tx_off(); //turn off just in case
+    // range_tx_off(); //turn off just in case
     DEBUG("RF and ultrasound pings sent\n");  
 
     return 0;
