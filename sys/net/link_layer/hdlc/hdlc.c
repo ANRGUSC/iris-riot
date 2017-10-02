@@ -67,6 +67,10 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
+#ifndef HDLC_BAUDRATE
+    #define HDLC_BAUDRATE           115200
+#endif
+
 #ifndef UART_BUFSIZE
     #define UART_BUFSIZE            (1024U)
 #endif
@@ -228,7 +232,7 @@ static void *_hdlc(void *arg)
 
     while(1) {
         if(uart_lock) {
-            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) xtimer_now().ticks32;
+            int timeout = (int) (last_sent + HDLC_RETRANS_TIMEO_USEC) - (int) xtimer_now().ticks32;
             if(timeout < 0) {
                 /* send message to self to resend msg */
                 msg2.type = HDLC_MSG_RESEND;
@@ -254,7 +258,7 @@ static void *_hdlc(void *arg)
                     /* ask thread to try again in x usec */
                     DEBUG("hdlc: uart locked, telling thr to retry\n");
                     reply.type = HDLC_RESP_RETRY_W_TIMEO;
-                    reply.content.value = (uint32_t) RTRY_TIMEO_USEC;
+                    reply.content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                     msg_send(&reply, msg.sender_pid);
                 } else {
                     uart_lock = 1;
@@ -321,8 +325,7 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
     }
 
     ringbuffer_init(&(ctx.rx_buf), ctx.rx_mem, UART_BUFSIZE);
-    uart_init(dev, 115200, rx_cb, (void *) dev);
-    // DEBUG("mutex is (%d)\n", recv_pkt_mutex.queue.next);
+    uart_init(dev, HDLC_BAUDRATE, rx_cb, (void *) dev);
 
     res = thread_create(stack, stacksize,
                         priority, THREAD_CREATE_STACKTEST, _hdlc, (void *) dev, name);

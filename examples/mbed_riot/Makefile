@@ -2,7 +2,6 @@
 BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
-
 APP_SELECT ?= mqtt_modular_test
 
 PROGRAMMER ?= jlink
@@ -37,6 +36,11 @@ USEMODULE += csma_sender
 USEMODULE += hdlc
 USEMODULE += shell
 USEMODULE += shell_commands
+
+#Set custom HDLC parameters
+CFLAGS += -DHDLC_BAUDRATE=230400
+CFLAGS += -DHDLC_RETRANS_TIMEO_USEC=100000
+CFLAGS += -DHDLC_MAX_PKT_SIZE=64
 
 # Additional networking modules that can be dropped if not needed
 # USEMODULE += netstats_l2

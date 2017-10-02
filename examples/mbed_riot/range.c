@@ -162,7 +162,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
             /* this is where applications can decide on a timeout */
             DEBUG("HDLC busy retrying...\n");
             msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-            msg_rcv.content.value = RTRY_TIMEO_USEC;
+            msg_rcv.content.value = HDLC_RTRY_TIMEO_USEC;
             msg_send_to_self(&msg_rcv);
         }
 
