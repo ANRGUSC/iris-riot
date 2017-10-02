@@ -334,7 +334,6 @@ static int auto_con(char* addr, char* port)
 static void *_mqtt_thread(void *arg)
 {
     int                 mqtt_go = 1;//not connected state
-    int                 mqtt_connected = 1;    
     int                 sent_hwaddr = 1;//not sent state
     int                 hdlc_pkt_length;
     uint16_t            old_channel;
@@ -674,10 +673,7 @@ int main(void)
     //create packets with max size 
     char send_data[HDLC_MAX_PKT_SIZE];//size 16
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
-    hdlc_pkt_t *hdlc_rcv_pkt;
     uart_pkt_hdr_t uart_hdr;
-    void *main_mbed_rcv_ptr;
-    mqtt_pkt_t *main_rcv_pkt;
 
     // hdr for each pkt is the same for this test 
     uart_hdr.src_port = MAIN_THR_PORT;
