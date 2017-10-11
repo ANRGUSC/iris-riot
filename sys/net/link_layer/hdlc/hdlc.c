@@ -68,7 +68,7 @@
 #include "debug.h"
 
 #ifndef HDLC_BAUDRATE
-    #define HDLC_BAUDRATE           115200
+    #define HDLC_BAUDRATE           230400
 #endif
 
 #ifndef UART_BUFSIZE
@@ -249,7 +249,7 @@ static void *_hdlc(void *arg)
 
         switch (msg.type) {
             case HDLC_MSG_RECV:
-                DEBUG("hdlc: receiving msg...\n");
+                DEBUG("hdlc: r eceiving msg...\n");
                 _hdlc_receive(&recv_seq_no, &send_seq_no);
                 break;
             case HDLC_MSG_SND:

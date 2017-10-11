@@ -123,6 +123,7 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
     while (snip != NULL) {
         switch (snip->type){
             case GNRC_NETTYPE_NETIF:
+                //gets the rssi value
                 hdr = (gnrc_netif_hdr_t *) (snip->data);
                 raw_rssi = hdr->rssi;            
                 return raw_rssi;
@@ -133,6 +134,7 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
                 break;
 
             case GNRC_NETTYPE_IPV6:
+                //Gets the sender address of the value
                 ip = (ipv6_hdr_t *) (snip->data);
                 ipv6_addr_to_str(src_rssi_addr, &ip->src, sizeof(src_rssi_addr));
                 DEBUG("Address %s\n",src_rssi_addr);
@@ -155,25 +157,19 @@ static uint8_t rssi_val(gnrc_pktsnip_t *pkt)
  * @param      port_str  The port string
  * @param      data      The data
  */
-static int rssi_send(char *addr_str, uint16_t port, char *data)
+static int rssi_send(uint16_t port, char *data)
 {
     ipv6_addr_t     addr = IPV6_ADDR_ALL_NODES_LINK_LOCAL;
-    unsigned int    num =1;
+    unsigned int    num = 1;
     gnrc_pktsnip_t *payload, *udp, *ip;
     unsigned payload_size;
         
-    // /* parse destination address */
-    // if (ipv6_addr_from_str(&addr, addr_str) == NULL) {
-    //     DEBUG("Error: unable to parse destination address");
-    //     return -1;
-    // }
-
     /* parse port */
     if (port == 0) {
         DEBUG("Error: unable to parse destination port");
         return -1;
     }
-
+    //for loop if you want to send multiple messages
     for (unsigned int i = 0; i < num; i++) {
         /* allocate payload */
         payload = gnrc_pktbuf_add(NULL, data, strlen(data), GNRC_NETTYPE_UNDEF);
@@ -205,7 +201,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
         }
         /* access to `payload` was implicitly given up with the send operation above
          * => use temporary variable for output */
-        DEBUG("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
+        DEBUG("Success: Broadcast sent %u byte(s) :%u\n", payload_size,
                port);               
         xtimer_usleep(10000);       
         return 0;
@@ -216,7 +212,7 @@ static int rssi_send(char *addr_str, uint16_t port, char *data)
 
 
 /**
- * @brief      Maint Thread
+ * @brief      Main Thread
  *
  * @return     status
  */
@@ -232,7 +228,7 @@ int main(void)
 
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));  
+                                      "hdlc", UART_DEV(0));  
     kernel_pid_t mqtt_pid = mqtt_thread_init(mqtt_control_thread_stack, sizeof(mqtt_control_thread_stack), MQTT_CONTOL_PRIO, 
                                       "mqtt_control", (void*) hdlc_pid);
 
@@ -254,14 +250,13 @@ int main(void)
 
     //DEBUG("Main Thread pid is %" PRIkernel_pid "\n", thread_getpid());
     int exit = 0;
-
+    //Sends a message over broadcast udp
     char udp_msg[6] = "hello";
+
     msg_t msg_send_to_rssi_dump;
     msg_t msg, msg_snd;
     uint8_t rssi_value;
     int rssi_go = 0;   
-    int i = 0; 
-    int c = 15;   
     char send_data[HDLC_MAX_PKT_SIZE];
     char ipv6_send_addr[25]="fe80::212:4b00:0000:0000";
     char rx_node_id[9];  
@@ -271,7 +266,7 @@ int main(void)
     uart_pkt_hdr_t uart_hdr;
     uart_pkt_hdr_t uart_rcv_hdr; 
     
-    char rssi_data_arr[sizeof(src_rssi_addr) + 2];
+    char rssi_data_arr[sizeof(src_rssi_addr) + 3];
 
     while (get_mqtt_state() != MQTT_MBED_INIT_DONE)
         xtimer_usleep(100000);
@@ -292,19 +287,10 @@ int main(void)
                 switch(uart_rcv_hdr.pkt_type){
                     case RSSI_SND:
                         DEBUG("rssi_thread: received the rssi send message\n");                        
-                        memcpy(rx_node_id, hdlc_rcv_pkt->data + UART_PKT_DATA_FIELD, sizeof(rx_node_id));
-                        DEBUG("rssi_thread: The node to send to is %s\n", rx_node_id);
-                        hdlc_pkt_release(hdlc_rcv_pkt);
-
-                        c = 15;
-                        for (i = 0 ; i < 8 ; i++){
-                            if (c != 19)
-                                ipv6_send_addr[c] = rx_node_id[i];
-                            c = (c == 18) ? (c + 2) : (c + 1);
-                        }
-                        DEBUG("rssi_thread: The ipv6 is %s\n", ipv6_send_addr); 
+                        DEBUG("rssi_thread: Sending multicast UDP");
+                        hdlc_pkt_release(hdlc_rcv_pkt);                        
                         //sending to the constructed ipv6 address at port 9000                                                                                          
-                        if(rssi_send(ipv6_send_addr, RSSI_DUMP_PORT, udp_msg) == 0)
+                        if(rssi_send(RSSI_DUMP_PORT, udp_msg) == 0)
                             DEBUG("rssi_thread: udp message sent\n");
                             
                         break;  
@@ -329,7 +315,8 @@ int main(void)
                 rssi_value = rssi_val(msg.content.ptr);
 
                 rssi_data_arr[0] = rssi_value;
-                memcpy(rssi_data_arr + 1, src_rssi_addr, sizeof(src_rssi_addr));
+                rssi_data_arr[1] = (int) sizeof(src_rssi_addr);
+                memcpy(rssi_data_arr + 2, src_rssi_addr, sizeof(src_rssi_addr));
                 rssi_data_arr[sizeof(src_rssi_addr) + 1] = '\n';
 
                 DEBUG("rssi_thread: rssi value %d from %s\n", rssi_value, src_rssi_addr);
