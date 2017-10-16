@@ -72,6 +72,7 @@
 #define FEN   BIT( 4) /**< Enable FIFOs */
 #define UART_CTL_HSE_VALUE    0
 
+#define RANGE_MAX_ITER				  30000
 #define ULTRSND_TIMEOUT               99000 //usec
 #define RANGE_TIMEO_USEC              250000
 #define TRANSMIT_DELAY                100000 //this is 100ms which is the minimum delay between pings
@@ -126,7 +127,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
  * 				 (if applicable) and an error value to indicate if a pin missed an
  * 				 ultrasonic ping }
  */
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id);
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id, uint32_t max_iter);
 
 
 /**

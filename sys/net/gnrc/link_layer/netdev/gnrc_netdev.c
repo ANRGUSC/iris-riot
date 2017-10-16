@@ -41,7 +41,7 @@
 #define NETDEV_NETAPI_MSG_QUEUE_SIZE 8
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
-static void _sound_ranging(int8_t node_id);
+static void _sound_ranging(uint8_t node_id);
 
 /* sound ranging */
 #include "periph/adc.h"
@@ -54,11 +54,11 @@ static int range_sys_flag       = 0;
 int ranging_on           = 0;
 msg_t ranging_complete;
 static int ranging_pid;
+static int range_max_iter;
 
 static uint32_t last            = 0;
 static uint32_t last2           = 0;
 static range_data_t time_diffs = {0,0,0,0};
-int ranging                     = 0;
 
 /**
  * @brief   Function called by the device driver on device events
@@ -86,7 +86,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                     gnrc_pktsnip_t *pkt = gnrc_netdev->recv(gnrc_netdev);
 
                     /* first, check if it's a ranging packet */
-                    if(ranging_on && !ranging)
+                    if(ranging_on)
                     {
                         if(RANGE_FLAG_BYTE0 == ((uint8_t *) pkt->data)[0] && 
                             RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1])
@@ -95,7 +95,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                             ranging_complete.content.value = ((uint8_t *) pkt->data)[2];
                             msg_send(&ranging_complete,ranging_pid);
                             if((_tx_node_id == -1) || (_tx_node_id == ((uint8_t *) pkt->data)[2])){
-                                _sound_ranging(((int8_t *) pkt->data)[2]);
+                                _sound_ranging(((uint8_t *) pkt->data)[2]);
                             }
                         }
                     }
@@ -121,22 +121,25 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 }
 
 
-static void _sound_ranging(int8_t node_id)
+static void _sound_ranging(uint8_t node_id)
 {
-    //unsigned old_state = irq_disable();
+    unsigned old_state = irq_disable();
     int first = 2;
     int second = 2;
-    ranging = 1;
+    int cnt = 0;
     int exit = 0;
     last = xtimer_now_usec();
     time_diffs.tdoa = 0;
     time_diffs.orient_diff = 0;
     time_diffs.status = 0;
     time_diffs.node_id = node_id;
+    int successful_stop = 0;
     unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.logic_pin};
-
-    while(ranging)
+    uint32_t start, stop;
+    start = xtimer_now_usec();
+    while(cnt < range_max_iter)
     {
+        cnt++;
         switch(range_sys_flag){
             case ONE_SENSOR_MODE:
                 sample1 = gpio_read(rx_line_array[0]);
@@ -145,7 +148,7 @@ static void _sound_ranging(int8_t node_id)
                     last2 = xtimer_now_usec();
                     DEBUG("%lu - %lu ",last, last2);
                     time_diffs.tdoa = last2 - last;
-                    range_rx_successful_stop();
+                    successful_stop = 1;
                     exit = 1;
                 }
                 break;
@@ -175,7 +178,7 @@ static void _sound_ranging(int8_t node_id)
                         time_diffs.status += MISSED_PIN_MASK; //returns the pin that first recieve if both recieved, otherwise add 10 to the flag
                     }
                     
-                    range_rx_successful_stop();
+                    successful_stop = 1;
                     exit = 1;
                 } 
                 break;
@@ -187,7 +190,7 @@ static void _sound_ranging(int8_t node_id)
                     while(gpio_read(rx_line_array[2]) != 0);
                     time_diffs.orient_diff = xtimer_now_usec() - last2;
                     time_diffs.tdoa = last2 - last;
-                    range_rx_successful_stop();
+                    successful_stop = 1;
                     exit = 1;
                 }
                 break;
@@ -196,7 +199,7 @@ static void _sound_ranging(int8_t node_id)
                 DEBUG("%d ",sample1);
                 if(sample1 != 0){   
                     time_diffs.tdoa = xtimer_now_usec() - last;
-                    range_rx_successful_stop();
+                    successful_stop = 1;
                     exit = 1;
                 }
                 break;
@@ -204,13 +207,21 @@ static void _sound_ranging(int8_t node_id)
                 exit = 1;
                 break;
         }
-
         if(exit == 1){
             break;
         }
 
     }
-    //irq_restore(old_state);
+    stop = xtimer_now_usec();
+    printf("\nDelay: %lu\n",stop-start);
+
+    irq_restore(old_state);
+    if(successful_stop == 1){
+        range_rx_successful_stop();
+    }
+    else{
+        range_rx_stop();
+    }
 }
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
@@ -327,7 +338,7 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode)
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode, int max_iter)
 {
     //puts("started");
     range_sys_flag = mode;
@@ -335,6 +346,7 @@ void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode)
     _tx_node_id = node_id;
     ranging_pid = pid;
     rx_line = lines;
+    range_max_iter = max_iter;
     gpio_init(rx_line.one_pin,GPIO_IN);
     gpio_init(rx_line.two_pin,GPIO_IN);
     gpio_init(rx_line.logic_pin,GPIO_IN);
@@ -354,6 +366,5 @@ void range_rx_successful_stop(void)
 void range_rx_stop(void)
 {
     //puts("stopped");
-    ranging = 0;
     ranging_on = 0;
 }

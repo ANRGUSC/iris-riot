@@ -81,7 +81,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     msg_t msg_snd, msg_rcv;
 
     UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, params->node_id);
+    time_diffs = range_rx((uint32_t) RANGE_TIMEO_USEC, params->ranging_mode, params->node_id, RANGE_MAX_ITER);
     UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
     UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
     UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
@@ -205,7 +205,7 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     DEBUG("Exiting range_and_send\n");
 }
 
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id){ 
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id, uint32_t max_iter){ 
     // Check correct argument usage.
     uint8_t mode = range_mode;
     int i = 0;
@@ -239,25 +239,30 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
     msg_init_queue(msg_queue, QUEUE_SIZE);
 
     while(exit == 0){
-        range_rx_init(node_id, thread_getpid(), gpio_lines, mode);
+        range_rx_init(node_id, thread_getpid(), gpio_lines, mode, max_iter);
         if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
             DEBUG("rx_loop timed out\n");
             range_rx_stop();
             time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, -1};
+            num_entries++;
             return time_diffs;
         }
 
         switch(msg.type){
             case RF_RCVD:
                 DEBUG("RF ping rcvd\n");
-                if(first_node == msg.content.value){
+                if(first_node == (int8_t) msg.content.value){
                     DEBUG("TDMA has completed full loop\n");
                     range_rx_stop();
                     exit = 1;
+                    if(num_entries == 0){
+                        time_diffs[0] = (range_data_t) {0, 0, ULTRSND_MISSED, -1};
+                        num_entries++;
+                    }
                     break;
                 }
                 if(first_node == -1){
-                    first_node = msg.content.value;
+                    first_node = (int8_t) msg.content.value;
                     DEBUG("First node is %d\n", first_node);
                 }
                 break;
