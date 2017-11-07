@@ -315,9 +315,8 @@ int main(void)
                 rssi_value = rssi_val(msg.content.ptr);
 
                 rssi_data_arr[0] = rssi_value;
-                rssi_data_arr[1] = (int) sizeof(src_rssi_addr);
-                memcpy(rssi_data_arr + 2, src_rssi_addr, sizeof(src_rssi_addr));
-                rssi_data_arr[sizeof(src_rssi_addr) + 1] = '\n';
+                memcpy(rssi_data_arr + 1, src_rssi_addr, sizeof(src_rssi_addr));
+                rssi_data_arr[sizeof(src_rssi_addr) + 1] = '\0';
 
                 DEBUG("rssi_thread: rssi value %d from %s\n", rssi_value, src_rssi_addr);
                 //sending information to rssi thread on the MBED side                

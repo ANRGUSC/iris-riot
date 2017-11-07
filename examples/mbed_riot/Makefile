@@ -2,7 +2,7 @@
 BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
-APP_SELECT ?= mqtt_rssi_multicast
+APP_SELECT ?= mqtt_rssi_multicast_daniel
 
 PROGRAMMER ?= jlink
 
@@ -38,7 +38,7 @@ USEMODULE += shell
 USEMODULE += shell_commands
 
 #Set custom HDLC parameters
-CFLAGS += -DHDLC_BAUDRATE=230400
+CFLAGS += -DHDLC_BAUDRATE=115200
 CFLAGS += -DHDLC_RETRANS_TIMEO_USEC=100000
 CFLAGS += -DHDLC_MAX_PKT_SIZE=64
 

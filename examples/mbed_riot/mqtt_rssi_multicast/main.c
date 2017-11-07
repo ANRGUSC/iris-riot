@@ -232,7 +232,7 @@ int main(void)
 
     //setting the hdlc pid 
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));  
+                                      "hdlc", UART_DEV(0));  
     kernel_pid_t mqtt_pid = mqtt_thread_init(mqtt_control_thread_stack, sizeof(mqtt_control_thread_stack), MQTT_CONTOL_PRIO, 
                                       "mqtt_control", (void*) hdlc_pid);
 
