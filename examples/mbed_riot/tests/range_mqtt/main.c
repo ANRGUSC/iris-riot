@@ -422,6 +422,7 @@ static void *_mqtt_thread(void *arg)
                 uart_hdr.dst_port = MBED_PORT; //PORT 200
                 uart_hdr.pkt_type = MQTT_GO; 
                 //adds the uart hdr to the hdlc data
+                uart_pkt_cpy_data(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, EMCUTE_ID, ID_LENGTH);
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
                 msg_snd.type = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;

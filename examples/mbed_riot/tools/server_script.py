@@ -11,6 +11,8 @@ port = 1886
 topic_sub = "init_info"
 range_sub = "range_info"
 range_req_msg = "INIT_RANGE"
+node_data_flag = '0'
+node_disc_flag = '1'
 global topic_pub 
 topic_pub = ""
 server_mqtt = {'0': 'ACK', '1': 'Do something'}
@@ -18,9 +20,37 @@ hwaddr=[]
 client_ID=[]
 
 def parse_msg(msg):
+    origin = msg[:9]
+    msgtype = msg[9]
+    print("Message origin: "+ origin)
+    if(msgtype == node_data_flag):
+        print("Message type: node data")
+        return parse_node_data(msg[10:])
+    elif(msgtype == node_disc_flag):
+        print("Message type: node discovery")
+        return parse_node_disc(msg[10:])
+    else:
+        return -1;
+    
+
+def parse_node_disc(msg):
+    temp = []
+    nodelist= []
+    i = 0
+
+    temp = msg.split(",")
+    for data in temp[:-1]:
+        nodelist.append(int(data))
+        i= i+1
+
+    return nodelist
+
+
+def parse_node_data(msg):
     temp = []
     nodedict = {}
     i = 0
+
     splitmsg = msg.split(";")
     for data in splitmsg:
         data = data.strip();
@@ -31,6 +61,7 @@ def parse_msg(msg):
             else:
                 print("No data available; ping missed")
         i = i+1
+
 
     return nodedict
 

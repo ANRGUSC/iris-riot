@@ -53,6 +53,8 @@
 #define TDMA_BOOTSTRAP_CHANNEL              11
 #define TDMA_TOTAL_ANCHOR_NODES             4       /* experiment specific */
 
+#define ID_LENGTH       					9
+
 
 
 
