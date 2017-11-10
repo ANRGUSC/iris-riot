@@ -6,6 +6,7 @@ from threading import Thread
 #Change the following according to your system 
 broker_address="fd00:dead:beef::1" 
 port = 1886
+max_nodes = 10
 
 global count
 
@@ -32,37 +33,88 @@ server_mqtt = {'0': 'ACK', '1': 'Do something'}
 global message_queue
 message_queue = []
 
-global rssi_data 
-rssi_data = []
+global alpha
+alpha = 0.9
+
+
 #Creating the callback functions
 
-# The callback for when the client receives a CONNACK response from the server.
-# The callback function when client is connected to the broker.
+
+def l_search(item):
+    c = 0
+    for i in client_ID:
+        if i == item:
+            return c
+        c += 1
+
+
+
+def data_table():
+    global alpha
+    global rssi_data
+    global w_avg
+    rssi_data = [[0]*max_nodes for i in range(max_nodes)]
+    w_avg = [[0]*max_nodes for i in range(max_nodes)]
+    count = 0  
+    overall_count = 0  
+    start = False
+    l = len(client_ID)
+    while(1):  
+        if len(message_queue) != 0:
+            count += 1
+            data = message_queue.pop(0)
+            rssi = ord(data[0])
+            rcv_addr = data[1:9]
+            src_addr = data[9:]
+            r_index = l_search(rcv_addr)
+            s_index = l_search(src_addr)
+            # print("*********************")
+            # print("Receiver address",rcv_addr)
+            # print("Sender address",src_addr)
+            # print("RSSI:",rssi)
+            # print(r_index)
+            # print(s_index)
+            # print("*********************")
+            w_avg[r_index][s_index] = (w_avg[r_index][s_index])*(alpha) + (1-alpha)*(rssi - 73)
+            rssi_data[r_index][s_index] = rssi - 73
+        if count%((l*l)-l) == 0:
+            print ("Weighted Table")
+            for i in w_avg:
+                print(i)
+            print(" ")
+            print("RSSI values")
+            for i in rssi_data:
+                print(i)  
+            count = 1
+
+
+
+
+
+
+
 def rssi_ping_pong(client):
     print ("Starting RSSI ping pong broadcast")
     count = 0
-    i = 0;
     while(1):
         #implement round robin system
         if len(client_ID) >=2 :
-            t0 = time.time()
-            while(1):
-                t1 = time.time()       
+            for i in range(len(client_ID)):
+                t0 = time.time()
+                while(1):
+                    t1 = time.time()       
 
-                if ((t1-t0) >= 30 and i < len(client_ID)):
-                    print ("RSSI Broadcast message sent")
-                    info = client.publish(client_ID[i], msg_type['UDP_SEND'])
-                    info.wait_for_publish()
-                    i += 1
-                    count += 1
-                    break 
-                else:
-                    i = 0
+                    if ((t1-t0) >= 1 ):
+                        print ("RSSI Broadcast message sent")
+                        info = client.publish(client_ID[i], msg_type['UDP_SEND'])
+                        info.wait_for_publish()
+                        count += 1
+                        break 
+                    
 
                 # time.sleep(0.5)       
             print("count: ",count)
-        if len(message_queue) !=0 :
-            rssi_data.append(message_queue.pop(0))
+        
 
 
 
@@ -99,11 +151,10 @@ def on_message(client, userdata, msg):
         req_clients += 1
 
     elif message[0] == msg_type['RSSI_DATA']:
-        print ("*******RSSI_SEND*******")
         message_queue.append(message[1:])
-        print("*********")
-        print(message_queue)
-        print("*********")
+        # print("*********")
+        # print(message_queue)
+        # print("*********")
 
     else:
         print ("wrong format %d\n" % int(message[0]))
@@ -136,29 +187,15 @@ turn = 0;
 t = Thread(target=rssi_ping_pong, args=(client,))
 t.start()   
 
+t1 = Thread(target=data_table)
+start = True
+
 while 1:
-    '''
-    if req_clients == 2:
-        print(time_wait_ds(1))
-    '''
-    if req_clients >= 2:
-        for i in range(2):
-            len_data = msg_type['LEN_CLIENTS_LIST'] + str(req_clients)
-            topic_pub = client_ID[i]
-            infoc = client.publish(client_ID[i] , len_data)
-            infoc.wait_for_publish()
-        time.sleep(2)
-        for i in range(req_clients):
-            for j in range(req_clients):
-                data_pub = msg_type['GET_CLIENTS'] + client_ID[j]
-                print("the data to be sent is data_pub", data_pub)
-                print("the topic is", client_ID[i])
-                infop = client.publish(client_ID[i], data_pub)
-                infop.wait_for_publish()
-                time.sleep(0.5)
-            time.sleep(0.5)
-        req_clients = 0
-    time.sleep(0.5)
+    while(start):
+        if len(client_ID) == 2:
+            t1.start()
+            start = False
+
     
 
 client.loop_forever() #loop forever
