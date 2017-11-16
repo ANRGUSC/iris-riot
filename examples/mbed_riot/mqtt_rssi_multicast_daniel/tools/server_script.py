@@ -57,11 +57,13 @@ def data_table():
     w_avg = [[0]*max_nodes for i in range(max_nodes)]
     count = 0  
     overall_count = 0  
-    start = False
+    check = False
     l = len(client_ID)
     while(1):  
         if len(message_queue) != 0:
             count += 1
+            overall_count +=1
+            check = True
             data = message_queue.pop(0)
             rssi = ord(data[0])
             rcv_addr = data[1:9]
@@ -75,9 +77,12 @@ def data_table():
             # print(r_index)
             # print(s_index)
             # print("*********************")
-            w_avg[r_index][s_index] = (w_avg[r_index][s_index])*(alpha) + (1-alpha)*(rssi - 73)
+            if (overall_count == 1 or overall_count == 2):
+                w_avg[r_index][s_index] = (rssi - 73)
+            else:
+                w_avg[r_index][s_index] = (w_avg[r_index][s_index])*(alpha) + (1-alpha)*(rssi - 73)
             rssi_data[r_index][s_index] = rssi - 73
-        if count%((l*l)-l) == 0:
+        if count%((l*l)-l) == 0 and check:
             print ("Weighted Table")
             for i in w_avg:
                 print(i)
@@ -85,7 +90,8 @@ def data_table():
             print("RSSI values")
             for i in rssi_data:
                 print(i)  
-            count = 1
+            count = 0
+            check = False
 
 
 
@@ -130,34 +136,38 @@ def on_message(client, userdata, msg):
     global rssi_sender_topic
     global message_queue
     print ("Data received")
-    message = str(msg.payload.decode())
-    if message[0] == msg_type['HW_ADDR']:
-        topic_pub = message[1:]
-        print("The topic is \n", topic_pub)
-        if topic_pub not in client_ID:
-            client_ID.append(topic_pub)
-            clients_connected += 1
-        # elif topic_pub in client_ID:
-        #     if clients_connected != len(client_ID):
-        #         clients_connected += 1
+    try :     
+        message = str(msg.payload.decode())
+        if message[0] == msg_type['HW_ADDR']:
+            topic_pub = message[1:]
+            print("The topic is \n", topic_pub)
+            if topic_pub not in client_ID:
+                client_ID.append(topic_pub)
+                clients_connected += 1
+            # elif topic_pub in client_ID:
+            #     if clients_connected != len(client_ID):
+            #         clients_connected += 1
 
-        #when a message is received, the message is published to another topic
-        client.publish(topic_pub,server_mqtt[message[0]])                
-        print("The number of clients connected is", clients_connected)
-        print("The clients are", client_ID)
+            #when a message is received, the message is published to another topic
+            client.publish(topic_pub,server_mqtt[message[0]])                
+            print("The number of clients connected is", clients_connected)
+            print("The clients are", client_ID)
 
-    elif message[0] == msg_type['REQUEST']:
-        print ("client requested received")
-        req_clients += 1
+        elif message[0] == msg_type['REQUEST']:
+            print ("client requested received")
+            req_clients += 1
 
-    elif message[0] == msg_type['RSSI_DATA']:
-        message_queue.append(message[1:])
-        # print("*********")
-        # print(message_queue)
-        # print("*********")
+        elif message[0] == msg_type['RSSI_DATA']:
+            message_queue.append(message[1:])
+            # print("*********")
+            # print(message_queue)
+            # print("*********")
 
-    else:
-        print ("wrong format %d\n" % int(message[0]))
+        else:
+            print ("wrong format %d\n" % int(message[0]))
+    except UnicodeDecodeError:
+        print ("invalid packet")
+        
                                         
 
 def on_subscribe(mosq, obj, mid, granted_qos):
