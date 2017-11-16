@@ -11,6 +11,8 @@ port = 1886
 topic_sub = "init_info"
 range_sub = "range_info"
 range_req_msg = "INIT_RANGE"
+node_data_flag = '0'
+node_disc_flag = '1'
 global topic_pub 
 topic_pub = ""
 server_mqtt = {'0': 'ACK', '1': 'Do something'}
@@ -18,9 +20,37 @@ hwaddr=[]
 client_ID=[]
 
 def parse_msg(msg):
+    origin = msg[:9]
+    msgtype = msg[9]
+    print("Message origin: "+ origin)
+    if(msgtype == node_data_flag):
+        print("Message type: node data")
+        return parse_node_data(msg[10:])
+    elif(msgtype == node_disc_flag):
+        print("Message type: node discovery")
+        return parse_node_disc(msg[10:])
+    else:
+        return -1;
+    
+
+def parse_node_disc(msg):
+    temp = []
+    nodelist= []
+    i = 0
+
+    temp = msg.split(",")
+    for data in temp[:-1]:
+        nodelist.append(int(data))
+        i= i+1
+
+    return nodelist
+
+
+def parse_node_data(msg):
     temp = []
     nodedict = {}
     i = 0
+
     splitmsg = msg.split(";")
     for data in splitmsg:
         data = data.strip();
@@ -31,6 +61,7 @@ def parse_msg(msg):
             else:
                 print("No data available; ping missed")
         i = i+1
+
 
     return nodedict
 
@@ -55,34 +86,50 @@ def usr_input(client):
         print("5 - exit")
         c=int(raw_input("Enter your choice\t"))
         if c==0:
-            clientnum = int(raw_input("Enter the number of the openmote you want to send a normal message to\t"))
-            usrtopic=hwaddr[clientnum]
-            usrmessage="0"
-            usrmessage=usrmessage+raw_input("Enter your message\t")
+            try:
+                clientnum = int(raw_input("Enter the number of the openmote you want to send a normal message to\t"))
+                usrtopic=hwaddr[clientnum]
+                usrmessage="0"
+                usrmessage=usrmessage+raw_input("Enter your message\t")
+            except:
+                print("Input error")
+                continue
         elif c==1:
-            clientnum = int(raw_input("Enter the number of the openmote that will sub to a topic\t"))
-            usrtopic=hwaddr[clientnum]
-            usrmessage="1"
-            usrmessage=usrmessage+raw_input("Enter the topic you want the openmote to sub to\t")
+            try:
+                clientnum = int(raw_input("Enter the number of the openmote that will sub to a topic\t"))
+                usrtopic=hwaddr[clientnum]
+                usrmessage="1"
+                usrmessage=usrmessage+raw_input("Enter the topic you want the openmote to sub to\t")
+            except:
+                print("Input error")
+                continue
         elif c==2:
-            print("This will pub a normal message to the other message")
-            clientnum = int(raw_input("Enter the number of the openmote that will send the pub message\t"))
-            usrtopic=hwaddr[clientnum]
-            usrmessage="2"
-            temp=raw_input("Enter the topic that the openmote will pub to\t")
-            usrmessage=usrmessage+str(unichr(len(temp)))+temp
-            message_to_be_pubbed=raw_input("Enter the message that you want the openmote to publish\t")
-            usrmessage=usrmessage+message_to_be_pubbed
+            try:
+                print("This will pub a normal message to the other message")
+                clientnum = int(raw_input("Enter the number of the openmote that will send the pub message\t"))
+                usrtopic=hwaddr[clientnum]
+                usrmessage="2"
+                temp=raw_input("Enter the topic that the openmote will pub to\t")
+                usrmessage=usrmessage+str(unichr(len(temp)))+temp
+                message_to_be_pubbed=raw_input("Enter the message that you want the openmote to publish\t")
+                usrmessage=usrmessage+message_to_be_pubbed
+            except:
+                print("Input error")
+                continue
         elif c==3:
-            clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
-            node_id = int(raw_input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
-            node_id += ord('0')
-            print("Select ranging mode:")
-            ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
-            ranging_mode += 96 #this is the offset for ranging_mode values
-            usrtopic=hwaddr[clientnum]
-            usrmessage="0"
-            usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+            try:
+                clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
+                node_id = int(raw_input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
+                node_id += ord('0')
+                print("Select ranging mode:")
+                ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
+                ranging_mode += 96 #this is the offset for ranging_mode values
+                usrtopic=hwaddr[clientnum]
+                usrmessage="0"
+                usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+            except:
+                print("Input error")
+                continue
         elif c==4:
             print("***********************************")
             print("Clients:")
@@ -95,6 +142,7 @@ def usr_input(client):
             break;
         else:
             print("invalid choice")
+            continue;
         if c!=4:
             client.publish(usrtopic,usrmessage)
             print("publishing "+usrmessage+" to "+usrtopic)

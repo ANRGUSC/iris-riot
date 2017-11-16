@@ -75,8 +75,8 @@
 #include "dac.h"
 #include "shell.h"
 
-#define ENABLE_DEBUG (1)
-#define TX_MODE      (0) //TOGGLE THIS TO SET UP OPENMOTE AS RECEIVER OR TRANSMITTER
+#define ENABLE_DEBUG (0)
+#define TX_MODE      (1) //TOGGLE THIS TO SET UP OPENMOTE AS RECEIVER OR TRANSMITTER
 
 #include "debug.h"
 
@@ -137,7 +137,7 @@ static void *_range_tx_thread(void *arg){
     while(1){
         old_channel = _get_channel();
         _set_channel(RSSI_LOCALIZATION_CHAN);
-
+        
         range_tx();
 
         _set_channel(old_channel);
