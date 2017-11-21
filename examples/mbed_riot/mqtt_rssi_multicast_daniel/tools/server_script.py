@@ -203,6 +203,7 @@ start = True
 while 1:
     while(start):
         if len(client_ID) == 2:
+            time.sleep(2)
             t1.start()
             start = False
 
