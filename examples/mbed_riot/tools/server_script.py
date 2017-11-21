@@ -39,7 +39,7 @@ def parse_msg(msg):
 def parse_node_disc(msg, size):
     nodelist= []
 
-    fmt = "=" + "B" * size
+    fmt = "=" + "b" * size
     
     nodelist = unpack(fmt, msg)
 
@@ -49,7 +49,7 @@ def parse_node_disc(msg, size):
 def parse_node_data(msg, size):
     temp = []
     nodedict = {}
-    fmt = "=" + "BH" * size
+    fmt = "=" + "bH" * size
 
     # splitmsg = msg.split(";")
     # for data in splitmsg:
@@ -165,11 +165,12 @@ def on_message(client, userdata, msg):
     global total_num_clients_con_broker
     global connected_clients
     print ("\nData received")
-    message = str(msg.payload.decode())
-    print(message)
+    #message = str(msg.payload.decode())
+    #print(message)
     print(msg.payload)
-    print(msg.payload.decode())
+    #print(msg.payload.decode())
     print(":".join("{:02x}".format(ord(c)) for c in msg.payload))
+    message=msg.payload
     if msg.topic==topic_sub:        
         if message[0] in server_mqtt:
             topic_pub=message[1:]

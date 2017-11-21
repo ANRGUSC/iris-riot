@@ -61,6 +61,7 @@
 #endif
 
 #define UART_PKT_DATA_FIELD         UART_PKT_HDR_LEN
+#define MQTT_TOPIC_LEN                  16
 
 typedef struct __attribute__((packed)) {
     uint16_t    src_port;      

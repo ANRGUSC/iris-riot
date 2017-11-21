@@ -193,7 +193,7 @@ static void on_pub_mbed(const emcute_topic_t *topic, void *data, size_t data_len
 }
     
 /**
- * @brief      publish to a topic
+ * @brief      publish to a topic **Deprecated as of 11/21/17**
  *
  * @param      pub_topic  The pub topic
  * @param      data       The data
@@ -236,6 +236,62 @@ static int auto_pub(char* pub_topic, char* data)
 
     /* step 2: publish data */
     if (emcute_pub(&t, data, strlen(data), flags) != EMCUTE_OK) {
+        DEBUG("error: unable to publish data to topic %s\n",
+                t.name);
+        fflush(stdout);
+        return 1;
+    }
+
+    DEBUG("Published %i bytes to topic '%s [%i]'\n",
+            (int)strlen(data), t.name, t.id);
+
+    return 0;
+}
+
+/**
+ * @brief      publish to a topic
+ *
+ * @param      pub_topic  The pub topic
+ * @param      data       The data
+ *
+ * @return     status
+ */
+static int auto_npub(char* pub_topic, char* data, size_t data_len)
+{
+    int error_msg = 0;
+    emcute_topic_t t;
+    unsigned flags = EMCUTE_QOS_0;
+    mqtt_topic_entry_t *new_topic_entry;
+    mqtt_topic_entry_t *entry;
+    DEBUG("auto_pub: Trying to publish with topic: %s and data %s \n", pub_topic, data);
+
+    /* step 1: get topic id */
+    t.name = pub_topic;
+
+    /* First Check if the topic id is available locally. Otherwise get is from the broker*/
+    t.id  = mqtt_search_scalar(pub_topic);
+    if ( !t.id )
+    {
+        DEBUG("auto_pub: No registry found %d\n",strlen(pub_topic));
+
+        error_msg = emcute_reg(&t);
+
+        if (error_msg != EMCUTE_OK) {
+            DEBUG("error: unable to obtain topic ID %d", error_msg);
+            fflush(stdout);
+            return 1;
+        }
+
+
+        /* Add the topic id in the local cache*/
+        new_topic_entry = (mqtt_topic_entry_t *)malloc(sizeof(mqtt_topic_entry_t));
+        new_topic_entry->id = t.id;
+        memcpy(new_topic_entry->topic, pub_topic, strlen(pub_topic) +1);
+        mqtt_topic_register(new_topic_entry);
+    }
+
+    /* step 2: publish data */
+    if (emcute_pub(&t, data, data_len, flags) != EMCUTE_OK) {
         DEBUG("error: unable to publish data to topic %s\n",
                 t.name);
         fflush(stdout);
@@ -412,7 +468,7 @@ static void *_mqtt_thread(void *arg)
                 for(int i = 0; i < sizeof(EMCUTE_ID);i ++){
                     pub_server[i + 1] = EMCUTE_ID[i];
                 }
-                auto_pub(TOPIC, pub_server);
+                auto_npub(TOPIC, pub_server, strlen(pub_server));
             }
             // DEBUG("In while loop\n");
             if (mqtt_go == 0)
@@ -530,7 +586,7 @@ static void *_mqtt_thread(void *arg)
 
                         case MQTT_PUB:
                             DEBUG("mqtt_control_thread: Mqtt Publish Request Received from MBED with topic: %s and data: %s \n", mbed_rcv_pkt->topic, mbed_rcv_pkt->data);
-                            if (auto_pub(mbed_rcv_pkt->topic, mbed_rcv_pkt->data) == 0){
+                            if (auto_npub2(mbed_rcv_pkt->topic, mbed_rcv_pkt->data, hdlc_rcv_pkt->length - UART_PKT_HDR_LEN - MQTT_TOPIC_LEN) == 0){
                                 uart_hdr.src_port = THREAD2_PORT; //PORT 170
                                 uart_hdr.dst_port = MBED_PORT; //PORT 200
                                 uart_hdr.pkt_type = MQTT_PUB_ACK; 
