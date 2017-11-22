@@ -1,6 +1,7 @@
 from __future__ import print_function
 from threading import Thread
 import paho.mqtt.client as mqtt
+from struct import *
 
 
 #initializing the variables
@@ -20,48 +21,51 @@ hwaddr=[]
 client_ID=[]
 
 def parse_msg(msg):
-    origin = msg[:9]
-    msgtype = msg[9]
+    data_info = msg[:11]
+    data = msg[11:]
+    origin, msgtype, size = unpack("=9s1sB", data_info)
     print("Message origin: "+ origin)
+    print("Size: " + str(size))
     if(msgtype == node_data_flag):
         print("Message type: node data")
-        return parse_node_data(msg[10:])
+        return parse_node_data(data, size)
     elif(msgtype == node_disc_flag):
         print("Message type: node discovery")
-        return parse_node_disc(msg[10:])
+        return parse_node_disc(data, size)
     else:
         return -1;
     
 
-def parse_node_disc(msg):
-    temp = []
+def parse_node_disc(msg, size):
     nodelist= []
-    i = 0
 
-    temp = msg.split(",")
-    for data in temp[:-1]:
-        nodelist.append(int(data))
-        i= i+1
+    fmt = "=" + "b" * size
+    
+    nodelist = unpack(fmt, msg)
 
     return nodelist
 
 
-def parse_node_data(msg):
+def parse_node_data(msg, size):
     temp = []
     nodedict = {}
-    i = 0
+    fmt = "=" + "bH" * size
 
-    splitmsg = msg.split(";")
-    for data in splitmsg:
-        data = data.strip();
-        if data != "":
-            temp = data.split(",")
-            if int(temp[0]) != 0:
-                nodedict[int(temp[1])]=int(temp[0])
-            else:
-                print("No data available; ping missed")
-        i = i+1
-
+    # splitmsg = msg.split(";")
+    # for data in splitmsg:
+    #     data = data.strip();
+    #     if data != "":
+    #         temp = data.split(",")
+    #         if int(temp[0]) != 0:
+    #             nodedict[int(temp[1])]=int(temp[0])
+    #         else:
+    #             print("No data available; ping missed")
+    #     i = i+1
+    
+    temp = unpack(fmt, msg)
+    
+    for i in range(size):
+        nodedict[temp[i*2]] = temp[i*2 + 1]; 
 
     return nodedict
 
@@ -161,8 +165,12 @@ def on_message(client, userdata, msg):
     global total_num_clients_con_broker
     global connected_clients
     print ("\nData received")
-    message = str(msg.payload.decode())
-    print(message)
+    #message = str(msg.payload.decode())
+    #print(message)
+    print(msg.payload)
+    #print(msg.payload.decode())
+    print(":".join("{:02x}".format(ord(c)) for c in msg.payload))
+    message=msg.payload
     if msg.topic==topic_sub:        
         if message[0] in server_mqtt:
             topic_pub=message[1:]
@@ -176,7 +184,7 @@ def on_message(client, userdata, msg):
     elif msg.topic==range_sub:
         data = parse_msg(message);
         print(data)
-      
+        
 def on_subscribe(mosq, obj, mid, granted_qos):
     print("Subscribed to all topics ")
 
