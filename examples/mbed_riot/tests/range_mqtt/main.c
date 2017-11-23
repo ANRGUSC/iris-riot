@@ -586,7 +586,7 @@ static void *_mqtt_thread(void *arg)
 
                         case MQTT_PUB:
                             DEBUG("mqtt_control_thread: Mqtt Publish Request Received from MBED with topic: %s and data: %s \n", mbed_rcv_pkt->topic, mbed_rcv_pkt->data);
-                            if (auto_npub2(mbed_rcv_pkt->topic, mbed_rcv_pkt->data, hdlc_rcv_pkt->length - UART_PKT_HDR_LEN - MQTT_TOPIC_LEN) == 0){
+                            if (auto_npub(mbed_rcv_pkt->topic, mbed_rcv_pkt->data, hdlc_rcv_pkt->length - UART_PKT_HDR_LEN - MQTT_TOPIC_LEN) == 0){
                                 uart_hdr.src_port = THREAD2_PORT; //PORT 170
                                 uart_hdr.dst_port = MBED_PORT; //PORT 200
                                 uart_hdr.pkt_type = MQTT_PUB_ACK; 

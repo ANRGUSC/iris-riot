@@ -41,7 +41,7 @@
 #define NETDEV_NETAPI_MSG_QUEUE_SIZE 8
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
-static void _sound_ranging(uint8_t node_id);
+static void _sound_ranging(int8_t node_id);
 
 /* sound ranging */
 #include "periph/adc.h"
@@ -92,10 +92,10 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                             RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1])
                         {
                             ranging_complete.type = RF_RCVD;
-                            ranging_complete.content.value = ((uint8_t *) pkt->data)[2];
+                            ranging_complete.content.value = ((int8_t *) pkt->data)[2];
                             msg_send(&ranging_complete,ranging_pid);
-                            if((_tx_node_id == -1) || (_tx_node_id == ((uint8_t *) pkt->data)[2])){
-                                _sound_ranging(((uint8_t *) pkt->data)[2]);
+                            if((_tx_node_id == -1) || (_tx_node_id == ((int8_t *) pkt->data)[2])){
+                                _sound_ranging(((int8_t *) pkt->data)[2]);
                             }
                         }
                     }
@@ -121,7 +121,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
 }
 
 
-static void _sound_ranging(uint8_t node_id)
+static void _sound_ranging(int8_t node_id)
 {
     unsigned old_state = irq_disable();
     int first = 2;

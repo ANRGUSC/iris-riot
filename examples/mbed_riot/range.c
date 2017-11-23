@@ -243,7 +243,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
         if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
             DEBUG("rx_loop timed out\n");
             range_rx_stop();
-            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, -1};
+            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, node_id};
             num_entries++;
             return time_diffs;
         }
@@ -256,7 +256,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
                     range_rx_stop();
                     exit = 1;
                     if(num_entries == 0){
-                        time_diffs[0] = (range_data_t) {0, 0, ULTRSND_MISSED, -1};
+                        time_diffs[0] = (range_data_t) {0, 0, ULTRSND_MISSED, node_id};
                         num_entries++;
                     }
                     break;

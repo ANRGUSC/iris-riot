@@ -14,11 +14,14 @@ range_sub = "range_info"
 range_req_msg = "INIT_RANGE"
 node_data_flag = '0'
 node_disc_flag = '1'
-global topic_pub 
 topic_pub = ""
 server_mqtt = {'0': 'ACK', '1': 'Do something'}
 hwaddr=[]
 client_ID=[]
+message_rcvd=False
+save_to_file=False
+file_name = ""
+data = {}
 
 def parse_msg(msg):
     data_info = msg[:11]
@@ -75,20 +78,29 @@ def parse_node_data(msg, size):
 # The callback function when client is connected to the broker.
     
 def usr_input(client):
-    
+    global message_rcvd
+    global file_name
+    global save_to_file
+    global data
+
     c=0
     exit=0
     clientnum=0
-    while(c!=5):
+    while(c!=6):
         usrtopic = ""
         usrmessage= ""
         print("0 - send a normal message to mbed")
         print("1 - send a sub message to the mbed")
         print("2 - send a pub message to the mbed so it publishes to a topic")
         print("3 - send a ranging request message to the mbed")
-        print("4 - show clients")
-        print("5 - exit")
+        print("4 - send a series of ranging request messages and save to csv")
+        print("5 - show clients")
+        print("6 - exit")
         c=int(raw_input("Enter your choice\t"))
+
+        save_to_file = False;
+        message_rcvd = False;
+
         if c==0:
             try:
                 clientnum = int(raw_input("Enter the number of the openmote you want to send a normal message to\t"))
@@ -123,31 +135,72 @@ def usr_input(client):
         elif c==3:
             try:
                 clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
+                usrtopic=hwaddr[clientnum]
+
                 node_id = int(raw_input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
                 node_id += ord('0')
+
                 print("Select ranging mode:")
                 ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
                 ranging_mode += 96 #this is the offset for ranging_mode values
-                usrtopic=hwaddr[clientnum]
+                
                 usrmessage="0"
                 usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
             except:
                 print("Input error")
                 continue
         elif c==4:
+            save_to_file = True
+            node_id = 0
+            try:
+                file_name = raw_input("File name:")
+                file_name = file_name + ".csv"
+
+                clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
+                usrtopic=hwaddr[clientnum]
+
+                node_id = int(raw_input("Enter the node_id of the node you with to range"))
+                if(node_id < 0):
+                    print("Input error")
+                    save_to_file = False;
+                    continue
+                node_id += ord('0')
+
+                print("Select ranging mode:")
+                ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
+                ranging_mode += 96 #this is the offset for ranging_mode values
+                                   #
+                num_samples = int(raw_input("Number of samples to take: "))
+                
+                usrmessage="0"
+                usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+            except:
+                print("Input error")
+                save_to_file = False;
+                continue
+            file = open(file_name, 'w')
+            for i in range(num_samples):
+                client.publish(usrtopic,usrmessage)
+                print(str(i)+": publishing "+usrmessage+" to "+usrtopic)
+                while message_rcvd == False:
+                    pass    
+                file.write(str(data[node_id-ord('0')])+'\n')
+                message_rcvd = False
+            file.close()
+        elif c==5:
             print("***********************************")
             print("Clients:")
             i = 0
             for addr in hwaddr:
                 print(str(i)+": "+addr)
             print("***********************************")
-        elif c==5:
+        elif c==6:
             exit=1
             break;
         else:
             print("invalid choice")
             continue;
-        if c!=4:
+        if c!=4 and c!=5:
             client.publish(usrtopic,usrmessage)
             print("publishing "+usrmessage+" to "+usrtopic)
 
@@ -161,9 +214,12 @@ def on_connect(client, userdata, flag, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
+    global message_rcvd
     global topic_pub
     global total_num_clients_con_broker
     global connected_clients
+    global data
+
     print ("\nData received")
     #message = str(msg.payload.decode())
     #print(message)
@@ -182,8 +238,9 @@ def on_message(client, userdata, msg):
             #when a message is received, the message is published to another topic
             client.publish(topic_pub,server_mqtt[message[0]])   
     elif msg.topic==range_sub:
-        data = parse_msg(message);
+        data = parse_msg(message)
         print(data)
+    message_rcvd = True
         
 def on_subscribe(mosq, obj, mid, granted_qos):
     print("Subscribed to all topics ")
