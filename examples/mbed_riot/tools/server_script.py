@@ -2,7 +2,7 @@ from __future__ import print_function
 from threading import Thread
 import paho.mqtt.client as mqtt
 from struct import *
-
+import time
 
 #initializing the variables
 #Change the following according to your system 
@@ -179,13 +179,35 @@ def usr_input(client):
                 save_to_file = False;
                 continue
             file = open(file_name, 'w')
+            resend = False
+            quit = False
+            j = 0
+            node_id_num = node_id-ord('0')
             for i in range(num_samples):
                 client.publish(usrtopic,usrmessage)
                 print(str(i)+": publishing "+usrmessage+" to "+usrtopic)
+                timeout = time.time() + 3
                 while message_rcvd == False:
-                    pass    
-                file.write(str(data[node_id-ord('0')])+'\n')
+                    if(time.time() > timeout):
+                        j = j+1
+                        print("Timed out.. resending")
+                        resend = True
+                        if(j>5):
+                            print("Resending failed.. quitting")
+                            quit = True
+                        break;
+                    pass
+                if quit:
+                    break;
+                if resend:
+                    continue  
+                j = 0 
+                if(node_id_num in data.keys()):
+                    file.write(str(data[node_id_num])+'\n')
+                else;
+                    file.write('-1')
                 message_rcvd = False
+
             file.close()
         elif c==5:
             print("***********************************")
