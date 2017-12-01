@@ -45,6 +45,8 @@
 #define RANGE_REQ_TIMEO_USEC                1000000
 
 /* TDMA Localization Settings */
+#define TDMA_MASTER_NODE_ID                 0
+
 /* sent in network byte order (big-endian) */
 #define TDMA_ANCHOR_ID_REQ_U16_FLAG         0x5444  /* 'T' and 'D' for TDma */
 #define TDMA_ANCHOR_ID_RESP_U16_FLAG        0x4d41  /* 'M' and 'A' for tdMA */

@@ -43,6 +43,7 @@
  * @author     Richard Kim <richartk@usc.edu>
  */
 #include "range_param.h"
+#include "main-conf.h"
 #include "range.h"
 
 #define ENABLE_DEBUG (1)

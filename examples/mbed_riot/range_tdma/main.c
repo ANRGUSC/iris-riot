@@ -53,85 +53,31 @@
 #define MAIN_QUEUE_SIZE     (8)
 #define MAX_TX_POWER         7
 
+#define NODE_ID_REQ_TIMEOUT (1000000U)
+
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
-// int range_tx_tdma(void)
-int main(void)
+static void send_nodeid_req()
 {
-    DEBUG("Running range_tx_tdma.\n");
-// SETUP
-    // Radio
-    //------------------------------------------------------------------------//
-    msg_t msg;
-    msg_init_queue(_main_msg_queue, sizeof(_main_msg_queue));
-    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    size_t numof = gnrc_netif_get(ifs); 
-    gnrc_pktsnip_t *send_pkt, *recv_pkt, *hdr;
-    uint8_t anchor_node_id = 1;
-    // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
-    uint8_t buf[3]; // buf is size 6 in master
-    uint16_t tdma_slot_time_msec = 0;
-    uint8_t total_num_anchors = 1;
-    gnrc_netreg_entry_t tdma_slave_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
-    uint16_t channel = TDMA_BOOTSTRAP_CHANNEL;
-    uint16_t tx_power = TX_POWER;
-    gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t)); // check channel
-    /* there should be only one network interface on the board */
-    if (numof == 1) 
-    {
-        gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
-    }
-    /* register for all l2 packets */
-    gnrc_netreg_register(1, &tdma_slave_serv);
+    char buf[3];
     uint8_t hw_addr[MAX_ADDR_LEN];
     size_t hw_addr_len;
-    hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
     gnrc_netif_hdr_t *nethdr;
-    // Broadcasting flag setup.
-    uint8_t flags = 0x00;
-    //------------------------------------------------------------------------//
+    uint8_t flags = 0;
 
-    // Ultrasonic sensor
-    //------------------------------------------------------------------------//
-    /* enable output on Port D pin 3 */
-    if (gpio_init(TX_PIN, GPIO_OUT) < 0) 
-    {
-        DEBUG("Error initializing GPIO_PIN.\n");
-        return 1;
-    }
-    // Clearing output for the ultrasonic sensor.
-    gpio_clear(TX_PIN);
-    //------------------------------------------------------------------------//
-    
-    // Miscellaneous
-    //------------------------------------------------------------------------//
-    bool wait_for_id = true;
-    xtimer_ticks32_t go_time; // go_time = time at which openmote sends ranging.
-    uint32_t id_delay_time;
-    uint8_t incoming_rank = 1;
-    bool wait_for_nodes = false;
-    uint32_t one_window;
-    // NETOPT_ADDRESS; // this device's hw_addr 
-    //------------------------------------------------------------------------//
-
-    // 1. NODE sends REQ packet to LEADER.
-    //------------------------------------------------------------------------//
     buf[0] = TDMA_ANCHOR_ID_REQ_U16_FLAG >> 8 & 0xFF;
     buf[1] = TDMA_ANCHOR_ID_REQ_U16_FLAG & 0xFF;
-    buf[2] = 0x00;
+    buf[2] = TDMA_MASTER_NODE_ID; //leader node id
 
-    send_pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
-    if (send_pkt == NULL) 
-    {
-        DEBUG("error: packet buffer full\n");
-        return 1;
-    }
+    hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
 
+    gnrc_pktsnip_t *send_pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), 
+                                               GNRC_NETTYPE_UNDEF);
     hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-    if (hdr == NULL) 
+
+    if (send_pkt == NULL || hdr == NULL) 
     {
         DEBUG("error: packet buffer full\n");
-        gnrc_pktbuf_release(send_pkt);
         return 1;
     }
 
@@ -145,33 +91,90 @@ int main(void)
         DEBUG("error: unable to send\n");
         gnrc_pktbuf_release(send_pkt);
     }
+}
+
+int main(void)
+{
+    DEBUG("Running range_tx_tdma.\n");
+    
+    // SETUP
+    // Radio
     //------------------------------------------------------------------------//
+    msg_t msg;
+    msg_init_queue(_main_msg_queue, sizeof(_main_msg_queue));
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    gnrc_pktsnip_t *send_pkt, *recv_pkt, *hdr;
+    uint8_t anchor_node_id = NULL;
+    // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
+    uint8_t buf[3]; // buf is size 6 in master
+    uint16_t tdma_slot_time_msec = 0;
+    uint8_t total_num_anchors = 1;
+    gnrc_netreg_entry_t tdma_slave_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
+    uint16_t channel = TDMA_BOOTSTRAP_CHANNEL;
+    uint16_t tx_power = TX_POWER;
+
+    gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t)); 
+
+    /* there should be only one network interface on the board */
+    size_t numof = gnrc_netif_get(ifs); 
+    if (numof == 1) 
+    {
+        gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
+    }
+
+    /* register for all l2 packets */
+    gnrc_netreg_register(1, &tdma_slave_serv);
+
+    // Ultrasonic sensor
+    //------------------------------------------------------------------------//
+    /* enable output on Port D pin 3 */
+    if (gpio_init(TX_PIN, GPIO_OUT) < 0) 
+    {
+        DEBUG("Error initializing GPIO_PIN.\n");
+        return 1;
+    }
+    // Clearing output for the ultrasonic sensor.
+    gpio_clear(TX_PIN);
+    
+    // Miscellaneous
+    //------------------------------------------------------------------------//
+    xtimer_ticks32_t go_time; // go_time = time at which openmote sends ranging.
+    uint32_t id_delay_time;
+    uint8_t incoming_rank = 1;
+    bool wait_for_nodes = false;
+    uint32_t one_window;
 
     // 2. NODE waits for ID packet from LEADER.
     //------------------------------------------------------------------------//
-    wait_for_id = true;
+    bool wait_for_id = true;
+    send_nodeid_req();
+
     while (wait_for_id)
     {
-        msg_receive(&msg);
+
+        if(xtimer_msg_receive_timeout(&msg, NODE_ID_REQ_TIMEOUT) < 0)
+        {
+            send_nodeid_req();
+            continue;
+        }
+
         switch (msg.type)
         {
-            // 2.1. NODE receives ID packet from LEADER.
+            // 2.1. NODE receives targeted ID packet (via MAC addr) from LEADER.
             case GNRC_NETAPI_MSG_TYPE_RCV:
-                DEBUG("Received RCV pkt.\n");
+                DEBUG("Received pkt.\n");
                 recv_pkt = msg.content.ptr;
 
                 /* first snip should be of type GNRC_NETTYPE_UNDEF carrying the data */
                 if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
                     ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
                 {
-                    // 2.2. NODE records its ID (ranking).
+                    // 2.2. NODE records its ID (ranking). 
                     anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
                     DEBUG("Rank: %d\n", anchor_node_id);
                     
                     // 2.3. NODE syncs with the LEADER.
-                    tdma_slot_time_msec &= 0x00;
-                    tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
-                    tdma_slot_time_msec = tdma_slot_time_msec << 8;
+                    tdma_slot_time_msec = ((uint8_t *)recv_pkt->data)[3] << 8;
                     tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
 
                     // 2.4. NODE records total number of nodes.
@@ -196,7 +199,6 @@ int main(void)
                 break;
         }
     }
-    //------------------------------------------------------------------------//
 
     // Preprocessing.
     //------------------------------------------------------------------------//
@@ -208,13 +210,11 @@ int main(void)
     range_tx_init(TX_PIN);
 
     // Set initial wait time.
-    tdma_slot_time_msec = 100000;
-    go_time.ticks32 = xtimer_now().ticks32 + (anchor_node_id * tdma_slot_time_msec);
+    go_time.ticks32 = xtimer_now().ticks32 + (anchor_node_id * 
+                      tdma_slot_time_msec * 1000);
     wait_for_nodes = false;
-    //------------------------------------------------------------------------//
 
-    DEBUG("--------NEW LOOP--------\n");
-// MAIN LOOP
+    // MAIN LOOP
     while (true)
     {
         // 3. NODE listens for other nodes and waits to go.
@@ -335,47 +335,3 @@ int main(void)
     //end of while loop, code should never reach here, etc.
     return 0;
 }
-
-// #include <stdio.h>
-// #include <stdlib.h>
-
-// #include "shell.h"
-// #include "msg.h"
-
-// // #include "dac.h"
-
-// #define MAIN_QUEUE_SIZE     (8)
-// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
-
-// static const shell_command_t shell_commands[] = {
-//     { NULL, NULL, NULL }
-// };
-
-// int main(void)
-// {
-//     /* we need a message queue for the thread running the shell in order to
-//      * receive potentially fast incoming networking packets */
-//     msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
-//     puts("RIOT network stack example application");
-
-//     /* start shell */    
-//     puts("All up, running the shell now");
-//     char line_buf[SHELL_DEFAULT_BUFSIZE];
-
-//     /* auto-run */
-//     // char *temp[2];
-//     // temp[0] = "writev";
-//     // temp[1] = "40";
-//     // write_voltage(2, temp);
-
-//     //char *temp[2];
-//     // temp[0] = "range_scan_tx";
-//     // temp[1] = "100000";
-//     // range_scan_tx(2, temp);
-//     //reboot();
-
-//     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
-
-//     /* should be never reached */
-//     return 0;
-// }
