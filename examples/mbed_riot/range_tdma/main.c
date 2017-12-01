@@ -42,6 +42,14 @@
  * @author     Jason A. Tran <jasontra@usc.edu>
  * @author     Richard Kim <richartk@usc.edu>
  */
+
+/*
+  [Node 1 RF]          [Node 1 ping]                          [Node 1 ping end]
+        |--------------------|----------------------------------------|----------...
+        |--------------------|----------------------------------------|----------...|
+                20 ms                           45 ms                      55 ms     (100 ms total)
+*/
+
 #include "range_param.h"
 #include "range.h"
 
@@ -97,17 +105,14 @@ int main(void)
 {
     DEBUG("Running range_tx_tdma.\n");
     
-    // SETUP
-    // Radio
-    //------------------------------------------------------------------------//
     msg_t msg;
     msg_init_queue(_main_msg_queue, sizeof(_main_msg_queue));
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     gnrc_pktsnip_t *send_pkt, *recv_pkt, *hdr;
     uint8_t anchor_node_id = NULL;
     // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
-    uint16_t tdma_slot_time_msec = 0;
-    uint8_t total_num_anchors = 1;
+    uint16_t tdma_slot_time_msec;
+    uint8_t total_num_anchors;
     gnrc_netreg_entry_t tdma_slave_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
     uint16_t channel = TDMA_BOOTSTRAP_CHANNEL;
     uint16_t tx_power = TX_POWER;
@@ -317,13 +322,6 @@ int main(void)
         }   
         DEBUG("RF and ultrasound pings sent\n");
         xtimer_usleep(tdma_slot_time_usec); // Delay window of 100 ms
-
-        /*
-          [Node 1 RF]          [Node 1 ping]                          [Node 1 ping end]
-                |--------------------|----------------------------------------|----------...
-                |--------------------|----------------------------------------|----------...|
-                        20 ms                           45 ms                      55 ms     (100 ms total)
-        */
     }
     
     range_tx_off(); //turn off just in case
