@@ -106,7 +106,6 @@ int main(void)
     gnrc_pktsnip_t *send_pkt, *recv_pkt, *hdr;
     uint8_t anchor_node_id = NULL;
     // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
-    uint8_t buf[3]; // buf is size 6 in master
     uint16_t tdma_slot_time_msec = 0;
     uint8_t total_num_anchors = 1;
     gnrc_netreg_entry_t tdma_slave_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
@@ -177,6 +176,8 @@ int main(void)
                     tdma_slot_time_msec = ((uint8_t *)recv_pkt->data)[3] << 8;
                     tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
 
+                    tdma_slot_time_usec = tdma_slot_time_msec * 1000;
+
                     // 2.4. NODE records total number of nodes.
                     total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
 
@@ -211,7 +212,7 @@ int main(void)
 
     // Set initial wait time.
     go_time.ticks32 = xtimer_now().ticks32 + (anchor_node_id * 
-                      tdma_slot_time_msec * 1000);
+                      tdma_slot_time_usec);
     wait_for_nodes = false;
 
     // MAIN LOOP
@@ -219,8 +220,8 @@ int main(void)
     {
         // 3. NODE listens for other nodes and waits to go.
         //--------------------------------------------------------------------//
-        wait_for_nodes = false;
-        while (!wait_for_nodes)
+        wait_for_nodes = true;
+        while (wait_for_nodes)
         {
             msg_receive(&msg); // make this a thread? or make the timer a thread?
             switch (msg.type)
@@ -238,19 +239,18 @@ int main(void)
                         // 3.2a. NODE's rank is 1 and listening for the last NODE.
                         if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1) )
                         {
-                            wait_for_nodes = true;
+                            wait_for_nodes = false;
                         }
                         // 3.2b. NODE's rank is higher than the incoming NODE's.
                         if (incoming_rank < anchor_node_id - 1)
                         {
-                            id_delay_time = (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
+                            id_delay_time = (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_usec);
                             go_time.ticks32 = xtimer_now().ticks32 + id_delay_time;
-                            // DEBUG("Wait time: %u\n", go_time.ticks32 - xtimer_now().ticks32);
                         }
                         // 3.3b. This NODE's rank is just above the incoming NODE's.
                         if (incoming_rank == anchor_node_id - 1)
                         {
-                            wait_for_nodes = 1;
+                            wait_for_nodes = false;
                         }
                     }
                     gnrc_pktbuf_release(recv_pkt);
@@ -269,17 +269,17 @@ int main(void)
             // 3.3. NODE breaks out of message receive loop to send.
             if (xtimer_now().ticks32 >= go_time.ticks32)
             {
-                wait_for_nodes = 1;
+                wait_for_nodes = false;
             }
         }
 
         // 3.4. Blocking call for a window before sending.
-        one_window = xtimer_now().ticks32 + tdma_slot_time_msec;
+        one_window = xtimer_now().ticks32 + tdma_slot_time_usec;
         while (xtimer_now().ticks32 < one_window) {}
         //--------------------------------------------------------------------//
 
         // Resets and has the node wait for a full cycle before going.
-        go_time.ticks32 = xtimer_now().ticks32 + (total_num_anchors * tdma_slot_time_msec);
+        go_time.ticks32 = xtimer_now().ticks32 + (total_num_anchors * tdma_slot_time_usec);
 
         // 4. NODE sends ranging packet.
         // TODO: Modify to not block the interrupts
@@ -290,20 +290,16 @@ int main(void)
         hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);
 
         /* put packet together */
+        uint8_t buf[3];
         buf[0] = RANGE_FLAG_BYTE0;
         buf[1] = RANGE_FLAG_BYTE1;
         buf[2] = anchor_node_id;
 
         send_pkt = gnrc_pktbuf_add(NULL, &buf, sizeof(buf), GNRC_NETTYPE_UNDEF);
-        if (send_pkt == NULL) {
-            DEBUG("error: packet buffer full\n");
-            return 1;
-        }
-
         hdr = gnrc_netif_hdr_build(NULL, 0, hw_addr, hw_addr_len);
-        if (hdr == NULL) {
+
+        if (hdr == NULL || send_pkt == NULL) {
             DEBUG("error: packet buffer full\n");
-            gnrc_pktbuf_release(send_pkt);
             return 1;
         }
 
@@ -312,7 +308,6 @@ int main(void)
         flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
         nethdr = (gnrc_netif_hdr_t *)hdr->data;
         nethdr->flags = flags;
-        /* ready to send */
         
         //make sure no packets are to be sent!!
         if (gnrc_netapi_send(ifs[0], send_pkt) < 1) {
@@ -321,16 +316,16 @@ int main(void)
             return 1;
         }   
         DEBUG("RF and ultrasound pings sent\n");
-        DEBUG("-------------------------------------\n\n");
-        xtimer_usleep(100000); // Delay window of 100 ms
+        xtimer_usleep(tdma_slot_time_usec); // Delay window of 100 ms
+
         /*
-  [Node 1 RF]          [Node 1 ping]                          [Node 1 ping end]
-        |--------------------|----------------------------------------|----------...
-        |--------------------|----------------------------------------|----------...|
-                20 ms                           45 ms                      55 ms     (100 ms total)
+          [Node 1 RF]          [Node 1 ping]                          [Node 1 ping end]
+                |--------------------|----------------------------------------|----------...
+                |--------------------|----------------------------------------|----------...|
+                        20 ms                           45 ms                      55 ms     (100 ms total)
         */
-        //--------------------------------------------------------------------//
     }
+    
     range_tx_off(); //turn off just in case
     //end of while loop, code should never reach here, etc.
     return 0;
