@@ -39,6 +39,11 @@
  * @file       tdma_master.c
  * @brief      Implements the master node for initializing TDMA-based localization anchors. 
  *
+ *  The TDMA master node simply assigns anchor nodes ranks (or a number) which
+ *  will help the anchor nodes determine their timeslots for TDMA ranging. The
+ *  master node is purely passive and responds to anchor node ID requests 
+ *  through layer 2 packets.
+ *
  * @author     Jason A. Tran <jasontra@usc.edu>
  * @author     Richard Kim <richartk@usc.edu>
  */
