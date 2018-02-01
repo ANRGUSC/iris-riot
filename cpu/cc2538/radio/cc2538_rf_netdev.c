@@ -309,6 +309,7 @@ static int _send(netdev_t *netdev, const struct iovec *vector, unsigned count)
         ranging_on = 0;
         DEBUG("RF and ultrasound ping sent!\n");
     } else {
+        DEBUG("RANGING FAILED\n");
         RFCORE_SFR_RFST = ISTXON;
     }
     
@@ -432,10 +433,12 @@ static int _init(netdev_t *netdev)
 void range_tx_init(unsigned int ranger_gpio_pin)
 {
     ranging_on = 1;
+    DEBUG("STARTING RANGING\n");
     ranging_dev_gpio_pin = ranger_gpio_pin;
 }
 
 void range_tx_off(void)
 {
+    DEBUG("STOPPING RANGING\n");
     ranging_on = 0;
 }

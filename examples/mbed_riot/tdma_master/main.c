@@ -70,10 +70,10 @@ int main(void)
     uint8_t *src_l2addr;
     int src_l2addr_len;
     char l2_addr_str[GNRC_NETIF_HDR_L2ADDR_PRINT_LEN];
-    int anchor_node_id;
+    int anchor_node_id = 1;
     uint8_t buf[6];      // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
     uint16_t tdma_slot_time_msec = (uint16_t) (TDMA_SLOT_TIME_USEC / 1000);
-    uint8_t total_num_anchors = TDMA_TOTAL_ANCHOR_NODES; 
+    uint8_t total_num_anchors = TDMA_TOTAL_ANCHOR_NODES;
 
     gnrc_netreg_entry_t tdma_master_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
 
@@ -101,14 +101,19 @@ int main(void)
                     recv_pkt = recv_pkt->next;
                     src_l2addr_len = gnrc_netif_hdr_get_srcaddr(recv_pkt, &src_l2addr);
 
-                    anchor_node_id = anchor_id_lookup(src_l2addr, (unsigned int) src_l2addr_len);
+                    // Use this if you have particular openmotes you want to use.
+                    //------------------------------------------------------------------------//
+                    // anchor_node_id = anchor_id_lookup(src_l2addr, (unsigned int) src_l2addr_len);
 
-                    if (anchor_node_id < 0) {
-                        DEBUG("Anchor node unrecognized\n");
-                        gnrc_pktbuf_release(recv_pkt);
-                        break;
-                    }
+                    // if (anchor_node_id < 0) {
+                    //     DEBUG("Anchor node unrecognized\n");
+                    //     gnrc_pktbuf_release(recv_pkt);
+                    //     break;
+                    // }
+                    //------------------------------------------------------------------------//
+                    
                     xtimer_sleep(1); // did this for testing, goes too fast to check otherwise.
+                    
                     DEBUG("Assigning %s anchor id %d\n", 
                           gnrc_netif_addr_to_str(l2_addr_str, sizeof(l2_addr_str),
                                                  src_l2addr, src_l2addr_len),
@@ -130,6 +135,7 @@ int main(void)
                     /* TODO: sending the l2addr directly hasn't been tested. Not
                     sure if this works. Usually we convert a string into RIOT's
                     structure, whatever that is. Make sure this works first! */
+                    // It works - Richard - 1/22/2018
                     hdr = gnrc_netif_hdr_build(NULL, 0, src_l2addr, src_l2addr_len);
                     if (hdr == NULL) {
                         DEBUG("error: packet buffer full\n");
@@ -143,6 +149,13 @@ int main(void)
                         DEBUG("error: unable to send\n");
                         gnrc_pktbuf_release(send_pkt);
                     }
+
+                    // Otherwise, use this (it doesn't matter what the node is, since only
+                    // anchor nodes will pass the tdma anchor id req flag test.)
+                    // Just makes sure to change how many nodes you're using!
+                    //------------------------------------------------------------------------//
+                    anchor_node_id++;
+                    //------------------------------------------------------------------------//
                 }
 
                 /* done with src_l2addr */

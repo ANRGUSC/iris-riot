@@ -42,11 +42,11 @@
  * @author     Jason A. Tran <jasontra@usc.edu>
  * @author     Richard Kim <richartk@usc.edu>
  */
+#define ENABLE_DEBUG (1) // This HAS to be before the include statement
+#include "debug.h"
+
 #include "range_param.h"
 #include "range.h"
-
-#define ENABLE_DEBUG (1)
-#include "debug.h"
 
 #define MAX_ADDR_LEN        (8U)
 #define TX_PIN              GPIO_PIN(3, 2)
@@ -54,7 +54,6 @@
 
 static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
-// int range_tx_tdma(void)
 int main(void)
 {
     DEBUG("Running range_tx_tdma.\n");
@@ -80,6 +79,17 @@ int main(void)
     {
         gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
     }
+
+    // test code for getting the mac address
+    uint8_t my_hw_addr[MAX_ADDR_LEN];
+    size_t my_hw_addr_len;
+    my_hw_addr_len = gnrc_netapi_get(ifs[0], NETOPT_ADDRESS, 0, my_hw_addr, sizeof(my_hw_addr));
+    
+    char my_hw_addr_str[my_hw_addr_len * 3];
+    gnrc_netif_addr_to_str(my_hw_addr_str, sizeof(my_hw_addr_str), my_hw_addr, my_hw_addr_len);
+    DEBUG("HW_addr: %s\n", my_hw_addr_str);
+    // end test code
+
     /* register for all l2 packets */
     gnrc_netreg_register(1, &tdma_slave_serv);
     uint8_t hw_addr[MAX_ADDR_LEN];
@@ -104,17 +114,20 @@ int main(void)
     
     // Miscellaneous
     //------------------------------------------------------------------------//
-    bool wait_for_id = true;
-    xtimer_ticks32_t go_time; // go_time = time at which openmote sends ranging.
-    uint32_t id_delay_time;
-    uint8_t incoming_rank = 1;
-    bool wait_for_nodes = false;
-    uint32_t one_window;
-    // NETOPT_ADDRESS; // this device's hw_addr 
+    bool wait_for_id = true;        // True if leader has given this node an id, 
+                                    //      false otherwise. 
+    uint8_t incoming_id = 1;        // The id of the node that sent this ping. 
+    bool ready_to_go = false;       // True if it is time for this node to ping,
+                                    //      false otherwise.
+    uint32_t delay;                 // Time until the openmote pings.
+    xtimer_ticks32_t go_time;       // Time at which openmote pings.
+    uint32_t cycle;                 // Total number of anchors * 
+                                    //      tdma_slot_time_msec from leader
     //------------------------------------------------------------------------//
 
     // 1. NODE sends REQ packet to LEADER.
     //------------------------------------------------------------------------//
+    DEBUG("Sending REQ packet.\n");
     buf[0] = TDMA_ANCHOR_ID_REQ_U16_FLAG >> 8 & 0xFF;
     buf[1] = TDMA_ANCHOR_ID_REQ_U16_FLAG & 0xFF;
     buf[2] = 0x00;
@@ -163,20 +176,22 @@ int main(void)
                 if (((uint8_t *)recv_pkt->data)[0] == ((TDMA_ANCHOR_ID_RESP_U16_FLAG >> 8) & 0xFF) &&
                     ((uint8_t *)recv_pkt->data)[1] == (TDMA_ANCHOR_ID_RESP_U16_FLAG & 0xFF) )
                 {
-                    // 2.2. NODE records its ID (ranking).
+                    // 2.2. NODE records its ID.
                     anchor_node_id = ((uint8_t *)recv_pkt->data)[2];
-                    DEBUG("Rank: %d\n", anchor_node_id);
+                    DEBUG("ID: %d\n", anchor_node_id);
                     
                     // 2.3. NODE syncs with the LEADER.
                     tdma_slot_time_msec &= 0x00;
                     tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[3];
                     tdma_slot_time_msec = tdma_slot_time_msec << 8;
                     tdma_slot_time_msec |= ((uint8_t *)recv_pkt->data)[4];
+                    DEBUG("Time slot: %d ms\n", tdma_slot_time_msec);
 
                     // 2.4. NODE records total number of nodes.
                     total_num_anchors = ((uint8_t *)recv_pkt->data)[5];
+                    DEBUG("Total anchors: %d\n", total_num_anchors);
 
-                    // NODE received the data correctly and now breaks out of the loop.
+                    // 2.5 NODE received the data and breaks out of the loop.
                     wait_for_id = false;
                 }
                 gnrc_pktbuf_release(recv_pkt);
@@ -203,82 +218,78 @@ int main(void)
     channel = 26;
     gnrc_netapi_set(ifs[0], NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
 
-    // Initialize the ultrasonic speaker.
-    range_tx_init(TX_PIN);
+    cycle = (uint32_t) (total_num_anchors * tdma_slot_time_msec);
+    DEBUG("Cycle = %d ms\n", (int)cycle);
 
-    // Set initial wait time.
-    tdma_slot_time_msec = 100000;
-    go_time.ticks32 = xtimer_now().ticks32 + (anchor_node_id * tdma_slot_time_msec);
-    wait_for_nodes = false;
+    // Initial setup of delay and go_time.
+    delay = (uint32_t) (anchor_node_id * tdma_slot_time_msec);
+    go_time.ticks32 = xtimer_now().ticks32 + xtimer_ticks_from_usec(delay * 1000).ticks32;
     //------------------------------------------------------------------------//
 
-    DEBUG("--------NEW LOOP--------\n");
 // MAIN LOOP
     while (true)
     {
+        DEBUG("--------NEW LOOP--------\n");
         // 3. NODE listens for other nodes and waits to go.
         //--------------------------------------------------------------------//
-        wait_for_nodes = false;
-        while (!wait_for_nodes)
+        while (!ready_to_go)
         {
-            msg_receive(&msg); // make this a thread? or make the timer a thread?
-            switch (msg.type)
+            if(msg_try_receive(&msg) > 0)
             {
-                // 3.1. Received another NODE's ranging packet.
-                case GNRC_NETAPI_MSG_TYPE_RCV:
-                    DEBUG("Received pkt.\n");
-                    recv_pkt = msg.content.ptr;
-                    if ( ((uint8_t *)recv_pkt->data)[0] == RANGE_FLAG_BYTE0 &&
-                         ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
-                    {
-                        incoming_rank = ((uint8_t *)recv_pkt->data)[2];
-                        DEBUG("Incoming rank: %d\n", incoming_rank);
-                        
-                        // 3.2a. NODE's rank is 1 and listening for the last NODE.
-                        if ( (incoming_rank == total_num_anchors) && (anchor_node_id == 1) )
+                switch (msg.type)
+                {
+                    // 3.1. Received another NODE's ranging packet.
+                    case GNRC_NETAPI_MSG_TYPE_RCV:
+                        DEBUG("Received pkt.\n");
+                        recv_pkt = msg.content.ptr;
+                        if ( ((uint8_t *)recv_pkt->data)[0] == RANGE_FLAG_BYTE0 &&
+                             ((uint8_t *)recv_pkt->data)[1] == RANGE_FLAG_BYTE1 ) 
                         {
-                            wait_for_nodes = true;
+                            incoming_id = ((uint8_t *)recv_pkt->data)[2];
+                            DEBUG("Heard %d\n", incoming_id);
+                            // 3.2. Adjust delay based on the id of the incoming NODE.
+                            // wait this is circular
+                            // if incoming_id > my_id 
+                            //     delay = tdma_slot_time * (total_num_anchors - (incoming_id - my_id))
+                            // if my_id > incoming_id
+                            //     delay =  tdma_slot_time * (my_id - incoming_id)
+                            if (incoming_id > anchor_node_id)
+                            {
+                                delay = (uint32_t) ((total_num_anchors - incoming_id + anchor_node_id) * tdma_slot_time_msec);
+                            }
+                            else
+                            {
+                                delay = (uint32_t) ((anchor_node_id - incoming_id) * tdma_slot_time_msec);
+                            }
+                            // go_time.ticks32 = xtimer_now().ticks32 + delay;
+                            go_time.ticks32 = xtimer_now().ticks32 + xtimer_ticks_from_usec(delay * 1000).ticks32;
                         }
-                        // 3.2b. NODE's rank is higher than the incoming NODE's.
-                        if (incoming_rank < anchor_node_id - 1)
-                        {
-                            id_delay_time = (uint32_t) ((anchor_node_id - incoming_rank) * tdma_slot_time_msec);
-                            go_time.ticks32 = xtimer_now().ticks32 + id_delay_time;
-                            // DEBUG("Wait time: %u\n", go_time.ticks32 - xtimer_now().ticks32);
-                        }
-                        // 3.3b. This NODE's rank is just above the incoming NODE's.
-                        if (incoming_rank == anchor_node_id - 1)
-                        {
-                            wait_for_nodes = 1;
-                        }
-                    }
-                    gnrc_pktbuf_release(recv_pkt);
-                    break;
-                case GNRC_NETAPI_MSG_TYPE_SND:
-                    /* This thread will get all send l2 send requests, even if it's
-                    coming from this thread. Discard it */
-                    DEBUG("Received SND pkt (2).\n");
-                    gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                    break;
-                default:
-                    DEBUG("Not a ranging packet.\n");
-                    gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
-                    break;
+                        gnrc_pktbuf_release(recv_pkt);
+                        break;
+                    case GNRC_NETAPI_MSG_TYPE_SND:
+                        /* This thread will get all send l2 send requests, even if it's
+                        coming from this thread. Discard it */
+                        DEBUG("Received SND pkt (2).\n");
+                        gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                        break;
+                    default:
+                        DEBUG("Not a ranging packet.\n");
+                        gnrc_pktbuf_release((gnrc_pktsnip_t *)msg.content.ptr);
+                        break;
+                }
             }
             // 3.3. NODE breaks out of message receive loop to send.
             if (xtimer_now().ticks32 >= go_time.ticks32)
             {
-                wait_for_nodes = 1;
+                ready_to_go = true;
+                DEBUG("Ready to go is true\n");
             }
         }
 
-        // 3.4. Blocking call for a window before sending.
-        one_window = xtimer_now().ticks32 + tdma_slot_time_msec;
-        while (xtimer_now().ticks32 < one_window) {}
+        // 3.4. Refresh the loop.
+        ready_to_go = false;
+        go_time.ticks32 = xtimer_now().ticks32 + xtimer_ticks_from_usec(cycle * 1000).ticks32;
         //--------------------------------------------------------------------//
-
-        // Resets and has the node wait for a full cycle before going.
-        go_time.ticks32 = xtimer_now().ticks32 + (total_num_anchors * tdma_slot_time_msec);
 
         // 4. NODE sends ranging packet.
         // TODO: Modify to not block the interrupts
@@ -312,16 +323,23 @@ int main(void)
         nethdr = (gnrc_netif_hdr_t *)hdr->data;
         nethdr->flags = flags;
         /* ready to send */
+
+        // Initialize the ultrasonic speaker.
+        range_tx_init(TX_PIN);
         
         //make sure no packets are to be sent!!
         if (gnrc_netapi_send(ifs[0], send_pkt) < 1) {
             DEBUG("error: unable to send\n");
             gnrc_pktbuf_release(send_pkt);
             return 1;
-        }   
+        }
+
+        xtimer_usleep(50000); // Delay window of 50 ms for ultrasound to complete properly.
+        range_tx_off();
+
         DEBUG("RF and ultrasound pings sent\n");
         DEBUG("-------------------------------------\n\n");
-        xtimer_usleep(100000); // Delay window of 100 ms
+
         /*
   [Node 1 RF]          [Node 1 ping]                          [Node 1 ping end]
         |--------------------|----------------------------------------|----------...
@@ -330,51 +348,6 @@ int main(void)
         */
         //--------------------------------------------------------------------//
     }
-    range_tx_off(); //turn off just in case
     //end of while loop, code should never reach here, etc.
     return 0;
 }
-
-// #include <stdio.h>
-// #include <stdlib.h>
-
-// #include "shell.h"
-// #include "msg.h"
-
-// // #include "dac.h"
-
-// #define MAIN_QUEUE_SIZE     (8)
-// static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
-
-// static const shell_command_t shell_commands[] = {
-//     { NULL, NULL, NULL }
-// };
-
-// int main(void)
-// {
-//     /* we need a message queue for the thread running the shell in order to
-//      * receive potentially fast incoming networking packets */
-//     msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
-//     puts("RIOT network stack example application");
-
-//     /* start shell */    
-//     puts("All up, running the shell now");
-//     char line_buf[SHELL_DEFAULT_BUFSIZE];
-
-//     /* auto-run */
-//     // char *temp[2];
-//     // temp[0] = "writev";
-//     // temp[1] = "40";
-//     // write_voltage(2, temp);
-
-//     //char *temp[2];
-//     // temp[0] = "range_scan_tx";
-//     // temp[1] = "100000";
-//     // range_scan_tx(2, temp);
-//     //reboot();
-
-//     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
-
-//     /* should be never reached */
-//     return 0;
-// }
