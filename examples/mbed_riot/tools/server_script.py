@@ -3,6 +3,7 @@ from threading import Thread
 import paho.mqtt.client as mqtt
 from struct import *
 import time
+import json
 
 #initializing the variables
 #Change the following according to your system 
@@ -17,24 +18,33 @@ node_disc_flag = '1'
 topic_pub = ""
 server_mqtt = {'0': 'ACK', '1': 'Do something'}
 hwaddr=[]
-client_ID=[]
+node_anchor_map = {}
 message_rcvd=False
 save_to_file=False
 file_name = ""
-data = {}
+rcvd_data = {}
+valid_nodelist = False
+a_nodelist = {}
+
+def triangulate(node_data):
+    #do something eventually
+    return [0,0]
 
 def parse_msg(msg):
     data_info = msg[:11]
-    data = msg[11:]
+    rcvd_data = msg[11:]
     origin, msgtype, size = unpack("=9s1sB", data_info)
+    origin = origin.decode()
+    msgtype = msgtype.decode()
     print("Message origin: "+ origin)
     print("Size: " + str(size))
+    print(msgtype)
     if(msgtype == node_data_flag):
         print("Message type: node data")
-        return parse_node_data(data, size)
+        return parse_node_data(rcvd_data, size)
     elif(msgtype == node_disc_flag):
         print("Message type: node discovery")
-        return parse_node_disc(data, size)
+        return parse_node_disc(rcvd_data, size)
     else:
         return -1;
     
@@ -55,10 +65,10 @@ def parse_node_data(msg, size):
     fmt = "=" + "bH" * size
 
     # splitmsg = msg.split(";")
-    # for data in splitmsg:
-    #     data = data.strip();
-    #     if data != "":
-    #         temp = data.split(",")
+    # for rcvd_data in splitmsg:
+    #     rcvd_data = rcvd_data.strip();
+    #     if rcvd_data != "":
+    #         temp = rcvd_data.split(",")
     #         if int(temp[0]) != 0:
     #             nodedict[int(temp[1])]=int(temp[0])
     #         else:
@@ -76,12 +86,12 @@ def parse_node_data(msg, size):
 
 # The callback for when the client receives a CONNACK response from the server.
 # The callback function when client is connected to the broker.
-    
+
 def usr_input(client):
     global message_rcvd
     global file_name
     global save_to_file
-    global data
+    global rcvd_data
 
     c=0
     exit=0
@@ -89,77 +99,52 @@ def usr_input(client):
     while(c!=6):
         usrtopic = ""
         usrmessage= ""
-        print("0 - send a normal message to mbed")
-        print("1 - send a sub message to the mbed")
-        print("2 - send a pub message to the mbed so it publishes to a topic")
-        print("3 - send a ranging request message to the mbed")
-        print("4 - send a series of ranging request messages and save to csv")
-        print("5 - show clients")
-        print("6 - exit")
-        c=int(raw_input("Enter your choice\t"))
+        
+        print("0 - exit")
+        print("1 - show clients")
+        print("2 - show node data")
+        print("3 - send a series of ranging request messages and save to csv")
+        print("4 - send a ranging request message to the mbed")
+        print("5 - trangulate on client")
+        
+        c=int(input("Enter your choice\t"))
 
         save_to_file = False;
         message_rcvd = False;
 
         if c==0:
-            try:
-                clientnum = int(raw_input("Enter the number of the openmote you want to send a normal message to\t"))
-                usrtopic=hwaddr[clientnum]
-                usrmessage="0"
-                usrmessage=usrmessage+raw_input("Enter your message\t")
-            except:
-                print("Input error")
-                continue
+            exit=1
         elif c==1:
-            try:
-                clientnum = int(raw_input("Enter the number of the openmote that will sub to a topic\t"))
-                usrtopic=hwaddr[clientnum]
-                usrmessage="1"
-                usrmessage=usrmessage+raw_input("Enter the topic you want the openmote to sub to\t")
-            except:
-                print("Input error")
-                continue
+            print("***********************************")
+            print("Clients:")
+            i = 0
+            for addr in hwaddr:
+                print(str(i)+": "+addr)
+            print("***********************************")
+        
+            break;
         elif c==2:
-            try:
-                print("This will pub a normal message to the other message")
-                clientnum = int(raw_input("Enter the number of the openmote that will send the pub message\t"))
-                usrtopic=hwaddr[clientnum]
-                usrmessage="2"
-                temp=raw_input("Enter the topic that the openmote will pub to\t")
-                usrmessage=usrmessage+str(unichr(len(temp)))+temp
-                message_to_be_pubbed=raw_input("Enter the message that you want the openmote to publish\t")
-                usrmessage=usrmessage+message_to_be_pubbed
-            except:
-                print("Input error")
-                continue
+            print("***********************************")
+            print("Clients:")
+            i = 0
+            for addr in node_anchor_map.keys():
+                print(addr+":")
+                for anchor in node_anchor_map[addr].keys():
+                    print("\t"+anchor+": "+str(node_anchor_map[addr][anchor]))
+            print("***********************************")
+        
+            break;
         elif c==3:
-            try:
-                clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
-                usrtopic=hwaddr[clientnum]
-
-                node_id = int(raw_input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
-                node_id += ord('0')
-
-                print("Select ranging mode:")
-                ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
-                ranging_mode += 96 #this is the offset for ranging_mode values
-                
-                usrmessage="0"
-                usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
-            except:
-                print("Input error")
-                continue
-        elif c==4:
             save_to_file = True
             node_id = 0
             try:
-                file_name = raw_input("File name:")
+                file_name = input("File name:")
                 file_name = file_name + ".csv"
 
-                clientnum = int(raw_input("Enter the number of the openmote you want to range\t"))
+                clientnum = int(input("Enter the number of the openmote you want to range\t"))
                 usrtopic=hwaddr[clientnum]
 
-                node_id = int(raw_input("Enter the node_id of the node you with to range"))
+                node_id = int(input("Enter the node_id of the node you with to range"))
                 if(node_id < 0):
                     print("Input error")
                     save_to_file = False;
@@ -167,10 +152,10 @@ def usr_input(client):
                 node_id += ord('0')
 
                 print("Select ranging mode:")
-                ranging_mode = int(raw_input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
+                ranging_mode = int(input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
                 ranging_mode += 96 #this is the offset for ranging_mode values
                                    #
-                num_samples = int(raw_input("Number of samples to take: "))
+                num_samples = int(input("Number of samples to take: "))
                 
                 usrmessage="0"
                 usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
@@ -184,45 +169,120 @@ def usr_input(client):
             j = 0
             node_id_num = node_id-ord('0')
             for i in range(num_samples):
+                time.sleep(0.005)
                 client.publish(usrtopic,usrmessage)
                 print(str(i)+": publishing "+usrmessage+" to "+usrtopic)
                 timeout = time.time() + 3
                 while message_rcvd == False:
                     if(time.time() > timeout):
                         j = j+1
-                        print("Timed out.. resending")
+                        print("Timed out.. resending "+ str(j))
                         resend = True
                         if(j>5):
                             print("Resending failed.. quitting")
                             quit = True
                         break;
-                    pass
+
+                message_rcvd = False
+
                 if quit:
                     break;
                 if resend:
+                    resend = False
                     continue  
                 j = 0 
-                if(node_id_num in data.keys()):
-                    file.write(str(data[node_id_num])+'\n')
-                else;
+                if(node_id_num in rcvd_data.keys()):
+                    file.write(str(rcvd_data[node_id_num])+'\n')
+                else:
                     file.write('-1')
-                message_rcvd = False
+                
 
             file.close()
+        elif c==4:
+            try:
+                clientnum = int(input("Enter the number of the openmote you want to range\t"))
+                usrtopic=hwaddr[clientnum]
+
+                node_id = int(input("Enter the node_id of the node you with to range (-1 for discovery mode)\t"))
+                node_id += ord('0')
+
+                print("Select ranging mode:")
+                ranging_mode = int(input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
+                ranging_mode += 96 #this is the offset for ranging_mode values
+                
+                usrmessage="0"
+                usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+            except:
+                print("Input error")
+                continue
         elif c==5:
-            print("***********************************")
-            print("Clients:")
-            i = 0
-            for addr in hwaddr:
-                print(str(i)+": "+addr)
-            print("***********************************")
-        elif c==6:
-            exit=1
-            break;
+            quit = False
+            if not valid_nodelist:
+                print("No valid anchor nodelist found")
+                continue
+
+            try:
+                clientnum = int(input("Enter the number of the openmote you want to range\t"))
+                usrtopic=hwaddr[clientnum]
+                
+                print("Select ranging mode:")
+                ranging_mode = int(input("\n0: ONE_SENSOR_MODE\n1: TWO_SENSOR_MODE\n2: XOR_SENSOR_MODE\n3: OMNI_SENSOR_MODE\nInput:\t"))
+                ranging_mode += 96 #this is the offset for ranging_mode values
+
+            except:
+                print("Input error")
+                continue
+
+            #discovery mode
+            node_id = -1 + ord('0')
+            usrmessage="0"
+            usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+
+            client.publish(usrtopic,usrmessage)
+            timeout = time.time() + 3
+            while message_rcvd == False:
+                if(time.time() > timeout):
+                    print("Timed out.."+ str(j))
+                    break;
+            if message_rcvd == False:
+                continue;
+            else:
+                message_rcvd = False
+                for anchors in rcvd_data:
+                    node_anchor_map[usrtopic][str(anchors)] = -1; #store updated list of local anchors
+
+            i = 0;        
+            for anchors in node_anchor_map[usrtopic].keys():
+                if anchors in anchor_nodelist.keys(): #check to see if we have an absolute position for this anchor
+                    #range individual anchors (eventually we want to allow for ranging multiple anchors in one transmit)
+                    node_id = anchors + ord('0')
+                    usrmessage="0"
+                    usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+
+                    client.publish(usrtopic,usrmessage)
+                    timeout = time.time() + 3
+                    while message_rcvd == False:
+                        if(time.time() > timeout):
+                            print("Timed out.."+ str(j))
+                            break;
+                    if message_rcvd == False:
+                        continue;
+                    else:
+                        i = i+1;
+                        message_rcvd = False
+                        node_anchor_map[usrtopic][anchors] = rcvd_data[anchors] #store updated list of local anchors
+                if i == 3:
+                    break
+
+            returnval = triangulate(node_anchor_map[usrtopic])
+            print(returnval)
+            print(node_anchor_map)
+
+
         else:
             print("invalid choice")
             continue;
-        if c!=4 and c!=5:
+        if c!=0 and c!=1 and c!=2:
             client.publish(usrtopic,usrmessage)
             print("publishing "+usrmessage+" to "+usrtopic)
 
@@ -240,28 +300,33 @@ def on_message(client, userdata, msg):
     global topic_pub
     global total_num_clients_con_broker
     global connected_clients
-    global data
+    global rcvd_data
+    global node_anchor_map
 
     print ("\nData received")
     #message = str(msg.payload.decode())
     #print(message)
     print(msg.payload)
     #print(msg.payload.decode())
-    print(":".join("{:02x}".format(ord(c)) for c in msg.payload))
-    message=msg.payload
-    if msg.topic==topic_sub:        
+    #print(":".join("{:02x}".format(ord(c)) for c in msg.payload))
+    payload = msg.payload
+    
+
+    if msg.topic==topic_sub:
+        message=payload.decode()        
         if message[0] in server_mqtt:
             topic_pub=message[1:]
             if topic_pub not in hwaddr:
                 print(topic_pub + " added to clients list")
                 hwaddr.append(topic_pub)
+                node_anchor_map[topic_pub] = {}
             else:
                 print(topic_pub + " already in clients list")
             #when a message is received, the message is published to another topic
             client.publish(topic_pub,server_mqtt[message[0]])   
     elif msg.topic==range_sub:
-        data = parse_msg(message)
-        print(data)
+        rcvd_data = parse_msg(payload)
+        print(rcvd_data)
     message_rcvd = True
         
 def on_subscribe(mosq, obj, mid, granted_qos):
@@ -275,18 +340,33 @@ def on_publish(client,userdata,result):
  
 #Creating an instance and setting up the callbacks 
 
-client = mqtt.Client("serv") #creating an instance 
-client.on_connect = on_connect    #on_connect callback
-client.on_message = on_message    #on_message callback 
-client.on_publish = on_publish    #on_publish callback    
-client.on_subscribe =on_subscribe
-#client.tls_set(path_to_certificate)    #establishing the SSL certificate
-client.connect(broker_address, port)    #connecting to broker
+def main():
+    global a_nodelist
+    client = mqtt.Client("serv") #creating an instance 
+    client.on_connect = on_connect    #on_connect callback
+    client.on_message = on_message    #on_message callback 
+    client.on_publish = on_publish    #on_publish callback    
+    client.on_subscribe =on_subscribe
+    #client.tls_set(path_to_certificate)    #establishing the SSL certificate
 
-t = Thread(target=usr_input, args=(client,))
-t.start()   
+    try:
+        json_data=open('anchor_nodelist.json')
+        a_nodelist = json.load(json_data)
+        a_nodelist = a_nodelist['list']
+        valid_nodelist = True
+    except:
+        print('An error occured while reading anchor nodelist')
+        valid_nodelist = False
 
-#Setting up the subscribe 
+    client.connect(broker_address, port)    #connecting to broker
 
-client.subscribe([(topic_sub, 0), (range_sub, 0)])
-client.loop_forever()    #looping forever so it doesn't terminate 
+    t = Thread(target=usr_input, args=(client,))
+    t.start()   
+
+    #Setting up the subscribe 
+
+    client.subscribe([(topic_sub, 0), (range_sub, 0)])
+    client.loop_forever()    #looping forever so it doesn't terminate 
+
+if(__name__=="__main__"):
+    main()
