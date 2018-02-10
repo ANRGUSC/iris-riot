@@ -53,10 +53,11 @@
 #define RX_ONE_PIN                    GPIO_PIN(3, 3) //aka GPIO_PD3 - maps to DIO0
 #define RX_TWO_PIN                    GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1
 #define RX_LOGIC_PIN                  GPIO_PIN(3, 1) //aka GPIO_PD1 - maps to DIO2
-#define TX_PIN                        GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1 //for usb openmote
+//#define TX_PIN                        GPIO_PIN(3, 2) //aka GPIO_PD2 - maps to DIO1 //for usb openmote
+#define TX_PIN                        GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3  //for regular openmote or pololu board
 
 #define MAX_NUM_ANCHORS               10
-//#define TX_PIN                      GPIO_PIN(3, 0) //aka GPIO_PD0 - maps to DIO3  //for regular openmote
+
 
 static range_data_t* time_diffs;
 static num_entries;
@@ -221,7 +222,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
     }
 
     if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
-        DEBUG("Error initializing GPIO_PIN.\n");
+        DEBUG("Error initializing TX_PIN.\n");
         return 1;
     }
     // clearing output for the ultrasonic sensor
