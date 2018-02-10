@@ -92,11 +92,13 @@ def usr_input(client):
     global file_name
     global save_to_file
     global rcvd_data
+    global valid_nodelist
+    global a_nodelist
 
-    c=0
+    c=-1
     exit=0
     clientnum=0
-    while(c!=6):
+    while(c!=0):
         usrtopic = ""
         usrmessage= ""
         
@@ -122,7 +124,6 @@ def usr_input(client):
                 print(str(i)+": "+addr)
             print("***********************************")
         
-            break;
         elif c==2:
             print("***********************************")
             print("Clients:")
@@ -133,7 +134,6 @@ def usr_input(client):
                     print("\t"+anchor+": "+str(node_anchor_map[addr][anchor]))
             print("***********************************")
         
-            break;
         elif c==3:
             save_to_file = True
             node_id = 0
@@ -253,9 +253,9 @@ def usr_input(client):
 
             i = 0;        
             for anchors in node_anchor_map[usrtopic].keys():
-                if anchors in anchor_nodelist.keys(): #check to see if we have an absolute position for this anchor
+                if anchors in a_nodelist.keys(): #check to see if we have an absolute position for this anchor
                     #range individual anchors (eventually we want to allow for ranging multiple anchors in one transmit)
-                    node_id = anchors + ord('0')
+                    node_id = anchors
                     usrmessage="0"
                     usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
 
@@ -342,6 +342,8 @@ def on_publish(client,userdata,result):
 
 def main():
     global a_nodelist
+    global valid_nodelist
+
     client = mqtt.Client("serv") #creating an instance 
     client.on_connect = on_connect    #on_connect callback
     client.on_message = on_message    #on_message callback 
@@ -352,7 +354,7 @@ def main():
     try:
         json_data=open('anchor_nodelist.json')
         a_nodelist = json.load(json_data)
-        a_nodelist = a_nodelist['list']
+        a_nodelist = a_nodelist['list'][0]
         valid_nodelist = True
     except:
         print('An error occured while reading anchor nodelist')
