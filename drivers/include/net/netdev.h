@@ -254,6 +254,7 @@ typedef struct netdev_driver {
 
 #define RF_MISSED         20
 #define ULTRSND_MISSED    21
+#define NODE_NOT_FOUND    22
 
 /**
  * @brief Structure holding metrics measured by ultrasound ranging

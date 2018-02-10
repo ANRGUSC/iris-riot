@@ -284,7 +284,7 @@ static int auto_npub(char* pub_topic, char* data, size_t data_len)
 
 
         /* Add the topic id in the local cache*/
-        new_topic_entry = (mqtt_topic_entry_t *)malloc(sizeof(mqtt_topic_entry_t));
+        new_topic_entry = (mqtt_topic_entry_t *)malloc(sizeof(mqtt_topic_entry_t)); //---potential mem leak?
         new_topic_entry->id = t.id;
         memcpy(new_topic_entry->topic, pub_topic, strlen(pub_topic) +1);
         mqtt_topic_register(new_topic_entry);
@@ -395,7 +395,7 @@ static void *_mqtt_thread(void *arg)
     uint16_t            old_channel;
 
     //pointer to the range_params recieved from the mbed
-    range_params_t*     range_params;
+    range_params_t      *range_params;
 
     //Pointer to the data received from the MQTT thread
     mqtt_pkt_t          *mqtt_data_rcv;
@@ -586,7 +586,7 @@ static void *_mqtt_thread(void *arg)
 
                         case MQTT_PUB:
                             DEBUG("mqtt_control_thread: Mqtt Publish Request Received from MBED with topic: %s and data: %s \n", mbed_rcv_pkt->topic, mbed_rcv_pkt->data);
-                            if (auto_npub2(mbed_rcv_pkt->topic, mbed_rcv_pkt->data, hdlc_rcv_pkt->length - UART_PKT_HDR_LEN - MQTT_TOPIC_LEN) == 0){
+                            if (auto_npub(mbed_rcv_pkt->topic, mbed_rcv_pkt->data, hdlc_rcv_pkt->length - UART_PKT_HDR_LEN - MQTT_TOPIC_LEN) == 0){
                                 uart_hdr.src_port = THREAD2_PORT; //PORT 170
                                 uart_hdr.dst_port = MBED_PORT; //PORT 200
                                 uart_hdr.pkt_type = MQTT_PUB_ACK; 
@@ -644,6 +644,7 @@ static void *_mqtt_thread(void *arg)
                 default:
                     //error 
                     LED3_ON;
+                    fflush(stdout);
                     break;
             }
 

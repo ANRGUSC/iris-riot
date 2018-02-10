@@ -205,6 +205,9 @@ void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_
     DEBUG("Exiting range_and_send\n");
 }
 
+
+
+
 range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id, uint32_t max_iter){ 
     // Check correct argument usage.
     uint8_t mode = range_mode;
@@ -224,8 +227,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
     // clearing output for the ultrasonic sensor
     gpio_clear(TX_PIN);
 
-    range_data_t* time_diffs=malloc(sizeof(range_data_t)*(MAX_NUM_ANCHORS+1));
-    memset(time_diffs, 0, sizeof(range_data_t)*(MAX_NUM_ANCHORS+1));
+    range_data_t* time_diffs= (range_data_t*) calloc(MAX_NUM_ANCHORS+1, sizeof(range_data_t));
     
     if(timeout_usec <= 0){
         DEBUG("timeout must be greater than 0");
@@ -243,20 +245,22 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
         if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
             DEBUG("rx_loop timed out\n");
             range_rx_stop();
-            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, -1};
+            time_diffs[i] = (range_data_t) {0, 0, RF_MISSED, node_id};
             num_entries++;
             return time_diffs;
         }
 
         switch(msg.type){
             case RF_RCVD:
+
                 DEBUG("RF ping rcvd\n");
                 if(first_node == (int8_t) msg.content.value){
+
                     DEBUG("TDMA has completed full loop\n");
                     range_rx_stop();
                     exit = 1;
                     if(num_entries == 0){
-                        time_diffs[0] = (range_data_t) {0, 0, ULTRSND_MISSED, -1};
+                        time_diffs[0] = (range_data_t) {0, 0, NODE_NOT_FOUND, node_id};
                         num_entries++;
                     }
                     break;
@@ -267,6 +271,7 @@ range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id
                 }
                 break;
             case ULTRSND_RCVD:
+
                 DEBUG("Ultrasound ping rcvd\n");
                 
                 time_diffs[i] = *(range_data_t*) msg.content.ptr;

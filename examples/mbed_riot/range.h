@@ -74,7 +74,7 @@
 
 #define RANGE_MAX_ITER				  30000
 #define ULTRSND_TIMEOUT               99000 //usec
-#define RANGE_TIMEO_USEC              250000
+#define RANGE_TIMEO_USEC              220000
 #define TRANSMIT_DELAY                100000 //this is 100ms which is the minimum delay between pings
 
 #define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
