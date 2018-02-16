@@ -47,7 +47,7 @@ typedef struct {
     
 /* Manually assign the node IDs using this table, but keep the openmote order in 
    alphabetical order. */
-static const anchor_node_t anchor_node_table[3] = {
+static const anchor_node_t anchor_node_table[2] = {
     // { {0x36, 0x32, 0x48, 0x33, 0x46, 0xda, 0x9e, 0x72}, 1}, //openmote_a
     // { {0x36, 0x32, 0x48, 0x33, 0x46, 0xda, 0x9e, 0x72}, 1}, //openmote_b
     { {0x00, 0x12, 0x4b, 0x00, 0x06, 0x13, 0x06, 0x22}, 1}, //openmote_c - THIS ONE
