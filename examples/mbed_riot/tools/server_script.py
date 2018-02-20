@@ -4,7 +4,8 @@ import paho.mqtt.client as mqtt
 from struct import *
 import time
 import json
-
+import numpy as np
+from triangulate import *
 #initializing the variables
 #Change the following according to your system 
 broker_address="fd00:dead:beef::1" 
@@ -26,25 +27,17 @@ rcvd_data = {}
 valid_nodelist = False
 a_nodelist = {}
 
-def triangulate(node_data):
-    #do something eventually
-    return [0,0]
-
 def parse_msg(msg):
     data_info = msg[:11]
     rcvd_data = msg[11:]
     origin, msgtype, size = unpack("=9s1sB", data_info)
     origin = origin.decode()
     msgtype = msgtype.decode()
-    print("Message origin: "+ origin)
-    print("Size: " + str(size))
     print(msgtype)
     if(msgtype == node_data_flag):
-        print("Message type: node data")
-        return parse_node_data(rcvd_data, size)
+        return {"origin": origin, "data": parse_node_data(rcvd_data, size), "typeflag": node_data_flag}
     elif(msgtype == node_disc_flag):
-        print("Message type: node discovery")
-        return parse_node_disc(rcvd_data, size)
+        return {"origin": origin, "data": parse_node_disc(rcvd_data, size), "typeflag": node_data_flag}
     else:
         return -1;
     
@@ -135,6 +128,7 @@ def usr_input(client):
             print("***********************************")
         
         elif c==3:
+            message_rcvd = False
             save_to_file = True
             node_id = 0
             try:
@@ -166,13 +160,14 @@ def usr_input(client):
             file = open(file_name, 'w')
             resend = False
             quit = False
-            j = 0
+            
             node_id_num = node_id-ord('0')
             for i in range(num_samples):
                 time.sleep(0.005)
                 client.publish(usrtopic,usrmessage)
                 print(str(i)+": publishing "+usrmessage+" to "+usrtopic)
                 timeout = time.time() + 3
+                j = 0
                 while message_rcvd == False:
                     if(time.time() > timeout):
                         j = j+1
@@ -217,6 +212,8 @@ def usr_input(client):
                 continue
         elif c==5:
             quit = False
+            message_rcvd = False
+
             if not valid_nodelist:
                 print("No valid anchor nodelist found")
                 continue
@@ -240,49 +237,32 @@ def usr_input(client):
 
             client.publish(usrtopic,usrmessage)
             timeout = time.time() + 3
+
             while message_rcvd == False:
                 if(time.time() > timeout):
-                    print("Timed out.."+ str(j))
+                    print("Timed out..")
                     break;
             if message_rcvd == False:
                 continue;
             else:
                 message_rcvd = False
-                for anchors in rcvd_data:
-                    node_anchor_map[usrtopic][str(anchors)] = -1; #store updated list of local anchors
 
-            i = 0;        
-            for anchors in node_anchor_map[usrtopic].keys():
-                if anchors in a_nodelist.keys(): #check to see if we have an absolute position for this anchor
-                    #range individual anchors (eventually we want to allow for ranging multiple anchors in one transmit)
-                    node_id = anchors
-                    usrmessage="0"
-                    usrmessage= usrmessage + str(chr(node_id)) + str(chr(ranging_mode)) + range_req_msg
+            print(rcvd_data['origin'])
+            try:
+                returnval = triangulate(rcvd_data['data'], a_nodelist)
+                print(list(returnval))
+                mean = (np.mean(returnval, axis = 0))
+                print(mean)
+            except Exception as e:
+                print("Triangulation failed: " + str(e) )
 
-                    client.publish(usrtopic,usrmessage)
-                    timeout = time.time() + 3
-                    while message_rcvd == False:
-                        if(time.time() > timeout):
-                            print("Timed out.."+ str(j))
-                            break;
-                    if message_rcvd == False:
-                        continue;
-                    else:
-                        i = i+1;
-                        message_rcvd = False
-                        node_anchor_map[usrtopic][anchors] = rcvd_data[anchors] #store updated list of local anchors
-                if i == 3:
-                    break
-
-            returnval = triangulate(node_anchor_map[usrtopic])
-            print(returnval)
-            print(node_anchor_map)
+            
 
 
         else:
             print("invalid choice")
             continue;
-        if c!=0 and c!=1 and c!=2:
+        if c!=0 and c!=1 and c!=2 and c!=5:
             client.publish(usrtopic,usrmessage)
             print("publishing "+usrmessage+" to "+usrtopic)
 

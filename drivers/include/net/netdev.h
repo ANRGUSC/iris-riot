@@ -331,7 +331,7 @@ void range_rx_stop(void);
  * request. Not thread safe.
  * @return  [description]
  */
-void range_rx_successful_stop(void);
+void range_rx_stop_n_send(void);
 
 /**
  * Not thread safe.
