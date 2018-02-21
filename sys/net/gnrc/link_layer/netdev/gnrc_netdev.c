@@ -208,10 +208,10 @@ static void _sound_ranging(int8_t node_id)
                 break;
         }
 
-        stop = xtimer_now_usec();
-        if(stop-start > 50000){
-            exit = 1;
-        }
+        // stop = xtimer_now_usec();
+        // if(stop-start > 50000){
+        //     exit = 1;
+        // }
 
         if(exit == 1){
             break;
@@ -224,10 +224,11 @@ static void _sound_ranging(int8_t node_id)
 
     irq_restore(old_state);
     if(successful_stop == 1){
-        range_rx_successful_stop();
+        range_rx_stop_n_send();
     }
     else{
-        range_rx_stop();
+        time_diffs = (range_data_t) {0, 0, ULTRSND_MISSED, node_id};
+        range_rx_stop_n_send();
     }
 }
 
@@ -361,7 +362,7 @@ void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode, int ma
     DEBUG("ranging initialized!\n");
 }
 
-void range_rx_successful_stop(void)
+void range_rx_stop_n_send(void)
 {
     //puts("stopped");
     range_rx_stop();
