@@ -73,7 +73,8 @@ int main(void)
     int anchor_node_id = 1;
     uint8_t buf[6];      // Document up top = { 2byte flag, 1byte node_id, 2byte slot time (ms), 1byte tot_num_anchors }
     uint16_t tdma_slot_time_msec = (uint16_t) (TDMA_SLOT_TIME_USEC / 1000);
-    uint8_t total_num_anchors = TDMA_TOTAL_ANCHOR_NODES;
+    // uint8_t total_num_anchors = TDMA_TOTAL_ANCHOR_NODES;
+    uint8_t total_num_anchors = 4;
 
     gnrc_netreg_entry_t tdma_master_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
 
