@@ -14,7 +14,7 @@
 #define QUEUE_SIZE          8
 #define CC2538_RSSI_OFFSET  73
 
-#define TX_NODE_ID 			0x00
+#define TX_NODE_ID 			0x01
 
 #define DEFAULT_ULTRASOUND_THRESH           45
 #define MAX_SOUND_SAMPLES                   500

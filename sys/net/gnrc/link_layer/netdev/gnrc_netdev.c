@@ -26,6 +26,7 @@
 #include "net/gnrc.h"
 #include "net/gnrc/nettype.h"
 #include "net/netdev.h"
+#include "periph/gpio.h"
 
 #include "net/gnrc/netdev.h"
 #include "net/ethernet/hdr.h"
@@ -40,26 +41,24 @@
 #define NETDEV_NETAPI_MSG_QUEUE_SIZE 8
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
-static void _sound_ranging(void);
+static void _sound_ranging(int8_t node_id);
 
 /* sound ranging */
 #include "periph/adc.h"
 #include "xtimer.h"
-#define MAX_SAMPLES 2000 /* for timeout of ranging */
 static int sample1;
 static int sample2;
-static uint8_t _tx_node_id      = 0;
+static int8_t _tx_node_id      = 0;
 static gpio_rx_line_t rx_line;
-static int max_samps            = 0;
 static int range_sys_flag       = 0;
 int ranging_on           = 0;
 msg_t ranging_complete;
 static int ranging_pid;
+static int range_max_iter;
 
 static uint32_t last            = 0;
 static uint32_t last2           = 0;
-static range_data_t time_diffs;
-int ranging                     = 0;
+static range_data_t time_diffs = {0,0,0,0};
 
 /**
  * @brief   Function called by the device driver on device events
@@ -87,17 +86,17 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                     gnrc_pktsnip_t *pkt = gnrc_netdev->recv(gnrc_netdev);
 
                     /* first, check if it's a ranging packet */
-                    if(ranging_on && !ranging)
+                    if(ranging_on)
                     {
                         if(RANGE_FLAG_BYTE0 == ((uint8_t *) pkt->data)[0] && 
-                            RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1] &&
-                            _tx_node_id == ((uint8_t *) pkt->data)[2])
+                            RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1])
                         {
-                            // printf("ranging");
-                            ranging_complete.type=RF_RCVD;
-                            ranging_complete.content.value=0;
+                            ranging_complete.type = RF_RCVD;
+                            ranging_complete.content.value = ((int8_t *) pkt->data)[2];
                             msg_send(&ranging_complete,ranging_pid);
-                            _sound_ranging();
+                            if((_tx_node_id == -1) || (_tx_node_id == ((int8_t *) pkt->data)[2])){
+                                _sound_ranging(((int8_t *) pkt->data)[2]);
+                            }
                         }
                     }
 
@@ -121,97 +120,116 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
     }
 }
 
-static void _sound_ranging(void)
-{
-    //unsigned old_state = irq_disable();
 
-    int cnt = 0;
+static void _sound_ranging(int8_t node_id)
+{
+    unsigned old_state = irq_disable();
     int first = 2;
     int second = 2;
-    uint32_t test;
-    ranging = 1;
+    int cnt = 0;
+    int exit = 0;
     last = xtimer_now_usec();
     time_diffs.tdoa = 0;
     time_diffs.orient_diff = 0;
     time_diffs.status = 0;
+    time_diffs.node_id = node_id;
+    int successful_stop = 0;
     unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.logic_pin};
-
-    while(cnt < max_samps && ranging)
+    uint32_t start, stop;
+    start = xtimer_now_usec();
+    while(cnt < range_max_iter)
     {
-        test = xtimer_now_usec();
-        if(test < last){
-            printf("failed on iteration: %d\n",cnt);
-        }
-        if(range_sys_flag == ONE_SENSOR_MODE){
-            sample1 = gpio_read(rx_line_array[0]);
-            DEBUG("%d ",sample1);
-            if(sample1 != 0){
-                last2 = xtimer_now_usec();
-                DEBUG("%lu - %lu ",last, last2);
-                time_diffs.tdoa = last2 - last;
-                range_rx_successful_stop();
-                break;
-            }
-        }
-        else if(range_sys_flag == TWO_SENSOR_MODE){
-
-            sample1 = gpio_read(rx_line_array[0]);
-            sample2 = gpio_read(rx_line_array[1]);
-            DEBUG("%d ",sample1);
-            DEBUG("%d ",sample2);
-
-            if(sample1 != 0){ first = 0; second = 1; }
-            else if(sample2 != 0){ first = 1; second = 0; }
-
-            if (first != 2) {
-                last2 = xtimer_now_usec();
-                do {
-                    sample1 = gpio_read(rx_line_array[first]);
-                    sample2 = gpio_read(rx_line_array[second]);
-                } while((sample1 != 0) && (sample2 == 0));
-                
-                time_diffs.orient_diff = xtimer_now_usec() - last2;
-                time_diffs.tdoa = last2 - last;
-
-                time_diffs.status = first + 1;
-                
-                if(sample1 == 0){
-                    time_diffs.status += MISSED_PIN_MASK; //returns the pin that first recieve if both recieved, otherwise add 10 to the flag
+        cnt++;
+        switch(range_sys_flag){
+            case ONE_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[0]);
+                DEBUG("%d ",sample1);
+                if(sample1 != 0){
+                    last2 = xtimer_now_usec();
+                    DEBUG("%lu - %lu ",last, last2);
+                    time_diffs.tdoa = last2 - last;
+                    successful_stop = 1;
+                    exit = 1;
                 }
-                
-                range_rx_successful_stop();
                 break;
-            } 
-        }
-        else if(range_sys_flag == XOR_SENSOR_MODE){
-            sample1 = gpio_read(rx_line_array[2]);
-            DEBUG("%d ",sample1);
-            if(sample1 != 0){
-                last2 = xtimer_now_usec();
-                while(gpio_read(rx_line_array[2]) != 0);
-                time_diffs.orient_diff = xtimer_now_usec() - last2;
-                time_diffs.tdoa = last2 - last;
-                range_rx_successful_stop();
+
+            case TWO_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[0]);
+                sample2 = gpio_read(rx_line_array[1]);
+                DEBUG("%d ",sample1);
+                DEBUG("%d ",sample2);
+
+                if(sample1 != 0){ first = 0; second = 1; }
+                else if(sample2 != 0){ first = 1; second = 0; }
+
+                if (first != 2) {
+                    last2 = xtimer_now_usec();
+                    do {
+                        sample1 = gpio_read(rx_line_array[first]);
+                        sample2 = gpio_read(rx_line_array[second]);
+                    } while((sample1 != 0) && (sample2 == 0));
+                    
+                    time_diffs.orient_diff = xtimer_now_usec() - last2;
+                    time_diffs.tdoa = last2 - last;
+
+                    time_diffs.status = first + 1;
+                    
+                    if(sample1 == 0){
+                        time_diffs.status += MISSED_PIN_MASK; //returns the pin that first recieve if both recieved, otherwise add 10 to the flag
+                    }
+                    
+                    successful_stop = 1;
+                    exit = 1;
+                } 
                 break;
-            }
-        }
-        else if(range_sys_flag == OMNI_SENSOR_MODE){
-            sample1 = gpio_read(rx_line_array[2]);
-            DEBUG("%d ",sample1);
-            if(sample1 != 0){   
-                time_diffs.tdoa = xtimer_now_usec() - last;
-                range_rx_successful_stop();
+            case XOR_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[2]);
+                DEBUG("%d ",sample1);
+                if(sample1 != 0){
+                    last2 = xtimer_now_usec();
+                    while(gpio_read(rx_line_array[2]) != 0);
+                    time_diffs.orient_diff = xtimer_now_usec() - last2;
+                    time_diffs.tdoa = last2 - last;
+                    successful_stop = 1;
+                    exit = 1;
+                }
                 break;
-            }
+            case OMNI_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[2]);
+                DEBUG("%d ",sample1);
+                if(sample1 != 0){   
+                    time_diffs.tdoa = xtimer_now_usec() - last;
+                    successful_stop = 1;
+                    exit = 1;
+                }
+                break;
+            default:
+                exit = 1;
+                break;
         }
 
-        ++cnt;
-    }
+        // stop = xtimer_now_usec();
+        // if(stop-start > 50000){
+        //     exit = 1;
+        // }
 
-    if(cnt >= max_samps){
-        DEBUG("cnt>max_samps\n");
+        if(exit == 1){
+            break;
+        }
+
+
     }
-    //irq_restore(old_state);
+    
+    printf("\nDelay: %lu\n",stop-start);
+
+    irq_restore(old_state);
+    if(successful_stop == 1){
+        range_rx_stop_n_send();
+    }
+    else{
+        time_diffs = (range_data_t) {0, 0, ULTRSND_MISSED, node_id};
+        range_rx_stop_n_send();
+    }
 }
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
@@ -328,27 +346,23 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
 }
 
 /* Successful ranging will immediately turn off ranging mode. */
-void range_rx_init(char tx_node_id, int pid, gpio_rx_line_t lines, unsigned int max_gpio_samps, int mode)
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode, int max_iter)
 {
     //puts("started");
     range_sys_flag = mode;
     ranging_on = 1;
-    _tx_node_id = tx_node_id;
+    _tx_node_id = node_id;
     ranging_pid = pid;
     rx_line = lines;
+    range_max_iter = max_iter;
     gpio_init(rx_line.one_pin,GPIO_IN);
     gpio_init(rx_line.two_pin,GPIO_IN);
     gpio_init(rx_line.logic_pin,GPIO_IN);
-    max_samps = max_gpio_samps;
-
-    time_diffs.tdoa = 0;
-    time_diffs.orient_diff = 0;
-    time_diffs.status = 0;
 
     DEBUG("ranging initialized!\n");
 }
 
-void range_rx_successful_stop(void)
+void range_rx_stop_n_send(void)
 {
     //puts("stopped");
     range_rx_stop();
@@ -360,6 +374,5 @@ void range_rx_successful_stop(void)
 void range_rx_stop(void)
 {
     //puts("stopped");
-    ranging = 0;
     ranging_on = 0;
 }

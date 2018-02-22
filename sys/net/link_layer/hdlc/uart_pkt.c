@@ -64,14 +64,6 @@ void *uart_pkt_insert_hdr(void *buf, size_t buf_len, const uart_pkt_hdr_t *hdr)
     return (buf + UART_PKT_DATA_FIELD);
 }
 
-/**
- * Copy data from an array into a uart packet buffer.
- * @param  buf      destination buffer
- * @param  buf_len  destination buffer size
- * @param  data     buffer containing data
- * @param  data_len size of buffer containing data
- * @return          total size of packet on success or 0 on failure.
- */
 size_t uart_pkt_cpy_data(void *buf, size_t buf_len, const void *data, 
     size_t data_len)
 {

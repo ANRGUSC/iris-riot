@@ -67,11 +67,15 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
+#ifndef HDLC_BAUDRATE
+    #define HDLC_BAUDRATE           115200
+#endif
+
 #ifndef UART_BUFSIZE
     #define UART_BUFSIZE            (1024U)
 #endif
 
-static msg_t _hdlc_msg_queue[16];
+static msg_t _hdlc_msg_queue[HDLC_MSG_QUEUE_SIZE];
 
 static kernel_pid_t hdlc_dispatcher_pid, sender_pid, hdlc_thread_pid = KERNEL_PID_UNDEF;
 
@@ -183,7 +187,10 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 if(entry) {
                     msg.type = HDLC_PKT_RDY;
                     msg.content.ptr = &recv_pkt;
-                    msg_send(&msg, entry->pid);
+                    if(!msg_try_send(&msg, entry->pid)) {
+                        DEBUG("hdlc: failed to send to the thread!\n");
+                        hdlc_pkt_release(&recv_pkt);
+                    }
                 } else {
                     DEBUG("hdlc: no thread subscribed to port!\n");
                     hdlc_pkt_release(&recv_pkt);
@@ -203,7 +210,9 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
                 msg.type = HDLC_RESP_SND_SUCC;
                 msg.content.value = (uint32_t) 0;
                 DEBUG("hdlc: valid ACK, tell pid %d a pkt is ready\n", sender_pid);
-                msg_send(&msg, sender_pid);
+                if(!msg_try_send(&msg, sender_pid)) {
+                    DEBUG("hdlc: failed to send to the thread!\n");
+                }
             }
                                 
             recv_buf.control.frame = recv_buf.control.seq_no = 0;
@@ -215,7 +224,7 @@ static void _hdlc_receive(unsigned int *recv_seq_no, unsigned int *send_seq_no)
 static void *_hdlc(void *arg)
 {
     uart_t dev = (uart_t)arg;
-    msg_init_queue(_hdlc_msg_queue, 16);
+    msg_init_queue(_hdlc_msg_queue, HDLC_MSG_QUEUE_SIZE);
     uint32_t last_sent = 0;
     msg_t msg, reply, msg2;
     unsigned int recv_seq_no = 0;
@@ -223,7 +232,7 @@ static void *_hdlc(void *arg)
 
     while(1) {
         if(uart_lock) {
-            int timeout = (int) (last_sent + RETRANSMIT_TIMEO_USEC) - (int) xtimer_now().ticks32;
+            int timeout = (int) (last_sent + HDLC_RETRANS_TIMEO_USEC) - (int) xtimer_now().ticks32;
             if(timeout < 0) {
                 /* send message to self to resend msg */
                 msg2.type = HDLC_MSG_RESEND;
@@ -249,7 +258,7 @@ static void *_hdlc(void *arg)
                     /* ask thread to try again in x usec */
                     DEBUG("hdlc: uart locked, telling thr to retry\n");
                     reply.type = HDLC_RESP_RETRY_W_TIMEO;
-                    reply.content.value = (uint32_t) RTRY_TIMEO_USEC;
+                    reply.content.value = (uint32_t) HDLC_RTRY_TIMEO_USEC;
                     msg_send(&reply, msg.sender_pid);
                 } else {
                     uart_lock = 1;
@@ -316,8 +325,7 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
     }
 
     ringbuffer_init(&(ctx.rx_buf), ctx.rx_mem, UART_BUFSIZE);
-    uart_init(dev, 115200, rx_cb, (void *) dev);
-    // DEBUG("mutex is (%d)\n", recv_pkt_mutex.queue.next);
+    uart_init(dev, HDLC_BAUDRATE, rx_cb, (void *) dev);
 
     res = thread_create(stack, stacksize,
                         priority, THREAD_CREATE_STACKTEST, _hdlc, (void *) dev, name);

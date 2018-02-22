@@ -63,6 +63,26 @@
 #include "thread.h"
 #include "msg.h"
 #include "range_param.h"
+#include "net/hdlc.h"
+#include "net/uart_pkt.h"
+
+#undef BIT
+#define BIT(n) ( 1 << (n) )
+/* Bit field definitions for the UART Line Control Register: */
+#define FEN   BIT( 4) /**< Enable FIFOs */
+#define UART_CTL_HSE_VALUE    0
+
+#define RANGE_MAX_ITER				  30000
+#define ULTRSND_TIMEOUT               99000 //usec
+#define RANGE_TIMEO_USEC              150000
+#define TRANSMIT_DELAY                100000 //this is 100ms which is the minimum delay between pings
+
+#define DATA_PER_PKT        ((HDLC_MAX_PKT_SIZE - UART_PKT_HDR_LEN - 1) / RANGE_DATA_LEN)
+
+typedef struct __attribute__((packed)) {
+    uint8_t         last_pkt;      
+    range_data_t    data[DATA_PER_PKT];                  
+} range_hdr_t;
 
 //Description of ranging modes:
 //ONE_SENSOR_MODE: Uses the RX_ONE_PIN (defined as GPIO_PD3 or DIO0) to listen for pings
@@ -83,6 +103,14 @@
 //The circuit diagram can be found at https://docs.google.com/a/usc.edu/document/d/1dAOTpsOR8ieO7aiEL8bq6xvZ6yDooY9ftndhAIMkdJg/edit?usp=sharing
 
 /**
+ * @brief      This function gets the ranging data, packages them into packets, and sends them down the hdlc to the mbed
+ *
+ * @param      params    The ranging parameters
+ * @param[in]  hdlc_pid  The hdlc pid
+ */
+void range_and_send(range_params_t *params, kernel_pid_t hdlc_pid, uint16_t src_port, uint16_t mbed_port);
+
+/**
  *
  * @brief      { This function call will cause the openmote to listen for the next RF
  * 				 and ultrasound ping from an anchor node and will calculate the TDoA
@@ -92,13 +120,14 @@
  * @param[in]  range_mode    The range mode. Available options are ONE_SENSOR_MODE, 
  * 							 TWO_SENSOR_MODE, or XOR_SENSOR_MODE.
  * @param[in]  num_samples   The number of samples to take
+ * @param[in]  node_id       The node identifier (if it's -1 return the first node recieved)
  *
  * @return     { A pointer to the array of range_data_t with size num_samples. 
  * 				 Range_data_t consists of the TDoA and the delay between two sensors 
  * 				 (if applicable) and an error value to indicate if a pin missed an
  * 				 ultrasonic ping }
  */
-range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, uint16_t num_samples);
+range_data_t* range_rx(uint32_t timeout_usec, uint8_t range_mode, int8_t node_id, uint32_t max_iter);
 
 
 /**

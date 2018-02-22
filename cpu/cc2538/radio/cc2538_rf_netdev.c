@@ -290,7 +290,7 @@ static int _send(netdev_t *netdev, const struct iovec *vector, unsigned count)
 
     /* Set first byte of TX FIFO to the packet length */
     rfcore_poke_tx_fifo(0, pkt_len + CC2538_AUTOCRC_LEN);
-
+    DEBUG("sending\n");
     if(ranging_on)
     {
         unsigned old_state = irq_disable();
@@ -309,7 +309,7 @@ static int _send(netdev_t *netdev, const struct iovec *vector, unsigned count)
         ranging_on = 0;
         DEBUG("RF and ultrasound ping sent!\n");
     } else {
-        DEBUG("RANGING FAILED\n");
+        DEBUG("ranging_on is not on\n");
         RFCORE_SFR_RFST = ISTXON;
     }
     
@@ -432,6 +432,7 @@ static int _init(netdev_t *netdev)
 
 void range_tx_init(unsigned int ranger_gpio_pin)
 {
+    DEBUG("range on\n");
     ranging_on = 1;
     DEBUG("STARTING RANGING\n");
     ranging_dev_gpio_pin = ranger_gpio_pin;
@@ -439,6 +440,6 @@ void range_tx_init(unsigned int ranger_gpio_pin)
 
 void range_tx_off(void)
 {
-    DEBUG("STOPPING RANGING\n");
+    DEBUG("range off\n");
     ranging_on = 0;
 }

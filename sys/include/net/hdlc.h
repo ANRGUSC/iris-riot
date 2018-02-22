@@ -7,7 +7,8 @@
  *
  * Contributors:
  * Jason A. Tran
- *
+ * Pradipta Ghosh
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy 
  * of this software and associated documentation files (the "Software"), to deal
  * with the Software without restriction, including without limitation the 
@@ -45,7 +46,7 @@
  * implementation is stop & wait.
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
- *
+ * @author      Pradipta Ghosh <pradiptg@usc.edu>
  * @}
  */
 
@@ -57,7 +58,6 @@ extern "C" {
 
 /* this file does not provide anything on it's own */
 
-
 #include "net/netdev.h"
 #include "net/yahdlc.h"
 #include "mutex.h"
@@ -65,18 +65,22 @@ extern "C" {
 #include "board.h"
 #include "periph/uart.h"
 
-#ifndef RTRY_TIMEO_USEC
-    #define RTRY_TIMEO_USEC         200000
-#endif /* RTRY_TIMEO_USEC */
+#ifndef HDLC_RTRY_TIMEO_USEC
+    #define HDLC_RTRY_TIMEO_USEC         200000
+#endif 
 
-#ifndef RETRANSMIT_TIMEO_USEC
-    #define RETRANSMIT_TIMEO_USEC   50000
-#endif /* RETRANSMIT_TIMEO_USEC */
+#ifndef HDLC_RETRANS_TIMEO_USEC
+    #define HDLC_RETRANS_TIMEO_USEC   50000
+#endif 
 
 #ifndef HDLC_MAX_PKT_SIZE
-#define HDLC_MAX_PKT_SIZE       64
+    #define HDLC_MAX_PKT_SIZE       64
 #endif
 
+#ifndef HDLC_MSG_QUEUE_SIZE
+    #define HDLC_MSG_QUEUE_SIZE       32 
+#endif
+    
 typedef struct {
     yahdlc_control_t control;
     char *data;
@@ -90,7 +94,6 @@ typedef struct {
     unsigned int length;
 } hdlc_pkt_t;
 
-
 typedef struct hdlc_entry {
     struct hdlc_entry *next;
     uint16_t port;
@@ -100,17 +103,17 @@ typedef struct hdlc_entry {
 /* HDLC thread messages */
 //Added MQTT_SN
 enum {
-    HDLC_MSG_REG_DISPATCHER,
-    HDLC_MSG_RECV,
-    HDLC_MSG_SND,
-    HDLC_MSG_RESEND,
-    HDLC_MSG_SND_ACK,
-    HDLC_RESP_RETRY_W_TIMEO,
-    HDLC_RESP_SND_SUCC,
-    HDLC_PKT_RDY,
-    MQTT_MBED,
-    MQTT_RSSI,
-    MQTT_SN
+    HDLC_MSG_REG_DISPATCHER = 0,
+    HDLC_MSG_RECV           = 1,
+    HDLC_MSG_SND            = 2,
+    HDLC_MSG_RESEND         = 3,
+    HDLC_MSG_SND_ACK        = 4,
+    HDLC_RESP_RETRY_W_TIMEO = 5,
+    HDLC_RESP_SND_SUCC      = 6,
+    HDLC_PKT_RDY            = 7,
+    MQTT_MBED               = 8,
+    MQTT_RSSI               = 9,
+    MQTT_SN                 = 10
 };
 
 void hdlc_register(hdlc_entry_t *entry);
@@ -122,4 +125,4 @@ kernel_pid_t hdlc_init(char *stack, int stacksize, char priority, const char *na
 #ifdef __cplusplus
 }
 #endif
-#endif /* MUTEX_H_ */
+#endif /* HDLC_H */

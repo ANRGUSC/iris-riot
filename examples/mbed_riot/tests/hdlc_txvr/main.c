@@ -44,19 +44,25 @@
  * In this test, the main thread and thread2 thread will contend for the same
  * UART line to communicate to another MCU also running a main and thread2 
  * thread. It seems as though stability deteriorates if the hdlc thread is given
- * a higher priority than the two application threads (RIOT's MAC layer priority
- * is well below the default priority for the main thread. Note that two threads
- * are equally contending for the UART line, one thread may starve the other to 
- * the point where the other thread will continue to retry. Increasing the msg 
- * queue size of hdlc's thread may also increase stability. Since this test can
+ * a lower priority than the two application threads (RIOT's MAC layer priority
+ * is well above the default priority for the main thread). Increasing the msg 
+ * queue size of hdlc's thread may increase stability. Since this test can
  * easily stress the system, carefully picking the transmission rates (see below)
- * and tuning the RTRY_TIMEO_USEC and RETRANSMIT_TIMEO_USEC timeouts in hdlc.h
- * may lead to different stability results. The following is one known stable
- * set of values for running this test:
+ * and tuning the HDLC_RTRY_TIMEO_USEC and HDLC_RETRANS_TIMEO_USEC timeouts in hdlc.h
+ * may lead to different stability results. Examples on how to define custom
+ * HDLC parameters can be seen in the **Makefile** in this folder. The following
+ * is one known stable set of values for running this test:
  *
- * -100ms interpacket intervals in xtimer_usleep() below
- * -RTRY_TIMEO_USEC = 200000
- * -RETRANSMIT_TIMEO_USEC 50000
+ * ENABLE_DEBUG=0 #in this file, main.c. rely on mbed printouts for analysis 
+ *
+ * -DHDLC_BAUDRATE=230400 #(Unsuccessful for higher baudrates between an mbed and
+ * openmote. Most likely due to RIOT/openmote.)
+ * 
+ * -DRTRY_TIMEO_USEC=200000
+ * 
+ * -DHDLC_RETRANS_TIMEO_USEC=50000
+ * 
+ * 100ms interpacket intervals in xtimer_usleep() below
  *
  * @author      Jason A. Tran <jasontra@usc.edu>
  *
@@ -76,11 +82,15 @@
 #include "net/hdlc.h"
 #include "net/uart_pkt.h"
 
-#define ENABLE_DEBUG (1)
+/* turn off debug statements for higher than 115200 baudrate */
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 #define HDLC_PRIO               (THREAD_PRIORITY_MAIN - 1)
 #define THREAD2_PRIO            (THREAD_PRIORITY_MAIN)
+
+#define MAIN_QUEUE_SIZE         (16)
+#define THREAD2_QUEUE_SIZE      (16)
 
 #define MAIN_THR_PORT   1234
 #define THREAD2_PORT    5678
@@ -90,17 +100,16 @@
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
-static msg_t thread2_msg_queue[16];
-static msg_t main_msg_queue[16];
+static msg_t main_msg_queue[MAIN_QUEUE_SIZE];
+static msg_t thread2_msg_queue[THREAD2_QUEUE_SIZE];
 
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
-static char dispatcher_stack[THREAD_STACKSIZE_MAIN];
 static char thread2_stack[THREAD_STACKSIZE_MAIN];
 
 static void *_thread2(void *arg)
 {
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
-    msg_init_queue(thread2_msg_queue, 16);
+    msg_init_queue(thread2_msg_queue, THREAD2_QUEUE_SIZE);
     hdlc_entry_t thread2 = { NULL, THREAD2_PORT, thread_getpid() };
     hdlc_register(&thread2);
 
@@ -139,7 +148,7 @@ static void *_thread2(void *arg)
             /* TODO: use xtimer_msg_receive_timeout() instead */
             /* this is where applications can decide on a timeout */
             msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-            msg_rcv.content.value = RTRY_TIMEO_USEC;
+            msg_rcv.content.value = HDLC_RTRY_TIMEO_USEC;
             msg_send_to_self(&msg_rcv);
         }
 
@@ -188,11 +197,11 @@ static void *_thread2(void *arg)
     return 0;
 }
 
-void main(void)
+int main(void)
 {
     /* we need a message queue for the thread running the shell in order to
      * receive potentially fast incoming packets */
-    msg_init_queue(main_msg_queue, 16);
+    msg_init_queue(main_msg_queue, MAIN_QUEUE_SIZE);
 
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
     hdlc_register(&main_thr);
@@ -242,7 +251,7 @@ void main(void)
             /* TODO: use xtimer_msg_receive_timeout() instead */
             /* this is where applications can decide on a timeout */
             msg_rcv.type = HDLC_RESP_RETRY_W_TIMEO;
-            msg_rcv.content.value = RTRY_TIMEO_USEC;
+            msg_rcv.content.value = HDLC_RTRY_TIMEO_USEC;
             msg_send_to_self(&msg_rcv);
         }
 

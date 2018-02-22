@@ -61,6 +61,7 @@
 #endif
 
 #define UART_PKT_DATA_FIELD         UART_PKT_HDR_LEN
+#define MQTT_TOPIC_LEN                  16
 
 typedef struct __attribute__((packed)) {
     uint16_t    src_port;      
@@ -93,6 +94,11 @@ typedef struct __attribute__((packed)){
     char topic[16];
     char data[32];
 } mqtt_pkt_t;
+
+typedef struct __attribute__((packed)){
+    char *topic;
+    char data[32];
+} mqtt_pkt_dup_t;
 
 /**
  * @brief Message types from riot-os to mbed-os
