@@ -42,7 +42,7 @@
 
 #define REMOTE_CTRL_FLAG                    0x99 /* 10011001 */
 
-#define RANGE_REQ_TIMEO_USEC                1000000
+#define RANGE_REQ_TIMEO_USEC                100000
 
 /* TDMA Localization Settings */
 /* sent in network byte order (big-endian) */

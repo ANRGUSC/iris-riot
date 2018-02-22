@@ -434,6 +434,7 @@ void range_tx_init(unsigned int ranger_gpio_pin)
 {
     DEBUG("range on\n");
     ranging_on = 1;
+    DEBUG("STARTING RANGING\n");
     ranging_dev_gpio_pin = ranger_gpio_pin;
 }
 
