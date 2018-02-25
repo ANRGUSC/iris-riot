@@ -84,9 +84,11 @@
 
 /* HDLC thread priority should be higher than normal */ 
 #define HDLC_PRIO           (THREAD_PRIORITY_MAIN - 1)
-#define THREAD2_PRIO        (THREAD_PRIORITY_MAIN)
+#define NETWORK_SLAVE_PRIO  (THREAD_PRIORITY_MAIN)
+#define RANGE_SLAVE_PRIO    (THREAD_PRIORITY_MAIN)
 #define MAIN_THR_PORT       5000
 #define NET_SLAVE_PORT      5001 
+#define RANGE_SLAVE_PORT    5002
 #define MBED_MAIN_PORT      6000
 
 /* all UDP packets will be sent to port 8000 for this application */
@@ -95,11 +97,14 @@
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
 //setting the message queue with message structs
-static msg_t main_msg_queue[HDLC_MAX_PKT_SIZE];
+static msg_t main_msg_queue[16];
+static msg_t network_slave_msg_queue[16];
+static msg_t range_slave_msg_queue[16];
 
 /* statically allocated thread stacks */
 static char hdlc_stack[THREAD_STACKSIZE_MAIN + 512];
 static char network_slave_stack[THREAD_STACKSIZE_MAIN];
+static char range_slave_stack[THREAD_STACKSIZE_MAIN];
 
 /**
  * @brief      function to send udp packets to a chosen port
@@ -201,7 +206,7 @@ static uint16_t _get_channel(void)
 an mbed device */
 static void *_network_slave(void *arg)
 {
-    uint16_t old_channel;
+    msg_init_queue(network_slave_msg_queue, sizeof(network_slave_msg_queue));
 
     /* pointer to the range_params recieved from the mbed */
     range_params_t *range_params;
@@ -213,8 +218,8 @@ static void *_network_slave(void *arg)
     kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
 
     //regsiter network slave thread to HDLC 
-    hdlc_entry_t thread2 = { NULL, NET_SLAVE_PORT, thread_getpid() };
-    hdlc_register(&thread2);
+    hdlc_entry_t network_slave = { NULL, NET_SLAVE_PORT, thread_getpid() };
+    hdlc_register(&network_slave);
 
     msg_t msg_snd, msg_rcv;
 
@@ -223,14 +228,9 @@ static void *_network_slave(void *arg)
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = 0 };
     hdlc_pkt_t *hdlc_rcv_pkt;
     //creating two uart hdr structs
-    uart_pkt_hdr_t uart_hdr;
+    uart_pkt_hdr_t uart_snd_hdr;
     uart_pkt_hdr_t uart_rcv_hdr;
 
-    uart_hdr.src_port = NET_SLAVE_PORT;
-    uart_hdr.dst_port = 0; //TODO
-    uart_hdr.pkt_type = 0; //TODO
-    // uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
-    
     gnrc_pktsnip_t *gnrc_rcv_pkt;
 
     while(1)
@@ -253,11 +253,11 @@ static void *_network_slave(void *arg)
 
                 gnrc_rcv_pkt = msg_rcv.content.ptr;
 
-                uart_hdr.src_port = NET_SLAVE_PORT; 
-                uart_hdr.dst_port = MBED_MAIN_PORT; 
-                uart_hdr.pkt_type = NET_SLAVE_RECEIVE; 
+                uart_snd_hdr.src_port = NET_SLAVE_PORT; 
+                uart_snd_hdr.dst_port = MBED_MAIN_PORT; 
+                uart_snd_hdr.pkt_type = NET_SLAVE_RECEIVE; 
                 uart_pkt_insert_hdr(hdlc_snd_pkt.data, HDLC_MAX_PKT_SIZE, 
-                                    &uart_hdr);
+                                    &uart_snd_hdr);
 
                 /* we can't use uart_pkt_cpy_data() here, so we'll do this manually */
 
@@ -313,7 +313,6 @@ static void *_network_slave(void *arg)
                 switch (uart_rcv_hdr.pkt_type)
                 {
                     case SEND_UDP_PKT:
-                    {
                         /* count down bytes to determine actual data payload length */
                         size_t data_payload_len = hdlc_rcv_pkt->length - UART_PKT_HDR_LEN;
 
@@ -335,39 +334,6 @@ static void *_network_slave(void *arg)
                         /* finally, send the udp/ipv6 packet */
                         _net_slave_send(ipv6_addr_str, port, mbed_rcv_ptr, data_payload_len);
                         break;
-                    }
-                    case SOUND_RANGE_REQ:
-                        range_params = (range_params_t *)uart_pkt_get_data(hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
-                        if(range_params->ranging_mode!= ONE_SENSOR_MODE && 
-                            range_params->ranging_mode!= TWO_SENSOR_MODE && 
-                            range_params->ranging_mode!= XOR_SENSOR_MODE && 
-                            range_params->ranging_mode!= OMNI_SENSOR_MODE){
-                            DEBUG("Recieved an invalid ranging mode\n");
-                            break;
-                        } else{
-                            switch(range_params->ranging_mode){
-                                case ONE_SENSOR_MODE:
-                                    DEBUG("******************ONE SENSOR MODE*******************\n");
-                                    break;
-                                case TWO_SENSOR_MODE:
-                                    DEBUG("******************TWO SENSOR MODE*******************\n");
-                                    break;
-                                case XOR_SENSOR_MODE:
-                                    DEBUG("******************XOR SENSOR MODE*******************\n");
-                                    break;
-                                case OMNI_SENSOR_MODE:
-                                    DEBUG("******************OMNI SENSOR MODE******************\n");
-                                    break;
-                            }
-                            old_channel = _get_channel();
-                            DEBUG("Switching from channel %d to %d\n",old_channel, RSSI_LOCALIZATION_CHAN);
-                            _set_channel(RSSI_LOCALIZATION_CHAN);
-                            range_and_send(range_params, hdlc_pid, NET_SLAVE_PORT, uart_rcv_hdr.src_port);
-                            _set_channel(old_channel);
-                            DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);
-                            DEBUG("******************RANGING COMPLETED******************\n");
-                        }        
-                        break;
                     default:
                         LED2_ON;
                         break;
@@ -386,6 +352,82 @@ static void *_network_slave(void *arg)
     /* should be never reached */
     return 0;
     
+}
+
+void *_range_slave(void *arg)
+{
+    kernel_pid_t hdlc_pid = (kernel_pid_t)arg;
+    msg_init_queue(range_slave_msg_queue, sizeof(range_slave_msg_queue));
+
+    uart_pkt_hdr_t uart_hdr;
+    hdlc_pkt_t *hdlc_pkt;
+    range_params_t *range_params;
+    uint16_t old_channel;
+    msg_t  msg;
+
+    //regsiter range slave thread to HDLC 
+    hdlc_entry_t range_slave = { NULL, RANGE_SLAVE_PORT, thread_getpid() };
+    hdlc_register(&range_slave);
+
+    /* no reply messages over hdlc are handled in this function's context. see
+    range_and_send() to see the response via hdlc to range requests */
+    while(1)
+    { 
+        DEBUG("range_slave: waiting for a range request\n");
+        msg_receive(&msg);
+
+        switch (msg.type)
+        {
+            case HDLC_PKT_RDY:
+                /* received message from mbed */
+                DEBUG("range_slave: pkt recvd from mbed\n");
+                hdlc_pkt = (hdlc_pkt_t *) msg.content.ptr;   
+                uart_pkt_parse_hdr(&uart_hdr, hdlc_pkt->data, hdlc_pkt->length);
+
+                if (uart_hdr.pkt_type == SOUND_RANGE_REQ) {
+                    range_params = (range_params_t *)uart_pkt_get_data(hdlc_pkt->data, hdlc_pkt->length);
+
+                    switch(range_params->ranging_mode)
+                    {
+                        case ONE_SENSOR_MODE:
+                            DEBUG("******************ONE SENSOR MODE*******************\n");
+                            break;
+                        case TWO_SENSOR_MODE:
+                            DEBUG("******************TWO SENSOR MODE*******************\n");
+                            break;
+                        case XOR_SENSOR_MODE:
+                            DEBUG("******************XOR SENSOR MODE*******************\n");
+                            break;
+                        case OMNI_SENSOR_MODE:
+                            DEBUG("******************OMNI SENSOR MODE******************\n");
+                            break;
+                        default:
+                            DEBUG("Recieved an invalid ranging mode\n");
+                            hdlc_pkt_release(hdlc_pkt);
+                            continue;
+                    }
+                    old_channel = _get_channel();
+                    DEBUG("Switching from channel %d to %d\n",old_channel, RSSI_LOCALIZATION_CHAN);
+                    _set_channel(RSSI_LOCALIZATION_CHAN);
+                    range_and_send(range_params, hdlc_pid, RANGE_SLAVE_PORT, uart_hdr.src_port);
+                    _set_channel(old_channel);
+                    DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);
+                    DEBUG("******************RANGING COMPLETED******************\n");
+                } else {
+                    LED2_ON;
+                    DEBUG("range_slave: invalid HDLC packet\n");
+                }
+
+                hdlc_pkt_release(hdlc_pkt);
+                break;
+
+            default:
+                LED3_ON; //error
+                break;
+        } 
+    } /* while */
+
+    /* this should never be reached */
 }
 
 int main(void)
@@ -410,7 +452,7 @@ int main(void)
                            hwaddr_long, res);
     
     /* init main thread's queue for rpc messages */
-    msg_init_queue(main_msg_queue, HDLC_MAX_PKT_SIZE);
+    msg_init_queue(main_msg_queue, sizeof(main_msg_queue));
 
     /* register main thread to hdlc */
     hdlc_entry_t main_thr = { NULL, MAIN_THR_PORT, thread_getpid() };
@@ -420,24 +462,19 @@ int main(void)
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
                                       "hdlc", UART_DEV(ENABLE_DEBUG));
     
-    //Creates the thread 2 from the main thread
-    thread_create(network_slave_stack, sizeof(network_slave_stack), THREAD2_PRIO, 
-            THREAD_CREATE_STACKTEST, _network_slave, (void *)hdlc_pid, "thread2");
+    /* start network slave thread */
+    thread_create(network_slave_stack, sizeof(network_slave_stack), NETWORK_SLAVE_PRIO, 
+            THREAD_CREATE_STACKTEST, _network_slave, (void *)hdlc_pid, "network_slave");
+
+    /* start range slave thread */
+    thread_create(range_slave_stack, sizeof(range_slave_stack), RANGE_SLAVE_PRIO, 
+            THREAD_CREATE_STACKTEST, _range_slave, (void *)hdlc_pid, "range_slave");
     
-    //The main thread DOES NOT send and receive messages in this example
-    //setting up the two message structs 
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
-    //create packets with max size 
-    // char send_data[HDLC_MAX_PKT_SIZE];//size 16
-    // hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
-    // uart_pkt_hdr_t uart_hdr;
-
-    // // hdr for each pkt is the same for this test 
-    // uart_hdr.src_port = MAIN_THR_PORT;
-    // uart_hdr.dst_port = MAIN_THR_PORT;
-    // uart_hdr.pkt_type = MQTT_PKT_TYPE;
-    // uart_pkt_insert_hdr(hdlc_snd_pkt.data, hdlc_snd_pkt.length, &uart_hdr);
+    char send_data[HDLC_MAX_PKT_SIZE];
+    hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = HDLC_MAX_PKT_SIZE };
+    uart_pkt_hdr_t uart_hdr;
 
 
     /* main thread: serves as the beaconer slave thread */
@@ -452,7 +489,7 @@ int main(void)
             switch (msg_rcv.type)
             {
                 case HDLC_RESP_SND_SUCC:
-                    DEBUG("main_thr: sent frame_no %d!\n", frame_no);
+                    DEBUG("main_thr: sent frame_no %d!\n", frame_no++);
                     exit = 1;
                     break;
                 case HDLC_RESP_RETRY_W_TIMEO:
@@ -471,6 +508,7 @@ int main(void)
                     // main_rcv_pkt = (mqtt_pkt_t *)main_mbed_rcv_ptr;
                     // DEBUG("The data received is %s \n", main_rcv_pkt->data);
                     // DEBUG("The topic received is %s \n", main_rcv_pkt->topic);
+                    // hdlc_pkt_release();
                     break;
                 default:
                     //error
@@ -484,10 +522,7 @@ int main(void)
             }
         }
 
-        frame_no++;
 
-        //control transmission rate via interpacket intervals 
-        xtimer_usleep(10000);
     }
     //should be never reached 
     
