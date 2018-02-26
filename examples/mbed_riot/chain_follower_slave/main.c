@@ -86,6 +86,8 @@
 #define HDLC_PRIO           (THREAD_PRIORITY_MAIN - 1)
 #define NETWORK_SLAVE_PRIO  (THREAD_PRIORITY_MAIN)
 #define RANGE_SLAVE_PRIO    (THREAD_PRIORITY_MAIN)
+
+/* HDLC port numbers */
 #define MAIN_THR_PORT       5000
 #define NET_SLAVE_PORT      5001 
 #define RANGE_SLAVE_PORT    5002
@@ -208,6 +210,11 @@ static void *_network_slave(void *arg)
 {
     msg_init_queue(network_slave_msg_queue, sizeof(network_slave_msg_queue));
 
+    /* start network slave server which listens on port */
+    network_slave_server.target.pid = thread_getpid();
+    network_slave_server.demux_ctx = (uint32_t) UNIVERSAL_NET_SLAVE_UDP_PORT;
+    gnrc_netreg_register(GNRC_NETTYPE_UDP, &network_slave_server);
+
     /* pointer to the range_params recieved from the mbed */
     range_params_t *range_params;
 
@@ -312,7 +319,7 @@ static void *_network_slave(void *arg)
 
                 switch (uart_rcv_hdr.pkt_type)
                 {
-                    case SEND_UDP_PKT:
+                    case NET_SEND_UDP:
                         /* count down bytes to determine actual data payload length */
                         size_t data_payload_len = hdlc_rcv_pkt->length - UART_PKT_HDR_LEN;
 
