@@ -135,8 +135,6 @@ static void _sound_ranging(int8_t node_id)
     time_diffs.node_id = node_id;
     int successful_stop = 0;
     unsigned int rx_line_array[] = {rx_line.one_pin, rx_line.two_pin, rx_line.logic_pin};
-    uint32_t start, stop;
-    start = xtimer_now_usec();
     while(cnt < range_max_iter)
     {
         cnt++;
@@ -208,11 +206,6 @@ static void _sound_ranging(int8_t node_id)
                 break;
         }
 
-        // stop = xtimer_now_usec();
-        // if(stop-start > 50000){
-        //     exit = 1;
-        // }
-
         if(exit == 1){
             break;
         }
@@ -220,7 +213,7 @@ static void _sound_ranging(int8_t node_id)
 
     }
     
-    printf("\nDelay: %lu\n",stop-start);
+    // printf("\nDelay: %lu\n",stop-start);
 
     irq_restore(old_state);
     if(successful_stop == 1){
