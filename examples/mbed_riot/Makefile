@@ -2,7 +2,7 @@
 BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
-APP_SELECT ?= tests/range_mqtt
+APP_SELECT ?= chain_follower_slave
 
 PROGRAMMER ?= jlink
 
@@ -48,7 +48,7 @@ CFLAGS += -DHDLC_MAX_PKT_SIZE=64
 
 # Set a custom 802.15.4 channel if needed
 
-DEFAULT_CHANNEL ?= 25
+DEFAULT_CHANNEL ?= 26
 CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 
 

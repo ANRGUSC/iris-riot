@@ -78,7 +78,7 @@
 #include "range.h"
 #include "dac.h"
 #include "app-conf.h"
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 /* HDLC thread priority should be higher than normal */ 
@@ -568,7 +568,7 @@ static void *_beaconer_slave(void *arg)
        
     bool beaconing = false;    
     uint8_t beacon_node_id;
-    uint32_t timeout_usec = 500000;
+    uint32_t timeout_usec = 5000000;
 
     while(1)
     {
@@ -664,7 +664,7 @@ int main(void)
 
     /* start hdlc thread */
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(0));
+                                      "hdlc", UART_DEV(1));
     
     /* start network slave thread */
     thread_create(network_slave_stack, sizeof(network_slave_stack), NETWORK_SLAVE_PRIO, 
