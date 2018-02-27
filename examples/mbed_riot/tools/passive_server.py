@@ -104,18 +104,21 @@ def on_message(client, userdata, msg):
     elif msg.topic==range_sub:
         rcvd_data = parse_msg(payload)
         if rcvd_data["typeflag"] == node_data_flag:
-            print("Origin: " + rcvd_data["origin"])
+            print("Origin: " + str(rcvd_data["origin"]))
             print("Type: Node Data")
-            print("Data: " + rcvd_data["data"])
+            print("Data: " + str(rcvd_data["data"]))
             position = []
 
             if len(rcvd_data["data"]) >= 3:
-                position = triangulate(rcvd_data["data"])
+                position = triangulate(rcvd_data["data"], a_nodelist)
+                print(list(position))
+                mean = (np.mean(position, axis = 0))
+                print(mean)
 
         elif rcvd_data["typeflag"] == node_data_flag:
-            print("Origin: " + rcvd_data["origin"])
+            print("Origin: " + str(rcvd_data["origin"]))
             print("Type: Node ID")
-            print("Data: " + rcvd_data["data"])
+            print("Data: " + str(rcvd_data["data"]))
         else:
             print("Unexpected type found")
 

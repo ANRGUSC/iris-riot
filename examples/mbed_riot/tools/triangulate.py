@@ -47,7 +47,7 @@ def triangulate(node_data, a_nodelist):
     i = 0
     for item in permutelist:
         i=i+1
-        print(item)
+        # print(item)
         a = anchor_coor[item[0]]
         b = anchor_coor[item[1]]
         c = anchor_coor[item[2]]
@@ -60,13 +60,13 @@ def triangulate(node_data, a_nodelist):
         # d3 = node_data[anchor_id[item[2]]]
 
         ab_vec = np.subtract(a,b)
-        print(ab_vec)
+        # print(ab_vec)
         ab_mag = np.linalg.norm(ab_vec)
 
-        print('d1: ' + str(d1))
-        print('d2: ' + str(d2))
-        print('d3: ' + str(d3))
-        print('ab_mag: ' + str(ab_mag))
+        # print('d1: ' + str(d1))
+        # print('d2: ' + str(d2))
+        # print('d3: ' + str(d3))
+        # print('ab_mag: ' + str(ab_mag))
         if((d1 + d2) < ab_mag):
             continue
 
@@ -95,16 +95,16 @@ def triangulate(node_data, a_nodelist):
         node_vec1 = np.add(node_vec1, ab_mid)
         node_vec2 = np.add(node_vec2, ab_mid)
 
-        print(str(i)+"***********************")
-        print("AB_ang: "+str(math.degrees(ab_ang)))
-        print("node_ang: " +str(math.degrees(node_ang)))
-        # print(math.degrees(node_ang))
-        print(math.degrees(node_ang1))
-        print(math.degrees(node_ang2))
-        print("AB_mid: "+str(ab_mid))
-        print("C: "+str(c))
-        print(node_vec1)
-        print(node_vec2)
+        # print(str(i)+"***********************")
+        # print("AB_ang: "+str(math.degrees(ab_ang)))
+        # print("node_ang: " +str(math.degrees(node_ang)))
+        # # print(math.degrees(node_ang))
+        # print(math.degrees(node_ang1))
+        # print(math.degrees(node_ang2))
+        # print("AB_mid: "+str(ab_mid))
+        # print("C: "+str(c))
+        # print(node_vec1)
+        # print(node_vec2)
         
 
         node_dist1 = abs(np.linalg.norm(np.subtract(c, node_vec1)) - d3)
@@ -112,11 +112,11 @@ def triangulate(node_data, a_nodelist):
 
         if(node_dist1 < node_dist2):
             estimates.append(node_vec1)
-            print("node1 selected")
+            # print("node1 selected")
         else:
             estimates.append(node_vec2)
-            print("node2 selected")
+            # print("node2 selected")
 
-        print("***********************")
+        # print("***********************")
 
     return estimates
