@@ -301,12 +301,12 @@ static void *_network_slave(void *arg)
                 ipv6_addr_to_str(ipv6_addr, &ipv6_hdr->src, IPV6_ADDR_MAX_STR_LEN);
 
                 /* insert the ipv6 addr string WITH the null character */
-                memcpy(hdlc_snd_pkt.data, ipv6_addr, strlen(ipv6_addr) + 1);
+                memcpy(hdlc_snd_pkt.data + UART_PKT_DATA_FIELD, ipv6_addr, strlen(ipv6_addr) + 1);
 
                 /* now we can insert the actual payload of the packet */
                 gnrc_rcv_pkt = gnrc_pktsnip_search_type(gnrc_rcv_pkt, 
                                                         GNRC_NETTYPE_UNDEF);
-                memcpy(hdlc_snd_pkt.data + (strlen(ipv6_addr) + 1), 
+                memcpy(hdlc_snd_pkt.data + UART_PKT_DATA_FIELD + (strlen(ipv6_addr) + 1), 
                        gnrc_rcv_pkt->data, gnrc_rcv_pkt->size);
 
                 /* size of the hdlc packet payload will be the sum of all parts */
