@@ -78,7 +78,6 @@
 #include "range.h"
 #include "dac.h"
 #include "app-conf.h"
-
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
@@ -86,13 +85,19 @@
 #define HDLC_PRIO           (THREAD_PRIORITY_MAIN - 1)
 #define NETWORK_SLAVE_PRIO  (THREAD_PRIORITY_MAIN)
 #define RANGE_SLAVE_PRIO    (THREAD_PRIORITY_MAIN)
+#define BEACONER_SLAVE_PRIO (THREAD_PRIORITY_MAIN)
 
 /* HDLC port numbers */
 #define MAIN_THR_PORT       5000
 #define NET_SLAVE_PORT      5001 
 #define RANGE_SLAVE_PORT    5002
+#define RANGE_BEACONER_PORT 5003
 #define MBED_MAIN_PORT      6000
+#define TX_PIN              GPIO_PIN(3, 2)
+#define RANGE_RX_HW_ADDR    "ff:ff"
 
+#define RANGE_BEACON_START  31
+#define RANGE_BEACON_STOP   32
 /* all UDP packets will be sent to port 8000 for this application */
 #define UNIVERSAL_NET_SLAVE_UDP_PORT  8000
 
@@ -203,6 +208,28 @@ static uint16_t _get_channel(void)
 
     return -1; /* fail */
 }
+
+/**
+ * Set radio transmit power. CC2538 specific. Works only if one netif exists.
+ * @param  power Power  in dBm within the range -24 to 7.
+ * @return       0 on success. Implementation defined negative number on failure.
+ */
+static int _set_tx_power(uint16_t power)
+{
+    if (power < -24 || power > 7)
+    {
+        return -1; /* fail */
+    }
+
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    size_t numof = gnrc_netif_get(ifs);
+    if (numof == 1) {
+        return gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &power, sizeof(uint16_t));
+    }
+
+    return -1; /* fail */
+}
+
 
 /* network slave thread used to support network requests (send/receive) from 
 an mbed device */
@@ -372,7 +399,7 @@ void *_range_slave(void *arg)
     uint16_t old_channel;
     msg_t  msg;
 
-    //regsiter range slave thread to HDLC 
+    //register range slave thread to HDLC 
     hdlc_entry_t range_slave = { NULL, RANGE_SLAVE_PORT, thread_getpid() };
     hdlc_register(&range_slave);
 
@@ -437,6 +464,176 @@ void *_range_slave(void *arg)
     /* this should never be reached */
 }
 
+
+/**
+ * Only supports having one netif.
+ * @param  rcvr_hwaddr     [description]
+ * @param  rcvr_hwaddr_len [description]
+ * @param  sender_node_id  [description]
+ * @return                 [description]
+ */
+static int _send_beacons(uint8_t *rcvr_hwaddr, size_t rcvr_hwaddr_len, 
+                                    uint8_t sender_node_id)
+{
+    gnrc_pktsnip_t *pkt, *hdr;
+    msg_t msg;
+    gnrc_netif_hdr_t *nethdr;
+    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
+    uint8_t flags = 0x00;
+
+    /* turn off UART temporarily because of HDLC*/
+    // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
+    /* depending on implementation, turn off any other interrupts as needed */
+
+    char buf[3] = { RANGE_FLAG_BYTE0, RANGE_FLAG_BYTE1, sender_node_id };
+
+    size_t numof = gnrc_netif_get(ifs);
+
+    if(numof != 1) {
+        DEBUG("Error: more than 1 netif\n");
+        return -1;
+    }
+
+    pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
+    if (pkt == NULL) {
+        DEBUG("Error: unable to copy data to packet buffer");
+        return -1;
+    }
+
+    hdr = gnrc_netif_hdr_build(NULL, 0, rcvr_hwaddr, rcvr_hwaddr_len);
+    if (hdr == NULL) {
+        DEBUG("Error: packet buffer full\n");
+        gnrc_pktbuf_release(pkt);
+        return -1;
+    }
+
+    LL_PREPEND(pkt, hdr);
+    nethdr = (gnrc_netif_hdr_t *)hdr->data;
+    nethdr->flags =  flags; /* this is used mainly to differentiate bcast pkts */
+
+    if (gnrc_netapi_send(ifs[0], pkt) < 1) {
+        DEBUG("Error: unable to send\n");
+        gnrc_pktbuf_release(pkt);
+        return -1;
+    }
+
+    /* after gnrc_netapi_send(), the RF packet + sound ping should be sent when
+    the function returns. Manually reset UART to resume normal operation
+    (see CC2538's uart.c) */
+
+    // UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
+    // UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
+    // UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
+    // UART1->cc2538_uart_dr.ECR = 0xFF;
+    // UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
+    // UART1->cc2538_uart_lcrh.LCRH |= FEN;
+    // UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
+
+    return 0;
+}
+
+static msg_t beaconer_slave_queue[16];
+static char beaconer_slave_stack[THREAD_STACKSIZE_MAIN];
+/* This thread deals with sound ranging */
+static void *_beaconer_slave(void *arg) 
+{
+    msg_t msg;
+
+    uint16_t old_channel;
+    msg_init_queue(beaconer_slave_queue, sizeof(beaconer_slave_queue));
+    hdlc_entry_t range_beaconer = { NULL, RANGE_BEACONER_PORT, thread_getpid() };
+    hdlc_pkt_t *hdlc_pkt;
+    hdlc_register(&range_slave);
+
+
+    uint8_t hw_addr[MAX_ADDR_LEN];
+    size_t hw_addr_len;
+    hw_addr_len = gnrc_netif_addr_from_str(hw_addr, sizeof(hw_addr), RANGE_RX_HW_ADDR);    size_t rcvr_hwaddr_len;
+    if (hw_addr_len == 0) {
+        DEBUG("error: invalid address given\n");
+        return 1;
+    }
+
+    /* Turn off MB13XX ultrasonic sensor using the following pin */ 
+    if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
+        DEBUG("Error initializing GPIO_PIN.\n");
+        return 1;
+    }
+    gpio_clear(TX_PIN);
+
+    /* max out tx power */
+    _set_tx_power(7);
+
+
+       
+    bool beaconing = false;    
+    uint8_t beacon_node_id;
+    uint32_t timeout_usec = 500000;
+
+    while(1)
+    {
+        if(xtimer_msg_receive_timeout(&msg,timeout_usec)<0){
+            if(beaconing){
+                DEBUG("Sending next beacon\n");
+                old_channel = _get_channel();
+                DEBUG("Switching from channel %d to %d\n",old_channel, RSSI_LOCALIZATION_CHAN);
+                _set_channel(RSSI_LOCALIZATION_CHAN);
+                range_tx_init(TX_PIN);
+                _send_beacons(hw_addr, hw_addr_len, beacon_node_id);
+                range_tx_off();
+                _set_channel(old_channel);
+                DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);    
+            }
+            continue;            
+        }
+
+        switch (msg.type)
+        {
+
+            case HDLC_PKT_RDY:
+                /* received message from mbed */
+                DEBUG("range_slave: pkt recvd from mbed\n");
+                hdlc_pkt = (hdlc_pkt_t *) msg.content.ptr;   
+                uart_pkt_parse_hdr(&uart_hdr, hdlc_pkt->data, hdlc_pkt->length);
+
+                if (uart_hdr.pkt_type == RANGE_BEACON_START){
+                    DEBUG("Got GO. Time to send sound/rf ping!\n");
+                    beaconing = true;
+                    beacon_node_id = hdlc_pkt->data[UART_PKT_DATA_FIELD]; // TODO: Check whether this is correct
+                    old_channel = _get_channel();
+                    DEBUG("Switching from channel %d to %d\n",old_channel, RSSI_LOCALIZATION_CHAN);
+                    _set_channel(RSSI_LOCALIZATION_CHAN);
+                    range_tx_init(TX_PIN);
+                    _send_beacons(hw_addr, hw_addr_len, beacon_node_id);
+                    range_tx_off();
+                    _set_channel(old_channel);
+                    DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);
+                    
+                }
+                else if (uart_hdr.pkt_type == RANGE_BEACON_STOP){
+                    beaconing = false;
+                    DEBUG("Time to Stop Beaconing!\n");
+
+                }
+                else{
+                    DEBUG("Unknown Packet type!\n");
+                }
+                hdlc_pkt_release(hdlc_pkt);
+                break;
+
+            default:
+                /* error */
+                DEBUG("soundrf_sender: unknown msg_t!\n");
+                break;
+        }    
+    }
+
+    /* should be never reached */
+    DEBUG("Error: Reached Exit!");
+    return NULL;
+}
+
+
 int main(void)
 {
     uint8_t hwaddr_long[8];
@@ -477,6 +674,10 @@ int main(void)
     thread_create(range_slave_stack, sizeof(range_slave_stack), RANGE_SLAVE_PRIO, 
             THREAD_CREATE_STACKTEST, _range_slave, (void *)hdlc_pid, "range_slave");
     
+    /* start the beaconer slave thread */
+    thread_create(beaconer_slave_stack, sizeof(beaconer_slave_stack), BEACONER_SLAVE_PRIO, 0,
+                  _beaconer_slave, (void *) 0, "beaconer_slave");
+
     msg_t msg_snd, msg_rcv;
     char frame_no = 0;
     char send_data[HDLC_MAX_PKT_SIZE];
