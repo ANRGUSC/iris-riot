@@ -167,10 +167,6 @@ static int _net_slave_send(const char *addr_str, uint16_t port, void *data, size
         return 1;
     }
 
-    /* access to `payload` was implicitly given up with the send operation above
-     * => use temporary variable for output */
-    DEBUG("Success: sent %u byte(s) to [%s]:%u\n", payload_size, addr_str,
-           port);               
     return 0;
 }
 
@@ -238,6 +234,7 @@ static void *_network_slave(void *arg)
     msg_init_queue(network_slave_msg_queue, sizeof(network_slave_msg_queue));
 
     /* start network slave server which listens on port */
+    gnrc_netreg_entry_t network_slave_server;
     network_slave_server.target.pid = thread_getpid();
     network_slave_server.demux_ctx = (uint32_t) FORWARD_TO_MBED_MAIN_PORT;
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &network_slave_server);
@@ -266,6 +263,8 @@ static void *_network_slave(void *arg)
     uart_pkt_hdr_t uart_rcv_hdr;
 
     gnrc_pktsnip_t *gnrc_rcv_pkt;
+
+    size_t data_payload_len;
 
     while(1)
     { 
@@ -311,7 +310,7 @@ static void *_network_slave(void *arg)
                        gnrc_rcv_pkt->data, gnrc_rcv_pkt->size);
 
                 /* size of the hdlc packet payload will be the sum of all parts */
-                hdlc_snd_pkt.length = UART_PKT_HDR_LEN 1 + (strlen(ipv6_addr) + 1) 
+                hdlc_snd_pkt.length = UART_PKT_HDR_LEN + (strlen(ipv6_addr) + 1)
                                       + gnrc_rcv_pkt->size;
 
                 /* finally, send it to the hdlc thread it send it to the mbed */
@@ -326,12 +325,12 @@ static void *_network_slave(void *arg)
                 break;
 
             case HDLC_RESP_SND_SUCC:
-                DEBUG("network_slave: sent frame_no %d!\n", frame_no++);                    
+                // DEBUG("network_slave: sent frame_no %d!\n", frame_no++);                    
                 break;
 
             case HDLC_RESP_RETRY_W_TIMEO:
                 xtimer_usleep(msg_rcv.content.value);
-                DEBUG("network_slave: retrying frame_no %d\n", frame_no);
+                // DEBUG("network_slave: retrying frame_no %d\n", frame_no);
                 if(!msg_try_send(&msg_snd, hdlc_pid)) {
                     DEBUG("network_slave: HDLC msg queue full! retrying...\n");
                     xtimer_usleep(HDLC_RTRY_TIMEO_USEC);
@@ -349,7 +348,7 @@ static void *_network_slave(void *arg)
                 {
                     case NET_SEND_UDP:
                         /* count down bytes to determine actual data payload length */
-                        size_t data_payload_len = hdlc_rcv_pkt->length - UART_PKT_HDR_LEN;
+                        data_payload_len = hdlc_rcv_pkt->length - UART_PKT_HDR_LEN;
 
                         /* the hdlc message from the mbed should have a 
                         null-terminated string at the beginning of the data payload */
@@ -544,7 +543,7 @@ static void *_beaconer_slave(void *arg)
     msg_init_queue(beaconer_slave_queue, sizeof(beaconer_slave_queue));
     hdlc_entry_t range_beaconer = { NULL, RANGE_BEACONER_PORT, thread_getpid() };
     hdlc_pkt_t *hdlc_pkt;
-    hdlc_register(&range_slave);
+    hdlc_register(&range_beaconer);
 
 
     uint8_t hw_addr[MAX_ADDR_LEN];
@@ -565,7 +564,7 @@ static void *_beaconer_slave(void *arg)
     /* max out tx power */
     _set_tx_power(7);
 
-
+    uart_pkt_hdr_t uart_hdr;
        
     bool beaconing = false;    
     uint8_t beacon_node_id;
@@ -665,7 +664,7 @@ int main(void)
 
     /* start hdlc thread */
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(ENABLE_DEBUG));
+                                      "hdlc", UART_DEV(0));
     
     /* start network slave thread */
     thread_create(network_slave_stack, sizeof(network_slave_stack), NETWORK_SLAVE_PRIO, 
