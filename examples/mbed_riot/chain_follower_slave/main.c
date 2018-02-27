@@ -99,7 +99,7 @@
 #define RANGE_BEACON_START  31
 #define RANGE_BEACON_STOP   32
 /* all UDP packets will be sent to port 8000 for this application */
-#define UNIVERSAL_NET_SLAVE_UDP_PORT  8000
+#define FORWARD_TO_MBED_MAIN_PORT  8000
 
 /* see openmote-cc2538's periph_conf.h for second UART pin config */
 
@@ -239,7 +239,7 @@ static void *_network_slave(void *arg)
 
     /* start network slave server which listens on port */
     network_slave_server.target.pid = thread_getpid();
-    network_slave_server.demux_ctx = (uint32_t) UNIVERSAL_NET_SLAVE_UDP_PORT;
+    network_slave_server.demux_ctx = (uint32_t) FORWARD_TO_MBED_MAIN_PORT;
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &network_slave_server);
 
     /* pointer to the range_params recieved from the mbed */
@@ -311,7 +311,8 @@ static void *_network_slave(void *arg)
                        gnrc_rcv_pkt->data, gnrc_rcv_pkt->size);
 
                 /* size of the hdlc packet payload will be the sum of all parts */
-                hdlc_snd_pkt.length = 1 + (strlen(ipv6_addr) + 1) + gnrc_rcv_pkt->size;
+                hdlc_snd_pkt.length = UART_PKT_HDR_LEN 1 + (strlen(ipv6_addr) + 1) 
+                                      + gnrc_rcv_pkt->size;
 
                 /* finally, send it to the hdlc thread it send it to the mbed */
                 msg_snd.type = HDLC_MSG_SND;
