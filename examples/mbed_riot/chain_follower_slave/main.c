@@ -78,7 +78,7 @@
 #include "range.h"
 #include "dac.h"
 #include "app-conf.h"
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 /* HDLC thread priority should be higher than normal */ 
@@ -93,7 +93,7 @@
 #define RANGE_SLAVE_PORT    5002
 #define RANGE_BEACONER_PORT 5003
 #define MBED_MAIN_PORT      6000
-#define TX_PIN              GPIO_PIN(3, 2)
+#define TX_PIN              GPIO_PIN(3, 0)
 #define RANGE_RX_HW_ADDR    "ff:ff"
 
 #define RANGE_BEACON_START  31
@@ -580,13 +580,13 @@ static void *_beaconer_slave(void *arg)
     gpio_clear(TX_PIN);
 
     /* max out tx power */
-    _set_tx_power(7);
+    // _set_tx_power(7);
 
     uart_pkt_hdr_t uart_hdr;
        
     bool beaconing = false;    
     uint8_t beacon_node_id;
-    uint32_t timeout_usec = 5000000;
+    uint32_t timeout_usec = 200000;
 
     while(1)
     {
@@ -622,7 +622,8 @@ static void *_beaconer_slave(void *arg)
                     DEBUG("Switching from channel %d to %d\n",old_channel, RSSI_LOCALIZATION_CHAN);
                     _set_channel(RSSI_LOCALIZATION_CHAN);
                     range_tx_init(TX_PIN);
-                    _send_beacons(hw_addr, hw_addr_len, beacon_node_id);
+                    // TODO: change back to beacon_node_id
+                    _send_beacons(hw_addr, hw_addr_len, 1);
                     range_tx_off();
                     _set_channel(old_channel);
                     DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);
@@ -682,7 +683,7 @@ int main(void)
 
     /* start hdlc thread */
     kernel_pid_t hdlc_pid = hdlc_init(hdlc_stack, sizeof(hdlc_stack), HDLC_PRIO, 
-                                      "hdlc", UART_DEV(1));
+                                      "hdlc", UART_DEV(0));
     
     /* start network slave thread */
     thread_create(network_slave_stack, sizeof(network_slave_stack), NETWORK_SLAVE_PRIO, 
