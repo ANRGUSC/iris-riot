@@ -339,7 +339,7 @@ static void *_network_slave(void *arg)
 
             case HDLC_PKT_RDY:
                 /* received message from mbed */
-                DEBUG("network_slave: pkt recvd from mbed\n");
+                // DEBUG("network_slave: pkt recvd from mbed\n");
                 hdlc_rcv_pkt = (hdlc_pkt_t *) msg_rcv.content.ptr;   
                 uart_pkt_parse_hdr(&uart_rcv_hdr, hdlc_rcv_pkt->data, hdlc_rcv_pkt->length);
                 mbed_rcv_ptr = hdlc_rcv_pkt->data + UART_PKT_DATA_FIELD;
@@ -347,12 +347,15 @@ static void *_network_slave(void *arg)
                 switch (uart_rcv_hdr.pkt_type)
                 {
                     case NET_SEND_UDP:
+                        DEBUG("network_slave: NET_SEND_UDP recvd from mbed\n");
+
                         /* count down bytes to determine actual data payload length */
                         data_payload_len = hdlc_rcv_pkt->length - UART_PKT_HDR_LEN;
 
                         /* the hdlc message from the mbed should have a 
                         null-terminated string at the beginning of the data payload */
                         char *ipv6_addr_str = mbed_rcv_ptr; //null-terminated string embedded message
+                        // DEBUG("network_slave: %s\n",ipv6_addr_str);
 
                         /* continue counting down bytes: string length, null 
                         char, and the two bytes that hold the port number */
