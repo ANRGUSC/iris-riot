@@ -25,6 +25,7 @@ USEMODULE += gnrc_ndp
 USEMODULE += gnrc_icmpv6_echo
 # Use minimal standard PRNG
 USEMODULE += prng_minstd
+USEMODULE += csma_sender
 
 CFLAGS += -DGNRC_PKTBUF_SIZE=512 -DGNRC_IPV6_NETIF_ADDR_NUMOF=4 -DGNRC_IPV6_NC_SIZE=1
 

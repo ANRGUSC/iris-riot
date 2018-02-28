@@ -234,9 +234,10 @@ static void *_network_slave(void *arg)
     msg_init_queue(network_slave_msg_queue, sizeof(network_slave_msg_queue));
 
     /* start network slave server which listens on port */
-    gnrc_netreg_entry_t network_slave_server;
+    gnrc_netreg_entry_t network_slave_server = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
+                                                               KERNEL_PID_UNDEF);
     network_slave_server.target.pid = thread_getpid();
-    network_slave_server.demux_ctx = (uint32_t) FORWARD_TO_MBED_MAIN_PORT;
+    network_slave_server.demux_ctx = (uint16_t) FORWARD_TO_MBED_MAIN_PORT;
     gnrc_netreg_register(GNRC_NETTYPE_UDP, &network_slave_server);
 
     /* pointer to the range_params recieved from the mbed */
