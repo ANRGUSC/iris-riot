@@ -586,7 +586,7 @@ static void *_beaconer_slave(void *arg)
        
     bool beaconing = false;    
     uint8_t beacon_node_id;
-    uint32_t timeout_usec = 200000;
+    uint32_t timeout_usec = 50000;
 
     while(1)
     {
@@ -598,6 +598,7 @@ static void *_beaconer_slave(void *arg)
                 _set_channel(RSSI_LOCALIZATION_CHAN);
                 range_tx_init(TX_PIN);
                 _send_beacons(hw_addr, hw_addr_len, beacon_node_id);
+                xtimer_usleep(50000);
                 range_tx_off();
                 _set_channel(old_channel);
                 DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);    
@@ -624,6 +625,7 @@ static void *_beaconer_slave(void *arg)
                     range_tx_init(TX_PIN);
                     // TODO: change back to beacon_node_id
                     _send_beacons(hw_addr, hw_addr_len, 1);
+                    xtimer_usleep(50000);
                     range_tx_off();
                     _set_channel(old_channel);
                     DEBUG("Switching from channel %d to %d\n",RSSI_LOCALIZATION_CHAN, old_channel);
