@@ -255,6 +255,12 @@ static void *_network_slave(void *arg)
 
     msg_t msg_snd, msg_rcv;
 
+    //stores the payload of incoming udp packets due to RIOT's link list structure
+    //for incoming packets. using the entire buffer length would NOT be a good 
+    //idea because you need space for other items
+    char udp_payload[HDLC_MAX_PKT_SIZE];
+    unsigned int udp_payload_size;
+
     /* initialize hdlc pkt buffer */
     char send_data[HDLC_MAX_PKT_SIZE];
     hdlc_pkt_t hdlc_snd_pkt =  { .data = send_data, .length = 0 };
@@ -287,6 +293,12 @@ static void *_network_slave(void *arg)
 
                 gnrc_rcv_pkt = msg_rcv.content.ptr;
 
+                //make a copy of the payload first
+                memcpy(udp_payload, gnrc_rcv_pkt->data, gnrc_rcv_pkt->size);
+                udp_payload_size = gnrc_rcv_pkt->size;
+
+                printf("udp_payload: %d\n", udp_payload[0]);
+
                 uart_snd_hdr.src_port = NET_SLAVE_PORT; 
                 uart_snd_hdr.dst_port = MBED_MAIN_PORT; 
                 uart_snd_hdr.pkt_type = NET_SLAVE_RECEIVE; 
@@ -308,21 +320,23 @@ static void *_network_slave(void *arg)
                 gnrc_rcv_pkt = gnrc_pktsnip_search_type(gnrc_rcv_pkt, 
                                                         GNRC_NETTYPE_UNDEF);
                 memcpy(hdlc_snd_pkt.data + UART_PKT_DATA_FIELD + (strlen(ipv6_addr) + 1), 
-                       gnrc_rcv_pkt->data, gnrc_rcv_pkt->size);
-
+                       udp_payload, udp_payload_size);
                 /* size of the hdlc packet payload will be the sum of all parts */
                 hdlc_snd_pkt.length = UART_PKT_HDR_LEN + (strlen(ipv6_addr) + 1)
-                                      + gnrc_rcv_pkt->size;
+                                      + udp_payload_size;
 
                 /* finally, send it to the hdlc thread it send it to the mbed */
                 msg_snd.type = HDLC_MSG_SND;
                 msg_snd.content.ptr = &hdlc_snd_pkt;         
-                
-                if(!msg_try_send(&msg_snd, hdlc_pid)) {
-                    xtimer_usleep(HDLC_RTRY_TIMEO_USEC);
-                }
+                printf("network_slave: packet forwarding to MBED\n");
 
-                gnrc_pktbuf_release(gnrc_rcv_pkt);
+                if(!msg_try_send(&msg_snd, hdlc_pid)) {
+                    DEBUG("network_slave: HDLC msg queue full!\n");
+                    // xtimer_usleep(HDLC_RTRY_TIMEO_USEC);
+                }
+                printf("network_slave: packet forwarding to MBED\n");
+
+                gnrc_pktbuf_release(msg_rcv.content.ptr);
                 break;
 
             case HDLC_RESP_SND_SUCC:
