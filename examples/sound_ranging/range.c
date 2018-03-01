@@ -29,10 +29,10 @@
 #define RX_TWO_PIN                    GPIO_PIN(3, 2)
 #define RX_LOGIC_PIN                    GPIO_PIN(3, 1)
 
-#define TX_PIN                        GPIO_PIN(3, 2) //for usb openmote
-//#define TX_PIN                        GPIO_PIN(3, 0) //for regular openmote
+// #define TX_PIN                        GPIO_PIN(3, 2) //for usb openmote
+#define TX_PIN                        GPIO_PIN(3, 0) //for regular openmote
 
-#define ULTRSND_TIMEOUT               99000 //usec
+#define ULTRSND_TIMEOUT               100000 //usec
 
 static range_data_t* time_diffs;
 
@@ -48,7 +48,7 @@ int range_rx(int argc, char **argv)
     gpio_rx_line_t line = (gpio_rx_line_t){RX_ONE_PIN, RX_TWO_PIN, RX_LOGIC_PIN};
 
     uint32_t maxsamps = 0;
-    uint32_t timeout = 500000;
+    uint32_t timeout = 200000;
     uint32_t num_samps = atoi(argv[1]);
     uint32_t delay = atoi(argv[2]);
     uint8_t mode = atoi(argv[3]);
@@ -104,31 +104,36 @@ int range_rx(int argc, char **argv)
         printf("Trial %d of %lu:\n", i, num_samps);
         
 
-        range_rx_init(TX_NODE_ID, thread_getpid(), line, maxsamps, mode);
+        range_rx_init(TX_NODE_ID, thread_getpid(), line, mode, maxsamps);
 
         if(xtimer_msg_receive_timeout(&msg,timeout)<0){
             DEBUG("RF ping missed\n");
-            range_rx_stop();
+            // range_rx_stop();
             continue;
         }
 
         if(msg.type == RF_RCVD){
             if(xtimer_msg_receive_timeout(&msg, ULTRSND_TIMEOUT) < 0){
                 DEBUG("Ultrsnd ping missed\n");
-                range_rx_stop();
+                // range_rx_stop();
                 continue;
             }
             if(msg.type == ULTRSND_RCVD){
                 time_diffs = (range_data_t*) msg.content.ptr;
             } else{
-                range_rx_stop();
+                // range_rx_stop();
                 i--;
                 continue;
             }
 
         }
+        if(time_diffs->status == 21){
+            DEBUG("Ultrsnd ping missed\n");
+        }
+        else{
+            printf("range: TDoA = %u\n", time_diffs->tdoa);
+        }
         
-        printf("range: TDoA = %d\n", time_diffs->tdoa);
         switch (mode){
             case ONE_SENSOR_MODE:
                 break;
@@ -183,20 +188,21 @@ int range_tx(int argc, char **argv)
 
     kernel_pid_t ifs[GNRC_NETIF_NUMOF];
     size_t numof = gnrc_netif_get(ifs); 
-
+    printf("1\n");
     /* there should be only one network interface on the board */
     if (numof == 1) {
         gnrc_netapi_set(ifs[0], NETOPT_TX_POWER, 0, &tx_power, sizeof(int16_t));
     }
-
+    printf("1\n");
     /* enable output on Port D pin 3 */
     if(gpio_init(TX_PIN, GPIO_OUT) < 0) {
         DEBUG("Error initializing GPIO_PIN.\n");
         return 1;
     }
+    printf("3\n");
     // clearing output for the ultrasonic sensor
     gpio_clear(TX_PIN);
-
+    printf("4\n");
     while(true){
         range_tx_init(TX_PIN);
         // Broadcasting flag setup.
@@ -236,6 +242,8 @@ int range_tx(int argc, char **argv)
         }   
         
         range_tx_off(); //turn off just in case
+        xtimer_usleep(atoi(argv[1]));
+        
         DEBUG("RF and ultrasound pings sent\n");  
     }
     return 0;

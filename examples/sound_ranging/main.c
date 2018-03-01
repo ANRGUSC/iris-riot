@@ -84,11 +84,11 @@ int main(void)
     temp[1] = "40";
     write_voltage(2, temp);
 
-    //char *temp[2];
-    // temp[0] = "range_scan_tx";
+    // char *temp[2];
+    // temp[0] = "range_tx";
     // temp[1] = "100000";
-    // range_scan_tx(2, temp);
-    //reboot();
+    // range_tx(2, temp);
+    // reboot();
 
     shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 

@@ -8,7 +8,7 @@ import os
 import math
 
 # Default port that openmote connects to.
-port_usb = '0'
+port_usb = '1'
 
 # Boolean flag for testing quickly.
 quick = True
@@ -17,10 +17,10 @@ quick = True
 # Timed out, failed, or unknown.
 # Returns True if they exist.
 # 
-d = 2.75/12
+d = 3.5/12
 
 def tdoa_to_dist(tdoa):
-    return (tdoa -19628.977) / 885.274
+    return (tdoa -19628.977) / 885.274 + (2.5 / 12)
 
 def od_to_angle(a,b):
     
@@ -60,7 +60,8 @@ def script(port):
 
     # Rebooting node for safety.
     port.write(b'reboot\n')
-    delay = 100000
+    delay = 1
+    datalist = [()]
     
 #-----------------------------------------------------------------------------#
 #######################
@@ -86,6 +87,19 @@ def script(port):
             if mode_input == 'q':
                 quit = 1
                 break
+            if mode_input == 'save':
+                filename = raw_input("File name: ")
+                filename = filename + ".csv"
+                file = open(filename, 'w')
+                print(datalist)
+                for data in datalist:
+                    if len(data) == 2:
+                        file.write(str(data[0])+','+str(data[1])+'\n')
+                    else: 
+                        file.write(str(data[0]))
+                file.write("Pings Missed:, "+str(missed_pings))
+                file.close()
+                continue
             try:
                 mode = int(mode_input)
             except:
@@ -112,6 +126,11 @@ def script(port):
         failed_counter = 0
         tdoa_skipped = 0
         i = 0
+        j = -1
+        deadair = 0
+
+        del datalist[:]
+        datalist = []
 
         # trials = raw_input("Enter number of trials: ")
         # don't forget to cast trials to an int!
@@ -136,9 +155,17 @@ def script(port):
             # Line processing.
             while True:
                 line = port.readline()
+                if line == "":
+                    deadair += 1
+                    if deadair > 4:
+                        print("Rewriting range_rx")
+                        port.write(('range_rx %d %d %d\n' % (samp-i, delay, mode-1)).encode())
+                else:
+                    deadair = 0
 
                 # print(line)
                 # TDoA
+               
                 if b'TDoA' in line:
                     failed_counter = 0
                     words = line.split("= ")
@@ -146,18 +173,22 @@ def script(port):
                     # Formula for calculating distance, derived through past tests.
                     # print(str(i) + ": " + str((int(val)-24713.5)/892.07)) 
                     print("Trial: " + str(i) + " of " + samp_input)
+                    
                     print("TDoA: " + val)
-                    if(mode == 1):
-                        print("\n****************************")
-                        print("Dist = "+ str(tdoa_to_dist(int(val))))
-                        print("****************************\n")
-                        break
+                    datalist.append([val,0])
+                    j=j+1
+                    # if mode == 1:
+                    print("\n****************************")
+                    print("Dist = "+ str(tdoa_to_dist(int(val))))
+                    print("****************************\n")
+                    # break
                     a = int(val);
+                    i+=1
             
                 if b'OD ' in line:
                     if b'failed' in line:
                         print("\n****************************")
-                        print("Dist = "+ str(tdoa_to_dist(a)))
+                        # print("Dist = "+ str(tdoa_to_dist(a)))
                         print("OD failed")
                         print("****************************\n")
                         val = ""
@@ -176,16 +207,18 @@ def script(port):
                     print("Dist = "+ str(calc_x(a,b)))
                     print("Angle = "+ str(od_to_angle(a,b)))
                     print("****************************\n")
+                    datalist[j][1] = val
                     break
 
                 if b'All up' in line:
-                    i -= 1
                     break
 
                 if b'missed' in line:
                     failed_counter = 0
                     print("Ping missed")
                     missed_pings += 1
+                    print("Trial: " + str(i) + " of " + samp_input)
+                    i+=1
                     break
 
                 # Checking for errors.
@@ -205,9 +238,9 @@ def script(port):
                     i -= 1
                     tdoa_skipped += 1
                     break
-            i+=1
+            
             # Wait.
-            #sleep(samp_delay)
+            sleep(0.01)
 
 # End of main loop.
 #-----------------------------------------------------------------------------#

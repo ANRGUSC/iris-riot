@@ -33,6 +33,7 @@ USEMODULE += shell_commands
 USEMODULE += ps
 USEMODULE += netstats_l2
 USEMODULE += netstats_ipv6
+USEMODULE += csma_sender
 
 # Set a custom 802.15.4 channel if needed
 DEFAULT_CHANNEL ?= 26
@@ -42,6 +43,7 @@ CFLAGS += -DDEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
 # which is not needed in a production environment but helps in the
 # development process:
 CFLAGS += -DDEVELHELP
+WERROR=0
 
 # Comment this out to join RPL DODAGs even if DIOs do not contain
 # DODAG Configuration Options (see the doc for more info)
