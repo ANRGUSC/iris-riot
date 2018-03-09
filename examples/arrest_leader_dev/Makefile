@@ -4,7 +4,7 @@ APPLICATION = hdlc_sender
 # If no BOARD is found in the environment, use this default:
 BOARD ?= openmote-cc2538
 
-PROGRAMMER ?= jlink
+PROGRAMMER ?= cc2538-bsl
 
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer periph_gpio
@@ -26,6 +26,9 @@ USEMODULE += gnrc_udp
 # Additional networking modules that can be dropped if not needed
 # USEMODULE += netstats_l2
 # USEMODULE += netstats_ipv6
+
+#Require CSMA Sender Module
+USEMODULE += csma_sender
 
 # Set a custom 802.15.4 channel if needed
 DEFAULT_CHANNEL ?= 25

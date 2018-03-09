@@ -63,7 +63,7 @@
 #include "net/gnrc/udp.h"
 #include "net/gnrc/netif.h"
 #include "net/gnrc/netapi.h"
-#include "net/netdev2.h"
+#include "net/netdev.h"
 #include "periph/uart.h"
 #include "../mbed_riot/main-conf.h"
 #include "periph/adc.h"

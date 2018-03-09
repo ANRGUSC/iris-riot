@@ -2,7 +2,7 @@
 BOARD ?= openmote-cc2538
 
 # Select the app based on the subfolder name here
-APP_SELECT ?= mqtt_rmt_ctrl
+APP_SELECT ?= arrest_leader_dev
 
 PROGRAMMER ?= cc2538-bsl
 
