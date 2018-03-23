@@ -10,7 +10,7 @@ if len(sys.argv) < 2:
 else:
    ser = serial.Serial(sys.argv[1], 115200)
    ser.flushInput()
-   print 'Enter your commands below.\r\nInsert "x" to leave the application.'
+   print ("Enter your commands below.\r\nInsert 'x' to leave the application.")
    input=1
    while 1:
    # get keyboard input

@@ -69,7 +69,7 @@
 #include "periph/adc.h"
 #include "periph/gpio.h"
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 #ifndef UART_STDIO_DEV
@@ -173,196 +173,7 @@ static int _set_tx_power(uint16_t power)
     return -1; /* fail */
 }
 
-/**
- * Only supports having one netif.
- * @param  rcvr_ip        IP address of soundrf ping receiving node.
- * @param  rcvr_port      Port of soundrf ping receiving thread.
- * @param  sender_port    Port of soundrf ping sending thread.
- * @param  sender_node_id Node ID of soundrf ping sender.
- * @return                [description]
- */
-static int _soundrf_sender_rdy(ipv6_addr_t *rcvr_ip, uint16_t rcvr_port, 
-                               uint16_t sender_port, uint8_t sender_node_id)
-{
-    char buf[2] = { RANGE_RDY_FLAG, sender_node_id };
-    gnrc_pktsnip_t *payload, *udp, *ip;
 
-    payload = gnrc_pktbuf_add(NULL, &buf, 2, GNRC_NETTYPE_UNDEF);
-    if (payload == NULL) {
-        DEBUG("Error: unable to copy data to packet buffer");
-        return 1;
-    }
-
-    udp = gnrc_udp_hdr_build(payload, sender_port, rcvr_port);
-    if (udp == NULL) {
-        DEBUG("Error: unable to allocate UDP header");
-        gnrc_pktbuf_release(payload);
-        return 1;
-    }
-
-    ip = gnrc_ipv6_hdr_build(udp, NULL, rcvr_ip);
-    if (ip == NULL) {
-        DEBUG("Error: unable to allocate IPv6 header");
-        gnrc_pktbuf_release(udp);
-        return 1;
-    }
-
-    if (!gnrc_netapi_dispatch_send(GNRC_NETTYPE_UDP, GNRC_NETREG_DEMUX_CTX_ALL, ip)) {
-        DEBUG("Error: unable to locate UDP thread");
-        gnrc_pktbuf_release(ip);
-        return 1;
-    }
-
-    return 0;
-}
-
-/**
- * Only supports having one netif.
- * @param  rcvr_hwaddr     [description]
- * @param  rcvr_hwaddr_len [description]
- * @param  sender_node_id  [description]
- * @return                 [description]
- */
-static int _soundrf_send_pings(uint8_t *rcvr_hwaddr, size_t rcvr_hwaddr_len, 
-                                    uint8_t sender_node_id)
-{
-    gnrc_pktsnip_t *pkt, *hdr;
-    msg_t msg;
-    gnrc_netif_hdr_t *nethdr;
-    kernel_pid_t ifs[GNRC_NETIF_NUMOF];
-    uint8_t flags = 0x00;
-
-    /* turn off UART temporarily because of HDLC*/
-    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 0;
-    /* depending on implementation, turn off any other interrupts as needed */
-
-    char buf[3] = { RANGE_FLAG_BYTE0, RANGE_FLAG_BYTE1, sender_node_id };
-
-    size_t numof = gnrc_netif_get(ifs);
-
-    if(numof != 1) {
-        DEBUG("Error: more than 1 netif\n");
-        return -1;
-    }
-
-    pkt = gnrc_pktbuf_add(NULL, &buf, 3, GNRC_NETTYPE_UNDEF);
-    if (pkt == NULL) {
-        DEBUG("Error: unable to copy data to packet buffer");
-        return -1;
-    }
-
-    hdr = gnrc_netif_hdr_build(NULL, 0, rcvr_hwaddr, rcvr_hwaddr_len);
-    if (hdr == NULL) {
-        DEBUG("Error: packet buffer full\n");
-        gnrc_pktbuf_release(pkt);
-        return -1;
-    }
-
-    LL_PREPEND(pkt, hdr);
-    nethdr = (gnrc_netif_hdr_t *)hdr->data;
-    nethdr->flags =  flags; /* this is used mainly to differentiate bcast pkts */
-
-    if (gnrc_netapi_send(ifs[0], pkt) < 1) {
-        DEBUG("Error: unable to send\n");
-        gnrc_pktbuf_release(pkt);
-        return -1;
-    }
-
-    /* after gnrc_netapi_send(), the RF packet + sound ping should be sent when
-    the function returns. Manually reset UART to resume normal operation
-    (see CC2538's uart.c) */
-
-    UART1->cc2538_uart_ctl.CTLbits.RXE = 1;
-    UART1->cc2538_uart_ctl.CTLbits.TXE = 1;
-    UART1->cc2538_uart_ctl.CTLbits.HSE = UART_CTL_HSE_VALUE;
-    UART1->cc2538_uart_dr.ECR = 0xFF;
-    UART1->cc2538_uart_lcrh.LCRH &= ~FEN;
-    UART1->cc2538_uart_lcrh.LCRH |= FEN;
-    UART1->cc2538_uart_ctl.CTLbits.UARTEN = 1;
-
-    return 0;
-}
-
-/* This thread deals with sound ranging */
-static void *_soundrf_sender(void *arg) 
-{
-    msg_t msg;
-    uint8_t rcvr_hwaddr[MAX_ADDR_LEN];
-    size_t rcvr_hwaddr_len;
-    ipv6_addr_t soundrf_rcvr_ip;
-    gnrc_pktsnip_t *gnrc_pkt, *snip;
-    gnrc_netreg_entry_t sender_server = {NULL, ARREST_LEADER_SOUNDRF_PORT, thread_getpid()};
-
-    msg_init_queue(soundrf_sender_queue, sizeof(soundrf_sender_queue));
-    gnrc_netreg_register(GNRC_NETTYPE_UDP, &sender_server);
-
-    /* Turn off MB13XX ultrasonic sensor using the following pin */ 
-    if(gpio_init(GPIO_PA4, GPIO_OUT) < 0) {
-        DEBUG("Error initializing GPIO_PIN.\n");
-        return 1;
-    }
-    gpio_clear(GPIO_PA4);
-
-    /* max out tx power */
-    _set_tx_power(7);
-
-
-    if (ipv6_addr_from_str(&soundrf_rcvr_ip, ARREST_FOLLOWER_IPV6_ADDR) == NULL) {
-        DEBUG("Error: unable to parse destination address");
-        return NULL;
-    }
-
-    rcvr_hwaddr_len = gnrc_netif_addr_from_str(rcvr_hwaddr, sizeof(rcvr_hwaddr), 
-                                               ARREST_FOLLOWER_SHORT_HWADDR);
-
-    if (rcvr_hwaddr_len == 0) {
-        DEBUG("error: invalid address given\n");
-        return 1;
-    }
-
-    while(1)
-    {
-        msg_receive(&msg);
-
-        switch (msg.type)
-        {
-
-            case GNRC_NETAPI_MSG_TYPE_RCV:
-                gnrc_pkt = (gnrc_pktsnip_t *)msg.content.ptr;
-                snip = gnrc_pktsnip_search_type(gnrc_pkt, GNRC_NETTYPE_UNDEF);
-                if ( RANGE_REQ_FLAG == ((uint8_t *)snip->data)[0] && 
-                        ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
-                    DEBUG("Got REQ. Sending 'RDY' pkt now!\n");
-                    gnrc_pktbuf_release(gnrc_pkt);  
-                    _soundrf_sender_rdy(&soundrf_rcvr_ip, GET_SET_RANGING_THR_PORT,
-                        ARREST_LEADER_SOUNDRF_PORT, ARREST_LEADER_SOUNDRF_ID);
-                } else if ( RANGE_GO_FLAG == ((uint8_t *)snip->data)[0] && 
-                        ARREST_LEADER_SOUNDRF_ID == ((uint8_t *)snip->data)[1] ) {
-                    DEBUG("Got GO. Time to send sound/rf ping!\n");
-                    gnrc_pktbuf_release(gnrc_pkt);  
-                    range_tx_init(GPIO_PA4);
-                    _soundrf_send_pings(rcvr_hwaddr, rcvr_hwaddr_len, 
-                                        ARREST_LEADER_SOUNDRF_ID);
-                    range_tx_off();
-                    DEBUG("RF and ultrasound pings sent!\n");
-                } else {
-                    gnrc_pktbuf_release(gnrc_pkt);  
-                    DEBUG("soundrf_sender: invalid pkt!\n");
-                }
-
-                
-                break;
-            default:
-                /* error */
-                DEBUG("soundrf_sender: unknown msg_t!\n");
-                break;
-        }    
-    }
-
-    /* should be never reached */
-    DEBUG("Error: Reached Exit!");
-    return NULL;
-}
 
 int main(void)
 {
@@ -370,7 +181,7 @@ int main(void)
     gnrc_pktsnip_t *snip;
     gnrc_netif_hdr_t *hdr;
     uint8_t *dst_addr;
-    gnrc_netreg_entry_t rmt_ctrl_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, thread_getpid() };
+    gnrc_netreg_entry_t rmt_ctrl_serv = { NULL, GNRC_NETREG_DEMUX_CTX_ALL, {thread_getpid()} };
 
     msg_init_queue(main_msg_queue, 8);
 

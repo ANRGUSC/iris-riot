@@ -66,7 +66,7 @@
 #define PRINTER_PRIO        (THREAD_PRIORITY_MAIN - 1)
 
 /* for the tx, keeping debug mode enabled is probably a good idea */
-#define ENABLE_DEBUG        (1)
+#define ENABLE_DEBUG        (0)
 #include "debug.h"
 
 
