@@ -222,7 +222,12 @@ static int _send(gnrc_netdev_t *gnrc_netdev, gnrc_pktsnip_t *pkt)
             gnrc_netdev->dev->stats.tx_unicast_count++;
         }
 #endif
+
+#ifdef MODULE_CSMA_SENDER
         res = csma_sender_csma_ca_send(netdev, vector, n, NULL);
+#else
+        res = netdev->driver->send(netdev, vector, n);
+#endif
 
     }
     else {
