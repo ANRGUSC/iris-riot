@@ -26,7 +26,6 @@
 #include "net/gnrc.h"
 #include "net/gnrc/nettype.h"
 #include "net/netdev.h"
-#include "periph/gpio.h"
 
 #include "net/gnrc/netdev.h"
 #include "net/ethernet/hdr.h"
@@ -41,11 +40,13 @@
 #define NETDEV_NETAPI_MSG_QUEUE_SIZE 8
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt);
-static void _sound_ranging(int8_t node_id);
 
-/* sound ranging */
-#include "periph/adc.h"
+
+#ifdef RANGE_ENABLE /* code for ranging */
+#include "periph/gpio.h"
 #include "xtimer.h"
+#include "periph/adc.h"
+
 static int sample1;
 static int sample2;
 static int8_t _tx_node_id      = 0;
@@ -59,6 +60,9 @@ static int range_max_iter;
 static uint32_t last            = 0;
 static uint32_t last2           = 0;
 static range_data_t time_diffs = {0,0,0,0};
+
+static void _sound_ranging(int8_t node_id);
+#endif /* RANGE_ENABLE */
 
 /**
  * @brief   Function called by the device driver on device events
@@ -85,6 +89,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                 {
                     gnrc_pktsnip_t *pkt = gnrc_netdev->recv(gnrc_netdev);
 
+#ifdef RANGE_ENABLE
                     /* first, check if it's a ranging packet */
                     if(ranging_on)
                     {
@@ -99,6 +104,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
                             }
                         }
                     }
+#endif
 
                     if (pkt) {
                         _pass_on_packet(pkt);
@@ -120,6 +126,7 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
     }
 }
 
+#ifdef RANGE_ENABLE
 
 static void _sound_ranging(int8_t node_id)
 {
@@ -224,6 +231,8 @@ static void _sound_ranging(int8_t node_id)
         range_rx_stop_n_send();
     }
 }
+
+#endif /* RANGE_ENABLE */
 
 static void _pass_on_packet(gnrc_pktsnip_t *pkt)
 {
@@ -338,6 +347,8 @@ kernel_pid_t gnrc_netdev_init(char *stack, int stacksize, char priority,
     return res;
 }
 
+
+#ifdef RANGE_ENABLE
 /* Successful ranging will immediately turn off ranging mode. */
 void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode, int max_iter)
 {
@@ -369,3 +380,5 @@ void range_rx_stop(void)
     //puts("stopped");
     ranging_on = 0;
 }
+#endif /* RANGE_ENABLE */
+

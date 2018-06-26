@@ -12,6 +12,7 @@ RIOTBASE ?= $(CURDIR)/../..
 #LINKFLAGS += -u _printf_float
 #USEMODULE += printf_float
 FEATURES_REQUIRED += periph_gpio periph_timer
+CFLAGS += -DRANGE_ENABLE
 
 # Include packages that pull up and auto-init the link layer.
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
