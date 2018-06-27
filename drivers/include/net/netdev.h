@@ -235,6 +235,8 @@ typedef struct netdev_driver {
                void *value, size_t value_len);
 } netdev_driver_t;
 
+#ifdef RANGE_ENABLE
+
 #define RANGE_FLAG_BYTE0 0x72 /* == 'r' */
 #define RANGE_FLAG_BYTE1 0x67 /* == 'g' */
 #define RANGE_RX_COMPLETE   1
@@ -343,6 +345,8 @@ void range_tx_init(unsigned int ranger_gpio_pin);
  * Not thread safe.
  */
 void range_tx_off(void);
+
+#endif /* RANGE_ENABLE */
 
 #ifdef __cplusplus
 }

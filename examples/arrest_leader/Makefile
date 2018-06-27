@@ -6,6 +6,7 @@ BOARD ?= openmote-cc2538
 
 PROGRAMMER ?= jlink
 
+CFLAGS += -DRANGE_ENABLE
 USEMODULE += xtimer
 FEATURES_REQUIRED += periph_timer periph_gpio
 

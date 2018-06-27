@@ -20,6 +20,10 @@ APPLICATION = $(shell basename $(APP_SELECT))
 # add top directory of this example into include path
 INCLUDES += -I$(CURDIR)
 
+# This is a pseudo module which must be enabled in order to enable the ranging
+# code inside the netdev code.
+CFLAGS += -DRANGE_ENABLE
+
 # Include packages that pull up and auto-init the link layer.
 # NOTE: 6LoWPAN will be included if IEEE802.15.4 devices are present
 USEMODULE += gnrc_netdev_default
