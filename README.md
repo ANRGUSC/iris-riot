@@ -1,77 +1,16 @@
-# USC ANRG 
+# Intelligent Robotic Internet of things teStbed (IRIS) - RIOT-OS
 
-This repository holds RIOT-OS that ANRG is using for the wireless robotic 
-testbed. Please do NOT ever work on the `master` and `develop` branches. 
-Create feature branches from the `develop` branch and merge your feature branch
-into `develop` when it has been reviewed by another member in the project 
-(please try to use a Gitlab Merge Request). `master` will serve as a mirror 
-of the RIOT-OS public repo (advanced: this can also be used to manage your
-GitHub fork of RIOT-OS in the same local directory).
+All RIOT-OS related application code for the IRIS testbed can be found here. If 
+you would like to request more documentation or features, please open a Github 
+issue. The IRIS testbed is a fully open source testbed, and we welcome 
+contributors through Github's pull request system!
 
-## Managing Updates from RIOT's Github Repository
+## Updates from RIOT's Github Repository
 
-This repository's maintainer (currently Jason Tran) will periodically `rebase`
-updates from [RIOT's master branch on github] (https://github.com/RIOT-OS/RIOT) 
-into this repo's master branch instead of `merge` becuase a `merge` will show up as a 
-`commit` which will pollute the history of our repo. The maintainer shall then `rebase` the 
-`develop` branch onto `master`. If things get messy, the updates in `master` can be 
-merged into `develop` to avoid messy conflict resolutions. To update your 
-branch, jump to the next section for instructions on how to rebase your branch 
-with respect to origin/master. This workflow has been adopted from [here] 
-(http://stackoverflow.com/questions/7244321/how-to-update-a-github-forked-repository).
+The maintainers will periodically `rebase` updates from 
+[RIOT's master branch on github](https://github.com/RIOT-OS/RIOT) into this 
+repository when new features or fixes are needed.
 
-`git remote add upstream https://github.com/RIOT-OS/RIOT`
-
-`git fetch upstream`
-
-`git checkout master`
-
-`git rebase upstream/master`
-
-`git checkout develop`
-
-`git rebase master`
-
-The last line can be `git merge master` if conflict resolution is too messy 
-(note this will add a commit). Once any conflicts are resolved from a `rebase`
-or `merge` resolve any conflicts and push the changes to the Gitlab repo.
-
-## Updating Feature Branches with Changes to `develop`
-#### (REQUIRED before pushing new features into the master branch)
-
-If you are ready to push a new feature to the `develop` branch or want to simply update 
-your feature branch, use this git workflow guideline which uses `rebase`.
-To understand the difference between a merging-based workflow vs. rebasing-based
-workflow, read [this] 
-(https://www.atlassian.com/git/tutorials/merging-vs-rebasing/conceptual-overview)
-
-`git checkout your_working_branch`
-
-`git rebase origin/master`
-
-You may run into conflicts. If so, please [resolve] 
-(https://help.github.com/articles/resolving-a-merge-conflict-from-the-command-line/)
-them. When you are done, you can push your changes to the Gitlab repository. 
-Note that you might have to `git push --force` (make sure you know what you are
-doing). Please know what you're doing before a `rebase`. If you are having 
-difficulties, ask around for help.
-
-## Merging Your Feature Branch to the `develop` Branch
-
-When you have rebased your branch with updates to `develop` and tested to see if
-your features work with the updates, you are ready to merge your feature branch
-into `develop`. This can simply be done using Gitlab's "Merge Request" feature
-on the web. Add a new merge request and assign it to another team member for 
-review. If you want to merge updates to `develop` manually, try this:
-
-`git checkout develop`
-
-`git pull #update your local clone of origin/develop`
-
-`git merge your_working_branch`
-
-Resolve any conflicts. If everything looks good, go ahead and `git push` to 
-update `origin/develop`.
 
 ## (END OF USC ANRG)
                           ZZZZZZ
