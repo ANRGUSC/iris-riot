@@ -1,16 +1,21 @@
 # Intelligent Robotic Internet of things teStbed (IRIS) - RIOT-OS
 
-All RIOT-OS related application code for the IRIS testbed can be found here. If 
-you would like to request more documentation or features, please open a Github 
-issue. The IRIS testbed is a fully open source testbed, and we welcome 
-contributors through Github's pull request system!
+All RIOT-OS related application code for the IRIS testbed can be found here. 
+This repository is a fork of the main RIOT-OS repository, but has since diverged
+a little. If you would like to request more documentation or features, please 
+open a Github issue. The IRIS testbed is a fully open source testbed, and we 
+welcome contributors through Github's pull request system. Thanks for stopping 
+by!
+
+## IRIS Testbed Code
+
+IRIS Testbed code can be found in the examples/iris_tesbed directory.
 
 ## Updates from RIOT's Github Repository
 
 The maintainers will periodically `rebase` updates from 
 [RIOT's master branch on github](https://github.com/RIOT-OS/RIOT) into this 
 repository when new features or fixes are needed.
-
 
 ## (END OF USC ANRG)
                           ZZZZZZ
