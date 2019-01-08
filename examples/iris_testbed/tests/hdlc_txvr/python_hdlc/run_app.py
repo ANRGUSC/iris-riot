@@ -7,7 +7,7 @@ import queue
 from sys import stdout, stderr
 #nooob#from hdlc_nooob import hdlc_entry, hdlc_register, hdlc_unregister, hdlcmsg, HDLCMT
 from hdlc import hdlc, hdlc_entry, hdlcmsg, HDLCMT, HDLC_RTRY_TIMEO_USEC
-
+from time import time, sleep
 from struct import *
 # random generating letters
 import string, random
@@ -54,7 +54,7 @@ class AppThread: #(threading.Thread): use thread obj instead
 	def __init__(self, appnum=0, port=0, frame_no=0, hdlcthr=None): # since mutex is shared between thr, so we pass it in
 		self.appnum = appnum
 		self.port = port
-		self.frame_no = frame_no
+		self.frame_no = frame_no # frame_no just means the numbers of frame sent/received by this thread (diff from seq no)
 		self.rbox = queue.Queue()
 		self.tbox = queue.Queue()
 		self.mutex = threading.Lock() # 
@@ -93,8 +93,8 @@ class AppThread: #(threading.Thread): use thread obj instead
 		while True:
 			# can call other function/method to generate data including header to hdlc mailbox
 			randstr = ''.join(random.sample(list(string.printable), 59))
-			#print ("App tx thread %d gens %s\n" % (threading.get_ident(), randstr)) # debug
-			bytesobj = pack('HHN59s', self.port, self.port, self.appnum, randstr.encode('ascii'))
+			print ("App tx thread %d gens %s\n" % (threading.get_ident(), randstr)) # debug
+			bytesobj = pack('HHB59s', self.port, self.port, self.appnum, randstr.encode('ascii'))
 			mail = hdlcmsg(HDLCMT.HDLC_MSG_SND, bytesobj, threading.get_ident(), self.tbox)
 			try:
 				self.hdlcthr.get_outbox().put(mail, block=False)
@@ -112,16 +112,16 @@ class AppThread: #(threading.Thread): use thread obj instead
 			mail = self.tbox.get(block=True) # if we have nothing to send, we wait
 			if mail.type == HDLCMT.HDLC_RESP_SND_SUCC:
 				with self.mutex:
+					#print ("app thread id %d: frame_no %d is an ACK!\n" % (threading.get_ident(), self.frame_no))
 					self.frame_no += 1
-				print ("app thread id %d: frame_no %d was successfully sent & acked!\n" % (threading.get_ident(), frame_no))
 
 			elif mail.type == HDLCMT.HDLC_RESP_RETRY_W_TIMEO:
-					time.sleep(HDLC_RTRY_TIMEO_USEC/1000000) 
-				#with self.mutex: Queue will take care of the synchronization
-					print("app thread id %d: retry frame_no %d\n" % (threading.get_ident(), frame_no))
+					sleep(HDLC_RTRY_TIMEO_USEC/1000000) 
+					with self.mutex: 
+						print("app thread id %d: retry frame_no %d\n" % (threading.get_ident(), self.frame_no))
 					# retry message will be put in both tx thr mailbox & hdlc tx mailbox
 					#bytesobj = pack('I', HDLC_RTRY_TIMEO_USEC) # since we identify the mail by time, don't pack it
-					newMail4app = hdlcmsg(HDLCMT.HDLC_RESP_RETRY_W_TIMEO, HDLC_RTRY_TIMEO_USEC, threading.get_ident(), self.tbox) 
+					newMail4app = hdlcmsg(HDLCMT.HDLC_RESP_RETRY_W_TIMEO, mail.msg, threading.get_ident(), self.tbox) 
 					try: 
 						self.tbox.put(newMail4app, block=False) 
 					except queue.Full as e:
@@ -138,6 +138,9 @@ class AppThread: #(threading.Thread): use thread obj instead
 						self.frame_no += 1
 			else:
 				print ("Unknown mail type in app thread id %d tx mailbox - skipped\n" % threading.get_ident())
+				with self.mutex:						
+					self.frame_no += 1
+			sleep(0.1) # sleep for 0.1s
 
 	def rxrun(self):
 #		with self.mutex:
@@ -147,9 +150,11 @@ class AppThread: #(threading.Thread): use thread obj instead
 			mail = self.rbox.get(block=True) # if we have nothing to recv, we wait
 			if mail.type == HDLCMT.HDLC_PKT_RDY:
 # extract header # in C, header data structure is copied which contains type info
-				ptk_type = mail.msg
-				src_port, dst_port, pkt_type, msgstr = unpack('HHN59s', mail.msg)
-				if ptk_type == self.appnum:
+				#pkt_type = mail.msg
+				src_port, dst_port, pkt_type, msgstrenc = unpack('HHB59s', mail.msg)
+				msgstr = msgstrenc.decode('ascii')
+
+				if pkt_type == self.appnum:
 					with self.mutex:
 						self.frame_no += 1
 					print ("App thread id %d receives pkt %s\n" % (threading.get_ident(), msgstr))
