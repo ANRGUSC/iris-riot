@@ -1,21 +1,16 @@
-#import _thread, time
 import threading # for oob
 from enum import Enum
 from yahdlc import *
 import serial
 import queue
 from sys import stdout, stderr
-#nooob#from hdlc_nooob import hdlc_entry, hdlc_register, hdlc_unregister, hdlcmsg, HDLCMT
-from hdlc import hdlc, hdlc_entry, hdlcmsg, HDLCMT, HDLC_RTRY_TIMEO_USEC
+from HDLC import HDLC, HDLCEntry, HDLCMsg, HDLCMT, HDLC_RTRY_TIMEO_USEC
 from time import time, sleep
 from struct import *
 # random generating letters
 import string, random
-# global vars
-#MAIN_THR_PORT =  1234
-#THREAD2_PORT  =  5678
-#PKT_FROM_MAIN_THR =  0
-#PKT_FROM_THREAD2  =  1
+
+#  A reminder of C implementation hdlc packet
 #  hdlc_pkt_t contains a pointer to char and length
 # 			copy send_hdr to the beginning of pkt.data
 #        uart_pkt_insert_hdr(pkt.data, HDLC_MAX_PKT_SIZE, &send_hdr); 
@@ -27,14 +22,6 @@ import string, random
 #
 #        pkt.length = HDLC_MAX_PKT_SIZE; # HDLC_MAX_PKT_SIZE = 64, UART_PKT_DATA_FIELD = 5 
 
-# value of TIMEO #define HDLC_RTRY_TIMEO_USEC        200000
-# check typo # 287 - 288 in main.cpp - seems to be ok  
-
-#  hdlc_pkt_t contains a pointer to char and length
-#  hdlc_pkt_t pkt; // dw comment: for other threads to pass to hdlc thread via IPC
-
-#  pkt.data = send_data;
-#  pkt.length = 0; # init
 
 #  hdlc_buf_t contains control, pointer to char, length
 #  hdlc_buf_t *buf; // dw comment: for the hdlc packets
@@ -48,71 +35,51 @@ import string, random
 #                            recv_data[UART_PKT_DATA_FIELD], recv_hdr.dst_port);
 #                        }
 
-class AppThread: #(threading.Thread): use thread obj instead
-#	APPCOUNT = 0
-	#nooob#def __init__(self, appnum=0, port=0, frame_no=0, mutex=None):
-	def __init__(self, appnum=0, port=0, frame_no=0, hdlcthr=None): # since mutex is shared between thr, so we pass it in
-		self.appnum = appnum
+class AppThread: 
+	def __init__(self, app_num=0, port=0, frame_no=0, hdlc_thr=None): 
+		self.app_num = app_num
 		self.port = port
 		self.frame_no = frame_no # frame_no just means the numbers of frame sent/received by this thread (diff from seq no)
 		self.rbox = queue.Queue()
 		self.tbox = queue.Queue()
 		self.mutex = threading.Lock() # 
-		#self.mutex = mutex 
-		#self.isRunning = 1
-#		APPCOUNT += 1
-		self.txthr = threading.Thread(target=self.txrun) 
-		self.rxthr = threading.Thread(target=self.rxrun)
-		# create an entry to register to hdlc 
-		#entry = hdlc_entry(port, self.rbox, self.tbox)
-		#self.hdlc_reg = hdlc_reg
-		#self.hdlc_reg.hdlc_register(entry)
-		#nooob#hdlc_register(entry)
-		# generate data?
-		#self.txthr.start()
-		#self.rxthr.start()
-		#self.txthr.join()
-		#self.rxthr.join()
-		self.isRunning = 0
-		self.hdlcthr = hdlcthr
+		self.tx_thr = threading.Thread(target=self.txrun) 
+		self.rx_thr = threading.Thread(target=self.rxrun)
+		self.is_running = 0
+		self.hdlc_thr = hdlc_thr
 
-	def apprun(self, hdlcthr):
-		self.isRunning = 1
-		if self.hdlcthr == None:
-			self.hdlcthr = hdlcthr
-		entry = hdlc_entry(self.port, self.rbox, self.tbox)
-		self.hdlcthr.hdlc_register(entry)
-		self.txthr.start()
-		self.rxthr.start()
-		#self.txthr.join()
-		#self.rxthr.join()
+	def apprun(self, hdlc_thr):
+		self.is_running = 1
+		if self.hdlc_thr == None:
+			self.hdlc_thr = hdlc_thr
+		entry = HDLCEntry(self.port, self.rbox, self.tbox)
+		self.hdlc_thr.hdlc_register(entry)
+		self.tx_thr.start()
+		self.rx_thr.start()
 
 	def txrun(self):
-		#with self.mutex:
 		print ("App thread %d tx starts running\n" % threading.get_ident())
 		while True:
-			# can call other function/method to generate data including header to hdlc mailbox
+			# Here is just an ex. Can call other function/method to generate data including header to hdlc mailbox
 			randstr = ''.join(random.sample(list(string.printable), 59))
 			print ("App tx thread %d gens %s\n" % (threading.get_ident(), randstr)) # debug
-			bytesobj = pack('HHB59s', self.port, self.port, self.appnum, randstr.encode('ascii'))
-			mail = hdlcmsg(HDLCMT.HDLC_MSG_SND, bytesobj, threading.get_ident(), self.tbox)
+			bytesobj = pack('HHB59s', self.port, self.port, self.app_num, randstr.encode('ascii'))
+			mail = HDLCMsg(HDLCMT.HDLC_MSG_SND, bytesobj, threading.get_ident(), self.tbox)
 			try:
-				self.hdlcthr.get_outbox().put(mail, block=False)
+				self.hdlc_thr.get_outbox().put(mail, block=False)
 			except queue.Full as e:
 				print ("hdlc's tx mailbox is full!\n")
 				exit(0)
 			#debug
-			if self.hdlcthr.get_outbox().empty():
+			if self.hdlc_thr.get_outbox().empty():
 				print ("hdlc's tx mailbox is still empty!")
 			
-			#print ("App tx thread %d gens %s\n" % (threading.get_ident(), randstr)) # debug
 			# get message
 			print ("App tx thread %d checking tbox\n" % (threading.get_ident())) # debug
 			#debug end
 			mail = self.tbox.get(block=True) # if we have nothing to send, we wait
 			if mail.type == HDLCMT.HDLC_RESP_SND_SUCC:
 				with self.mutex:
-					#print ("app thread id %d: frame_no %d is an ACK!\n" % (threading.get_ident(), self.frame_no))
 					self.frame_no += 1
 
 			elif mail.type == HDLCMT.HDLC_RESP_RETRY_W_TIMEO:
@@ -120,17 +87,16 @@ class AppThread: #(threading.Thread): use thread obj instead
 					with self.mutex: 
 						print("app thread id %d: retry frame_no %d\n" % (threading.get_ident(), self.frame_no))
 					# retry message will be put in both tx thr mailbox & hdlc tx mailbox
-					#bytesobj = pack('I', HDLC_RTRY_TIMEO_USEC) # since we identify the mail by time, don't pack it
-					newMail4app = hdlcmsg(HDLCMT.HDLC_RESP_RETRY_W_TIMEO, mail.msg, threading.get_ident(), self.tbox) 
+					newMail4app = HDLCMsg(HDLCMT.HDLC_RESP_RETRY_W_TIMEO, mail.msg, threading.get_ident(), self.tbox) 
 					try: 
 						self.tbox.put(newMail4app, block=False) 
 					except queue.Full as e:
 						print ("app thread id %d's tx mailbox is full!\n" % threading.get_ident())
 						exit(0)
 					# mail was already in tbox, so no additional encoding required
-					newMail4hdlc = hdlcmsg(HDLCMT.HDLC_MSG_SND, mail.msg, threading.get_ident(), self.tbox) # TODO: review timeout
+					newMail4hdlc = HDLCMsg(HDLCMT.HDLC_MSG_SND, mail.msg, threading.get_ident(), self.tbox) 
 					try: 
-						self.hdlcthr.get_outbox().put(newMail4hdlc, block=False) 
+						self.hdlc_thr.get_outbox().put(newMail4hdlc, block=False) 
 					except queue.Full as e:
 						print ("hdlc's tx mailbox is full!\n")
 						exit(0)
@@ -143,23 +109,20 @@ class AppThread: #(threading.Thread): use thread obj instead
 			sleep(0.1) # sleep for 0.1s
 
 	def rxrun(self):
-#		with self.mutex:
 		print ("App thread %d rx starts running\n" % threading.get_ident())
 		while True:
 			print ("App rx thread %d checking rbox\n" % (threading.get_ident())) # debug
 			mail = self.rbox.get(block=True) # if we have nothing to recv, we wait
 			if mail.type == HDLCMT.HDLC_PKT_RDY:
 # extract header # in C, header data structure is copied which contains type info
-				#pkt_type = mail.msg
 				src_port, dst_port, pkt_type, msgstrenc = unpack('HHB59s', mail.msg)
 				msgstr = msgstrenc.decode('ascii')
 
-				if pkt_type == self.appnum:
+				if pkt_type == self.app_num:
 					with self.mutex:
 						self.frame_no += 1
 					print ("App thread id %d receives pkt %s\n" % (threading.get_ident(), msgstr))
 
-#	def send2hdlc(self, data): # data will need to include header info yet		
 
 	def get_tbox(self):
 		return self.tbox
@@ -168,16 +131,10 @@ class AppThread: #(threading.Thread): use thread obj instead
 		return self.rbox
 
 	def __del__(self):
-		if (self.hdlcthr != None):
-			entry = hdlc_entry(self.port, self.rbox, self.tbox)
-			self.hdlcthr.hdlc_unregister(entry)
-		#nooob#hdlc_unregister(entry)
-# python doesn't like it		
-#		if self.txthr != None:
-#			self.txthr.join()
-#		if self.rxthr != None:
-#			self.rxthr.join()
-		self.isRunning = 0
+		if (self.hdlc_thr != None):
+			entry = HDLCEntry(self.port, self.rbox, self.tbox)
+			self.hdlc_thr.hdlc_unregister(entry)
+		self.is_running = 0
 
 					
 

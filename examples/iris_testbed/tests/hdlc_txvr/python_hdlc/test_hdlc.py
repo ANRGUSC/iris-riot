@@ -1,8 +1,7 @@
 import os
 from run_app import *
 import threading
-#from hdlc_nooob import hdlc_tx, hdlc_rx
-from hdlc import hdlc
+from HDLC import HDLC
 MAIN_THR_PORT =  1234
 THREAD2_PORT  =  5678
 PKT_FROM_MAIN_THR =  0
@@ -10,38 +9,25 @@ PKT_FROM_THREAD2  =  1
 
 thr1_port = MAIN_THR_PORT
 thr2_port = THREAD2_PORT 
-appnum1 = PKT_FROM_MAIN_THR
-appnum2 = PKT_FROM_THREAD2
+app_num1 = PKT_FROM_MAIN_THR
+app_num2 = PKT_FROM_THREAD2
 
 thr1_frame_no = 0
 thr2_frame_no = 0
-#stdoutmutex = threading.Lock() # for printing to stdout only
-#hdlcmutex = threading.Lock()
+thr1 = AppThread(app_num1, thr1_port, thr1_frame_no)
+thr2 = AppThread(app_num2, thr2_port, thr2_frame_no)
 
-#hdlc_reg = []
-
-#thr1 = AppThread(appnum1, thr1_port, thr1_frame_no, stdoutmutex)
-#thr2 = AppThread(appnum2, thr2_port, thr2_frame_no, stdoutmutex)
-thr1 = AppThread(appnum1, thr1_port, thr1_frame_no)
-thr2 = AppThread(appnum2, thr2_port, thr2_frame_no)
-
-#entry1 = hdlc_entry(thr1_port, thr1.get_rbox(), thr1.get_tbox())
-#entry2 = hdlc_entry(thr2_port, thr2.get_rbox(), thr2.get_tbox())
-
-# can done it here
-# tmp for pipe 12/1 # hdlctxthr = threading.Thread(target=hdlc.hdlc_tx)		
-# tmp for pipe 12/1 # hdlcrxthr = threading.Thread(target=hdlc.hdlc_rx)		
 # sender for parent
 sertx = serial.Serial()
 sertx.port = '/dev/pts/19'
 sertx.baudrate = 9600
-sertx.timeout = 0
+sertx.timeout = 0 # non blocking
 
 # receive for parent
 serrx = serial.Serial()
 serrx.port = '/dev/pts/20'
 serrx.baudrate = 9600
-serrx.timeout = 0
+serrx.timeout = 0 # non blocking
 try:
 	sertx.open()
 except serial.serialutil.SerialException as e:
@@ -53,58 +39,21 @@ try:
 except serial.serialutil.SerialException as e:
 	print('[x] Serial rx connection problem : {0}\n'.format(e))
 	exit(1)
-#p1pipein, p1pipeout = os.pipe()
-#p2pipein, p2pipeout = os.pipe()
 
 childid = os.fork()
 if childid != 0 :
-# parent proc1
+# parent process
 	print ("Parent process %d running..." % os.getpid())
-	# for pipe #os.close(p1pipein)  # proc1 will write to p1pipeout
-	# for pipe #os.close(p2pipeout) # proc1 will read from p2pipein
-	# for pipe #p1pipeout = os.fdopen(p1pipeout, 'w')
-	# for pipe #p2pipein  = os.fdopen(p2pipein, 'r')
-	#nooob#hdlctxthr1 = threading.Thread(target=hdlc_tx, args=(p1pipeout,))
-	#nooob#hdlcrxthr1 = threading.Thread(target=hdlc_rx, args=(p2pipein,))
-
-	#nooob#hdlctxthr1.start()
-	#nooob#hdlcrxthr1.start()
-	
-	# for pipe #hdlcthr = hdlc(0, 0, p2pipein, p1pipeout)
-	hdlcthr = hdlc(0, 0, sertx, serrx)
-	#hdlcthr.hdlc_register(entry1)	
-	#hdlcthr.hdlc_register(entry2)	
-	hdlcthr.hdlc_run()
-	thr1.apprun(hdlcthr)
-	thr2.apprun(hdlcthr)
-	#nooob#hdlctxthr1.join()
-	#nooob#hdlcrxthr1.join()
-	#thr1.join()
-	#thr2.join()
-#	while thr1.isRunning or thr2.isRunning:
-#		pass
+	hdlc_thr = HDLC(0, 0, sertx, serrx)
+	hdlc_thr.hdlc_run()
+	thr1.apprun(hdlc_thr)
+	thr2.apprun(hdlc_thr)
 else:
+# child process
 	print ("Child process %d running..." % os.getpid())
-	# for pipe #os.close(p2pipein)  # proc2 will read from p1pipein
-	# for pipe #os.close(p1pipeout) # proc2 will write to p2pipeout
-	# for pipe #p2pipeout = os.fdopen(p2pipeout, 'w')
-	# for pipe #p1pipein  = os.fdopen(p1pipein, 'r')
-	#nooob#hdlctxthr2 = threading.Thread(target=hdlc_tx, args=(p2pipeout,))
-	#nooob#hdlcrxthr2 = threading.Thread(target=hdlc_rx, args=(p1pipein,))
-
-	#nooob#hdlctxthr2.start()
-	#nooob#hdlcrxthr2.start()
-	
-	# for pipe #hdlcthr = hdlc(0, 0, p1pipein, p2pipeout)
-	hdlcthr = hdlc(0, 0, serrx, sertx)
-	#hdlcthr.hdlc_register(entry1)	
-	#hdlcthr.hdlc_register(entry2)	
-	hdlcthr.hdlc_run()
-	thr1.apprun(hdlcthr)
-	thr2.apprun(hdlcthr)
-	#nooob#hdlctxthr2.join()
-	#nooob#hdlcrxthr2.join()
-	#thr1.join()
-	#thr2.join()
+	hdlc_thr = HDLC(0, 0, serrx, sertx)
+	hdlc_thr.hdlc_run()
+	thr1.apprun(hdlc_thr)
+	thr2.apprun(hdlc_thr)
 
 
