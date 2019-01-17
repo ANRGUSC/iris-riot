@@ -1,3 +1,46 @@
+""" 
+Copyright (c) 2019, Autonomous Networks Research Group. All rights reserved.
+
+Developed by:
+Autonomous Networks Research Group (ANRG)
+University of Southern California
+http://anrg.usc.edu/
+
+Contributors:
+Dennis Wang
+Jason A. Tran
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of 
+this software and associated documentation files (the "Software"), to deal with 
+the Software without restriction, including without limitation the rights to 
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so, 
+subject to the following conditions:
+
+- Redistributions of source code must retain the above copyright notice, this 
+  list of conditions and the following disclaimers.
+- Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimers in the documentation and/or 
+  other materials provided with the distribution.
+- Neither the names of Autonomous Networks Research Group, nor University of 
+  Southern California, nor the names of its contributors may be used to endorse 
+  or promote products derived from this Software without specific prior written 
+  permission.
+- A citation to the Autonomous Networks Research Group must be included in any 
+  publications benefiting from the use of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE CONTRIBUTORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE SOFTWARE.
+
+Pre-alpha implementation of HDLC protocol built on top of the simple-hdlc python
+package. This needs to be adapted to use python4yahdlc to be used for 
+communicating with an OpenMote running RIOT-OS.
+"""
+
 import threading # for oob
 from enum import Enum
 from yahdlc import *
@@ -63,6 +106,7 @@ class AppThread:
 			# Here is just an ex. Can call other function/method to generate data including header to hdlc mailbox
 			randstr = ''.join(random.sample(list(string.printable), 59))
 			print ("App tx thread %d gens %s\n" % (threading.get_ident(), randstr)) # debug
+			#TODO: set payload length via variable and base it off max pkt size
 			bytesobj = pack('HHB59s', self.port, self.port, self.app_num, randstr.encode('ascii'))
 			mail = HDLCMsg(HDLCMT.HDLC_MSG_SND, bytesobj, threading.get_ident(), self.tbox)
 			try:
