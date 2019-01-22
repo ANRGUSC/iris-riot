@@ -1,5 +1,8 @@
 # Intelligent Robotic Internet of things teStbed (IRIS) - RIOT-OS
 
+Newcomers, please start at the [ANRGUSC/iris-testbed](https://github.com/ANRGUSC/iris-testbed)
+repository!
+
 All RIOT-OS related application code for the IRIS testbed can be found here. 
 This repository is a fork of the main RIOT-OS repository, but has since diverged
 a little. If you would like to request more documentation or features, please 
