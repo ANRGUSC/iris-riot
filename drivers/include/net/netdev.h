@@ -469,6 +469,117 @@ static inline int netdev_set_notsup(netdev_t *dev, netopt_t opt,
     return -ENOTSUP;
 }
 
+/* Ranging code starts */
+#ifdef RANGE_ENABLE
+
+#define RANGE_FLAG_BYTE0 0x72 /* == 'r' */
+#define RANGE_FLAG_BYTE1 0x67 /* == 'g' */
+#define RANGE_RX_COMPLETE   1
+
+#define ONE_SENSOR_MODE       0x60 // 96
+#define TWO_SENSOR_MODE       0x61 // 97
+#define XOR_SENSOR_MODE       0x62 // 98
+#define OMNI_SENSOR_MODE      0x63 // 99
+
+#define RF_RCVD           143
+#define ULTRSND_RCVD      144
+
+#define RANGE_DATA_LEN    6
+
+#define MISSED_PIN_MASK     10 
+#define MISSED_PIN_UNMASK   13 
+
+#define RF_MISSED         20
+#define ULTRSND_MISSED    21
+#define NODE_NOT_FOUND    22
+
+/**
+ * @brief Structure holding metrics measured by ultrasound ranging
+ *
+ * This structure is supposed to hold the Time Difference of Arrival
+ * (TDoA), Orientation Differential (OD) between the TDoA of two sensors,
+ * and a flag to indicate the status of the ranging data.
+ * 
+ * 0  = not applicable to this mode
+ * 20 = RF ping missed
+ * 21 = ultrsnd ping missed
+ *
+ * It can be extended
+ */
+typedef struct __attribute__((packed)) {
+    uint16_t tdoa; /**< Time Difference of Arrival */
+    //uint16_t orient_diff; /**< Orientation Difference (of Arrival) */
+    uint8_t status; /**< status flag to indicate which pin recieved a ping first and if a pin had missed a ping */   
+    int8_t node_id; 
+} range_data_t;
+
+/**
+ * @brief Structure holding parameters for ultrasound ranging
+ *
+ * This structure is supposed to be used to send and interpret
+ * range request packets between mbed and openmote
+ *
+ * It can be extended
+ */
+typedef struct __attribute__((packed)) {
+    int8_t node_id; /**< Number of samples to take in a single call */
+    uint8_t ranging_mode; /**< Mode to range in */
+    // add more options in the future?
+} range_params_t;
+
+/**
+ * @brief Structure holding info on which pin are connected for ranging
+ *
+ * This structure is supposed to hold the information on which pins 
+ * _sound_ranging will use for each of its three modes
+ *
+ * It can be extended
+ */
+typedef struct gpio_rx_line {
+    //unsigned int one_pin; /**< gpio_t value of pin connected to sensor 1 output */
+    //unsigned int two_pin; /**< gpio_t value of pin connected to sensor 2 output */
+    //unsigned int logic_pin; /**< gpio_t value of pin connected to XOR  output of sensors 1 and 2 */
+    unsigned int omni_pin; /**< gpio_t value of pin connected to OR output of 4 sensors */
+} gpio_rx_line_t;
+
+/**
+ * @brief      { function_description }
+ *
+ * @param[in]  tx_node_id      The transmit node identifier
+ * @param[in]  pid             The pid of the calling thread
+ * @param[in]  lines           The gpio_rx_lines
+ * @param[in]  max_gpio_samps  The maximum gpio samps
+ * @param[in]  mode            The mode to range in
+ */
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode, int max_iter);
+
+/**
+ * Always call this function to stop soundranging and you do not wish to pass along the data. 
+ * Not thread safe.
+ * @return  [description]
+ */
+void range_rx_stop(void);
+
+/**
+ * Always call this function after you attempt to complete a successful sound ranging 
+ * request. Not thread safe.
+ * @return  [description]
+ */
+void range_rx_stop_n_send(void);
+
+/**
+ * Not thread safe.
+ * @param ranger_gpio_pin [description]
+ */
+void range_tx_init(unsigned int ranger_gpio_pin);
+
+/**
+ * Not thread safe.
+ */
+void range_tx_off(void);
+
+#endif /* RANGE_ENABLE */
+/* Ranging code ends */
 
 #ifdef __cplusplus
 }

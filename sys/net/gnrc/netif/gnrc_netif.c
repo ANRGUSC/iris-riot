@@ -45,6 +45,30 @@ static void _configure_netdev(netdev_t *dev);
 static void *_gnrc_netif_thread(void *args);
 static void _event_cb(netdev_t *dev, netdev_event_t event);
 
+/* Ranging code starts */
+#ifdef RANGE_ENABLE
+#include "periph/gpio.h"
+#include "xtimer.h"
+#include "periph/adc.h"
+
+static int sample1;
+static int8_t _tx_node_id      = 0;
+static gpio_rx_line_t rx_line;
+static int range_sys_flag       = 0;
+int ranging_on           = 0;
+msg_t ranging_complete;
+static int ranging_pid;
+static int range_max_iter;
+
+static uint32_t last            = 0;
+static uint32_t ultrasound_arrival = 0;
+
+static range_data_t time_diffs = {0,0,0};
+
+static void _sound_ranging(int8_t node_id);
+#endif /* RANGE_ENABLE */
+/* Ranging code ends */
+
 gnrc_netif_t *gnrc_netif_create(char *stack, int stacksize, char priority,
                                 const char *name, netdev_t *netdev,
                                 const gnrc_netif_ops_t *ops)
@@ -1412,8 +1436,26 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
         switch (event) {
             case NETDEV_EVENT_RX_COMPLETE:
                 pkt = netif->ops->recv(netif);
+
+/* Ranging code starts */
+#ifdef RANGE_ENABLE
+                    /* check if it's a ranging packet */
+                    if(ranging_on)
+                    {
+                        if(RANGE_FLAG_BYTE0 == ((uint8_t *) pkt->data)[0] && 
+                            RANGE_FLAG_BYTE1 == ((uint8_t *) pkt->data)[1])
+                        {
+                            if((_tx_node_id == -1) || (_tx_node_id == ((int8_t *) pkt->data)[2])){
+                                //printf("Ranging: RF Received, Node ID: %d\n", ((int8_t *) pkt->data)[2]);
+                                _sound_ranging(((int8_t *) pkt->data)[2]);
+                            }
+                        }
+                    }
+#endif
+/* Ranging code ends */
+
                 if (pkt) {
-                    _pass_on_packet(pkt);
+                    _pass_on_packet(pkt); // This is essential for master
                 }
                 break;
 #ifdef MODULE_NETSTATS_L2
@@ -1433,4 +1475,84 @@ static void _event_cb(netdev_t *dev, netdev_event_t event)
         }
     }
 }
+
+/* Ranging code starts */
+#ifdef RANGE_ENABLE
+static void _sound_ranging(int8_t node_id)
+{
+    unsigned old_state = irq_disable();
+    int cnt = 0;
+    int exit = 0;
+    last = xtimer_now_usec();
+
+    time_diffs.tdoa = 0;
+    time_diffs.status = 0;
+    time_diffs.node_id = node_id;
+    int successful_stop = 0;
+    unsigned int rx_line_array[] = {rx_line.omni_pin};
+    while(cnt < range_max_iter)
+    {
+        cnt++;
+        switch(range_sys_flag){
+            case OMNI_SENSOR_MODE:
+                sample1 = gpio_read(rx_line_array[0]);
+                if(sample1 != 0){
+                    ultrasound_arrival = xtimer_now_usec();
+                    time_diffs.tdoa = ultrasound_arrival - last;
+                    successful_stop = 1;
+                    exit = 1;
+                }
+                break;
+            default:
+                exit = 1;
+                break;
+        }
+
+        if(exit == 1){
+            break;
+        }
+    }
+    irq_restore(old_state);
+
+    if(successful_stop == 1){
+        range_rx_stop_n_send();
+    }
+    else{
+        time_diffs = (range_data_t) {0, ULTRSND_MISSED, node_id};
+        range_rx_stop_n_send();
+    }
+}
+
+/* Successful ranging will immediately turn off ranging mode. */
+void range_rx_init(char node_id, int pid, gpio_rx_line_t lines, int mode, int max_iter)
+{
+    range_sys_flag = mode;
+    ranging_on = 1;
+    _tx_node_id = node_id;
+    ranging_pid = pid;
+    rx_line = lines;
+    range_max_iter = max_iter;
+
+    gpio_init(rx_line.omni_pin, GPIO_IN);
+
+    DEBUG("ranging initialized!\n");
+}
+
+void range_rx_stop_n_send(void)
+{
+    range_rx_stop();
+    ranging_complete.type=ULTRSND_RCVD;
+    ranging_complete.content.ptr=&time_diffs;
+    msg_send(&ranging_complete,ranging_pid);
+
+    DEBUG("Sent ULTRSND_RCVD msg!\n");
+}
+
+void range_rx_stop(void)
+{
+    ranging_on = 0;
+}
+#endif /* RANGE_ENABLE */
+/* Ranging code ends */
+
 /** @} */

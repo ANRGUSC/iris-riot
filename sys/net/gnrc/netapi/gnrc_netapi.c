@@ -123,6 +123,7 @@ int gnrc_netapi_dispatch(gnrc_nettype_t type, uint32_t demux_ctx,
             }
 #else
             if (_gnrc_netapi_send_recv(sendto->target.pid, pkt, cmd) < 1) {
+                DEBUG("unable to dispatch the packet!\n");
                 /* unable to dispatch packet */
                 gnrc_pktbuf_release(pkt);
             }

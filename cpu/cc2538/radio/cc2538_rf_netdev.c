@@ -18,7 +18,7 @@
  *
  * @}
  */
-
+    
 #include <errno.h>
 
 #include "net/gnrc.h"
@@ -30,6 +30,12 @@
 
 #define ENABLE_DEBUG        (0)
 #include "debug.h"
+
+/* Ranging code starts */
+#include "xtimer.h"
+static int ranging_on = 0; 
+static gpio_t ranging_dev_gpio_pin;
+/* Ranging code ends */
 
 /* Reference pointer for the IRQ handler */
 static netdev_t *_dev;
@@ -286,8 +292,31 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
     /* Set first byte of TX FIFO to the packet length */
     rfcore_poke_tx_fifo(0, pkt_len + CC2538_AUTOCRC_LEN);
 
-    RFCORE_SFR_RFST = ISTXON;
+    /* Ranging code starts */
+    DEBUG("Sending...");
+    if(ranging_on){
+        unsigned old_state = irq_disable();
 
+        /* this register set will immediately start TX */
+        RFCORE_SFR_RFST = ISTXON;
+
+        /* set pin to 1 for around 50uS */
+        gpio_set(ranging_dev_gpio_pin);
+
+        /* ultrasound ping should execute 20.5msec after gpio pin goes up */
+        xtimer_spin(xtimer_ticks_from_usec(500));
+
+        gpio_clear(ranging_dev_gpio_pin);
+        irq_restore(old_state);
+        ranging_on = 0;
+        DEBUG("RF and ultrasound ping sent!\n");
+    } 
+    else {
+        DEBUG("Ranging_on is not on\n");
+        RFCORE_SFR_RFST = ISTXON;
+    }
+    /* Ranging code ends */
+    
     /* Wait for transmission to complete */
     RFCORE_WAIT_UNTIL(RFCORE->XREG_FSMSTAT1bits.TX_ACTIVE == 0);
 
@@ -337,7 +366,8 @@ static int _recv(netdev_t *netdev, void *buf, size_t len, void *info)
         netdev_ieee802154_rx_info_t *radio_info = info;
         rssi_val = rfcore_read_byte() + CC2538_RSSI_OFFSET;
 
-        RFCORE_ASSERT(rssi_val > CC2538_RF_SENSITIVITY);
+        // Comment the line below to silent the warning
+        // RFCORE_ASSERT(rssi_val > CC2538_RF_SENSITIVITY);
 
         /* The number of dB above maximum sensitivity detected for the
          * received packet */
@@ -400,3 +430,20 @@ const netdev_driver_t cc2538_rf_driver = {
     .isr  = _isr,
     .init = _init,
 };
+
+/* Ranging code starts */
+/* Initialization and termination of ranging */
+void range_tx_init(unsigned int ranger_gpio_pin)
+{
+    DEBUG("range on\n");
+    ranging_on = 1;
+    DEBUG("STARTING RANGING\n");
+    ranging_dev_gpio_pin = ranger_gpio_pin;
+}
+
+void range_tx_off(void)
+{
+    DEBUG("range off\n");
+    ranging_on = 0;
+}
+/* Ranging code ends */
